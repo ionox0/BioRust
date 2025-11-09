@@ -184,7 +184,6 @@ fn get_all_model_types() -> Vec<InsectModelType> {
         // Classic models
         InsectModelType::Bee,
         InsectModelType::Beetle,
-        InsectModelType::Ladybug,
         InsectModelType::Spider,
         InsectModelType::Scorpion,
         InsectModelType::WolfSpider,

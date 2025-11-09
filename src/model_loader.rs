@@ -58,7 +58,6 @@ pub struct ModelAssets {
     // Classic models - original set of insect models
     pub bee: Handle<Scene>,
     pub beetle: Handle<Scene>,
-    pub ladybug: Handle<Scene>,
     pub spider: Handle<Scene>,
     pub scorpion: Handle<Scene>,
     pub wolf_spider: Handle<Scene>,
@@ -88,7 +87,6 @@ impl Default for ModelAssets {
             // Classic models
             bee: Handle::default(),
             beetle: Handle::default(),
-            ladybug: Handle::default(),
             spider: Handle::default(),
             scorpion: Handle::default(),
             wolf_spider: Handle::default(),
@@ -137,7 +135,6 @@ pub enum InsectModelType {
     // Classic models - original insect model set
     Bee,              // Basic bee model
     Beetle,           // Black ox beetle
-    Ladybug,          // Classic ladybug (red with spots)
     Spider,           // Small spider
     Scorpion,         // Scorpion with pincers and tail
     WolfSpider,       // Larger wolf spider variant
@@ -244,7 +241,6 @@ pub fn load_models(
     // This approach keeps the code DRY and makes it easy to add new models
     load_model_handle(&mut model_assets.bee, &asset_server, "bee");
     load_model_handle(&mut model_assets.beetle, &asset_server, "beetle");
-    load_model_handle(&mut model_assets.ladybug, &asset_server, "ladybug");
     load_model_handle(&mut model_assets.spider, &asset_server, "spider");
     load_model_handle(&mut model_assets.scorpion, &asset_server, "scorpion");
     load_model_handle(&mut model_assets.wolf_spider, &asset_server, "wolf_spider");
@@ -479,7 +475,6 @@ impl ModelAssets {
             // Classic models
             InsectModelType::Bee => self.bee.clone(),
             InsectModelType::Beetle => self.beetle.clone(),
-            InsectModelType::Ladybug => self.ladybug.clone(),
             InsectModelType::Spider => self.spider.clone(),
             InsectModelType::Scorpion => self.scorpion.clone(),
             InsectModelType::WolfSpider => self.wolf_spider.clone(),
@@ -671,7 +666,6 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::WolfSpider => WOLF_SPIDER_SCALE,      // 1.5
         InsectModelType::QueenFacedBug => QUEEN_FACED_BUG_SCALE, // 1.5
         InsectModelType::Beetle => BEETLE_SCALE,               // 1.5
-        InsectModelType::Ladybug => LADYBUG_SCALE,             // 1.5
         
         // New high-quality models - all standardized to 1.5
         InsectModelType::Meganeura => MEGANEURA_SCALE,         // 1.5

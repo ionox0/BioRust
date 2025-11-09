@@ -299,21 +299,6 @@ pub fn create_animation_clips_for_unit(
                 special: vec![],
             }
         },
-        crate::model_loader::InsectModelType::Ladybug => {
-            // Ladybug with basic movement (WARNING: Contains placeholder animations)
-            UnitAnimationClips {
-                idle: Some("LADYBUGAction".to_string()), // Only valid ladybug animation
-                walking: Some("LADYBUGAction".to_string()), // Reuse for walking
-                running: Some("LADYBUGAction".to_string()), // Reuse for running
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![
-                    // Note: Other animations in this model are placeholders (CubeAction, etc.)
-                ],
-            }
-        },
         crate::model_loader::InsectModelType::QueenFacedBug => {
             // Queen faced bug - placeholder animations for now
             UnitAnimationClips {
