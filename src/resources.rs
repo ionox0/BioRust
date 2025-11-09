@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]
 pub struct GameConfig {
-    pub gravity: f32,
     pub player_speed: f32,
-    pub jump_force: f32,
     pub enemy_spawn_rate: f32,
     pub difficulty_scaling: f32,
     pub debug_mode: bool,
@@ -14,9 +12,7 @@ pub struct GameConfig {
 impl Default for GameConfig {
     fn default() -> Self {
         Self {
-            gravity: 1300.0,  // Reduced from 980.0 for more floaty 3D feel
             player_speed: 30.0,
-            jump_force: 200.0,  // Slightly reduced jump force to match gravity
             enemy_spawn_rate: 2.0,
             difficulty_scaling: 1.1,
             debug_mode: false,

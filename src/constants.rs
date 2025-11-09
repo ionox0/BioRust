@@ -42,18 +42,18 @@ pub mod camera {
     pub const ZOOM_SPEED_HYPER_MULTIPLIER: f32 = 50.0; // Alt key multiplier
     
     // Camera look sensitivity
-    pub const LOOK_SENSITIVITY: f32 = 0.002;
+    pub const LOOK_SENSITIVITY: f32 = 0.02;
     pub const PITCH_LIMIT: f32 = 1.5;                  // Maximum pitch angle in radians
 }
 
 // === COLLISION SYSTEM ===
 pub mod collision {
     // Collision radii for different unit types - increased for better model spacing
-    pub const WORKER_ANT_COLLISION_RADIUS: f32 = 4.0;     // Increased from 2.0 for better spacing
-    pub const SOLDIER_ANT_COLLISION_RADIUS: f32 = 5.0;    // Increased from 3.0 for better spacing
-    pub const HUNTER_WASP_COLLISION_RADIUS: f32 = 4.5;    // Increased from 2.5 for better spacing
-    pub const BEETLE_KNIGHT_COLLISION_RADIUS: f32 = 6.0;  // Increased from 4.0 for better spacing
-    pub const DEFAULT_UNIT_COLLISION_RADIUS: f32 = 4.0;   // Default increased for better spacing
+    pub const WORKER_ANT_COLLISION_RADIUS: f32 = 6.0;     // Increased from 2.0 for better spacing
+    pub const SOLDIER_ANT_COLLISION_RADIUS: f32 = 7.0;    // Increased from 3.0 for better spacing
+    pub const HUNTER_WASP_COLLISION_RADIUS: f32 = 6.5;    // Increased from 2.5 for better spacing
+    pub const BEETLE_KNIGHT_COLLISION_RADIUS: f32 = 8.0;  // Increased from 4.0 for better spacing
+    pub const DEFAULT_UNIT_COLLISION_RADIUS: f32 = 10.0;   // Default increased for better spacing
     
     // Building collision radii - also increased for better spacing
     pub const NURSERY_COLLISION_RADIUS: f32 = 8.0;        // Increased for building spacing
@@ -73,7 +73,7 @@ pub mod ui {
     pub const RESOURCE_TEXT_SIZE: f32 = 16.0;
     
     // Bottom building panel
-    pub const BUILDING_PANEL_HEIGHT: f32 = 150.0;
+    pub const BUILDING_PANEL_HEIGHT: f32 = 300.0;
     pub const BUILDING_PANEL_PADDING: f32 = 10.0;
     pub const BUILDING_PANEL_BUILDINGS_WIDTH: f32 = 70.0;
     pub const BUILDING_PANEL_UNITS_WIDTH: f32 = 30.0;
@@ -85,10 +85,10 @@ pub mod ui {
     pub const BUILDING_BUTTON_TEXT_SIZE: f32 = 10.0;
     
     // Unit buttons
-    pub const UNIT_BUTTON_HEIGHT: f32 = 30.0;
+    pub const UNIT_BUTTON_HEIGHT: f32 = 10.0;
     pub const UNIT_BUTTON_BORDER: f32 = 1.0;
     pub const UNIT_BUTTON_PADDING: f32 = 5.0;
-    pub const UNIT_BUTTON_TEXT_SIZE: f32 = 12.0;
+    pub const UNIT_BUTTON_TEXT_SIZE: f32 = 8.0;
     
     // Panel titles
     pub const PANEL_TITLE_SIZE: f32 = 18.0;
@@ -154,8 +154,8 @@ pub mod models {
     
     // === INDIVIDUAL MODEL SCALES (ALL INCREASED FOR BETTER VISIBILITY) ===
     // Classic models - all increased
-    pub const SCORPION_SCALE: f32 = 2.5;           // Increased for better visibility
-    pub const BEE_SCALE: f32 = 2.5;                // Increased for better visibility
+    pub const SCORPION_SCALE: f32 = 5.5;           // Increased for better visibility
+    pub const BEE_SCALE: f32 = 0.5;                // Increased for better visibility
     pub const SPIDER_SCALE: f32 = 2.5;             // Increased for better visibility
     pub const MANTIS_SCALE: f32 = 2.5;             // Increased for better visibility
     pub const APIS_MELLIFERA_SCALE: f32 = 2.5;     // Increased for better visibility

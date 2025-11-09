@@ -191,6 +191,14 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
         (UnitType::WorkerAnt, ui_icons.worker_icon.clone(), "Worker", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
         (UnitType::SoldierAnt, ui_icons.soldier_icon.clone(), "Soldier", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST), (ResourceType::Pheromones, SOLDIER_ANT_PHEROMONES_COST)], BuildingType::WarriorChamber),
         (UnitType::HunterWasp, ui_icons.hunter_icon.clone(), "Hunter", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST), (ResourceType::Pheromones, HUNTER_WASP_PHEROMONES_COST)], BuildingType::HunterChamber),
+    
+        (UnitType::SpearMantis, ui_icons.worker_icon.clone(), "Mantis", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
+        (UnitType::ScoutAnt, ui_icons.soldier_icon.clone(), "Scout", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST), (ResourceType::Pheromones, SOLDIER_ANT_PHEROMONES_COST)], BuildingType::WarriorChamber),
+        (UnitType::SpecialOps, ui_icons.hunter_icon.clone(), "Ops", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST), (ResourceType::Pheromones, HUNTER_WASP_PHEROMONES_COST)], BuildingType::HunterChamber),
+    
+        (UnitType::BeetleKnight, ui_icons.worker_icon.clone(), "Beetle", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
+        (UnitType::BatteringBeetle, ui_icons.soldier_icon.clone(), "Battering", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST), (ResourceType::Pheromones, SOLDIER_ANT_PHEROMONES_COST)], BuildingType::WarriorChamber),
+        (UnitType::AcidSpitter, ui_icons.hunter_icon.clone(), "Acid", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST), (ResourceType::Pheromones, HUNTER_WASP_PHEROMONES_COST)], BuildingType::HunterChamber),
     ];
     
     for (unit_type, icon, name, cost, building_type) in unit_data {
@@ -305,7 +313,11 @@ fn spawn_unit_from_building(
                 commands, meshes, materials, spawn_position, 1, UnitType::HunterWasp
             );
         }
-        _ => {}
+        other => {
+            crate::combat_systems::create_combat_unit(
+                commands, meshes, materials, spawn_position, 1, other
+            );
+        }
     }
 }
 

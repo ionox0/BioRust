@@ -296,24 +296,6 @@ pub fn handle_rts_camera_input(
     if let Ok((mut camera_transform, mut rts_camera)) = camera_query.get_single_mut() {
         let dt = time.delta_secs();
         
-        // Mouse look (when right mouse button is held)
-        let mouse_look_active = mouse_buttons.pressed(MouseButton::Right);
-        if mouse_look_active {
-            for mouse_event in mouse_motion.read() {
-                // Update yaw (horizontal rotation)
-                rts_camera.yaw -= mouse_event.delta.x * rts_camera.look_sensitivity;
-                
-                // Update pitch (vertical rotation) with limits
-                rts_camera.pitch -= mouse_event.delta.y * rts_camera.look_sensitivity;
-                rts_camera.pitch = rts_camera.pitch.clamp(-crate::constants::camera::PITCH_LIMIT, crate::constants::camera::PITCH_LIMIT);
-                
-                // Apply rotation to camera transform
-                let rotation = Quat::from_axis_angle(Vec3::Y, rts_camera.yaw) 
-                    * Quat::from_axis_angle(Vec3::X, rts_camera.pitch);
-                camera_transform.rotation = rotation;
-            }
-        }
-        
         // Movement calculation based on current camera rotation
         let mut movement = Vec3::ZERO;
         
@@ -339,16 +321,6 @@ pub fn handle_rts_camera_input(
             movement += *right;
         }
         
-        // Vertical movement (only when not terrain following)
-        if !terrain_following {
-            if keyboard.pressed(KeyCode::Space) {
-                movement += up;
-            }
-            if keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ShiftLeft) {
-                movement -= up;
-            }
-        }
-        
         // Apply movement with multiple speed modes
         if movement.length() > 0.0 {
             let speed_multiplier = if keyboard.pressed(KeyCode::ControlLeft) { 0.1 }      // Very slow
@@ -370,30 +342,6 @@ pub fn handle_rts_camera_input(
                 &terrain_settings,
             );
             
-            // Sample nearby points to calculate terrain normal for camera orientation
-            let sample_distance = 10.0;
-            let height_x1 = crate::terrain_v2::sample_terrain_height(
-                current_pos.x + sample_distance, current_pos.z,
-                &terrain_manager.noise_generator, &terrain_settings,
-            );
-            let height_x2 = crate::terrain_v2::sample_terrain_height(
-                current_pos.x - sample_distance, current_pos.z,
-                &terrain_manager.noise_generator, &terrain_settings,
-            );
-            let height_z1 = crate::terrain_v2::sample_terrain_height(
-                current_pos.x, current_pos.z + sample_distance,
-                &terrain_manager.noise_generator, &terrain_settings,
-            );
-            let height_z2 = crate::terrain_v2::sample_terrain_height(
-                current_pos.x, current_pos.z - sample_distance,
-                &terrain_manager.noise_generator, &terrain_settings,
-            );
-            
-            // Calculate terrain normal
-            let dx = (height_x1 - height_x2) / (2.0 * sample_distance);
-            let dz = (height_z1 - height_z2) / (2.0 * sample_distance);
-            let terrain_normal = Vec3::new(-dx, 1.0, -dz).normalize();
-            
             // Only adjust height for terrain following if camera is within reasonable bounds
             // This allows scroll wheel zoom to work while still preventing underground camera
             let current_height_above_terrain = camera_transform.translation.y - terrain_height;
@@ -405,23 +353,6 @@ pub fn handle_rts_camera_input(
                 let target_height = terrain_height + MIN_HEIGHT_ABOVE_TERRAIN;
                 camera_transform.translation.y = target_height;
                 debug!("Terrain collision: Adjusted camera to minimum height above terrain");
-            }
-            
-            // Adjust camera orientation to follow terrain slope (very subtle effect)
-            if !mouse_look_active {
-                let terrain_tilt_strength = 0.02; // Much smaller terrain following for steeper camera
-                let terrain_pitch = -terrain_normal.x.atan2(terrain_normal.y) * terrain_tilt_strength;
-                let terrain_roll = terrain_normal.z.atan2(terrain_normal.y) * terrain_tilt_strength;
-                
-                // Apply minimal terrain-based rotation adjustment
-                let base_pitch = -0.8; // Maintain steep downward angle
-                rts_camera.pitch = base_pitch + terrain_pitch;
-                rts_camera.yaw += terrain_roll * dt * 0.5;
-                
-                // Update camera rotation
-                let rotation = Quat::from_axis_angle(Vec3::Y, rts_camera.yaw) 
-                    * Quat::from_axis_angle(Vec3::X, rts_camera.pitch);
-                camera_transform.rotation = rotation;
             }
             
             // Apply height limits when not in free flight mode

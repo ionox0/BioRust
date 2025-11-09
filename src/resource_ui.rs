@@ -45,12 +45,6 @@ pub fn setup_resource_ui(mut commands: Commands) {
             PopulationText,
         ));
         
-        // Instructions
-        parent.spawn((
-            Text::new("Controls:\n• Click to select units\n• Right-click to move/attack\n• M: Spawn Militia\n• A: Spawn Archer\n• E: Spawn Enemy\n• T: Toggle wireframe"),
-            TextFont::from_font_size(14.0),
-            TextColor(Color::srgb(0.8, 0.8, 0.8)),
-        ));
     });
     
     info!("Resource UI setup complete");

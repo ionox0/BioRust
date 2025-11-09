@@ -5,9 +5,9 @@ use crate::components::*;
 
 // === MODEL SHOWCASE CONSTANTS ===
 const MODELS_PER_ROW: usize = 9;
-const MODEL_SPACING: f32 = 20.0; // Increased spacing for larger models
-const GROUP_SIZE: usize = 3; // Number of instances per model type
-const GROUP_SPACING: f32 = 6.0; // Increased spacing between instances in a group
+const MODEL_SPACING: f32 = 100.0; // Increased spacing for larger models
+const GROUP_SIZE: usize = 9; // Number of instances per model type
+const GROUP_SPACING: f32 = 20.0; // Increased spacing between instances in a group
 const BASE_HEIGHT: f32 = 5.0; // Height above ground
 const ROW_SPACING_MULTIPLIER: f32 = 2.0; // Extra spacing between rows
 

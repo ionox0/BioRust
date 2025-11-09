@@ -54,7 +54,7 @@ impl Default for Position {
     fn default() -> Self {
         Self {
             translation: Vec3::ZERO,
-            rotation: Quat::IDENTITY,
+            rotation: Quat::from_rotation_y(180.0f32.to_radians()),
         }
     }
 }
