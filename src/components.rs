@@ -1,0 +1,455 @@
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
+
+// Removed unused old game components - using RTS components instead
+
+#[allow(dead_code)]
+#[derive(Component, Debug, Clone)]
+pub struct Animator {
+    pub current_animation: String,
+    pub timer: Timer,
+    pub frame: usize,
+}
+
+#[derive(Component)]
+pub struct MainCamera;
+
+#[derive(Component, Debug, Clone)]
+pub struct RTSCamera {
+    pub move_speed: f32,
+    #[allow(dead_code)]
+    pub zoom_speed: f32,
+    pub min_height: f32,
+    pub max_height: f32,
+    pub look_sensitivity: f32,
+    pub pitch: f32,
+    pub yaw: f32,
+}
+
+#[derive(Component)]
+pub struct UI;
+
+#[derive(Component)]
+pub struct GameEntity;
+
+// RTS-specific components
+
+#[derive(Component, Debug, Clone)]
+pub struct RTSUnit {
+    pub unit_id: u32,
+    pub player_id: u8,
+    #[allow(dead_code)]
+    pub size: f32,
+    pub unit_type: Option<UnitType>, // None for buildings
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Position {
+    pub translation: Vec3,
+    #[allow(dead_code)]
+    pub rotation: Quat,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            translation: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Movement {
+    pub max_speed: f32,
+    pub acceleration: f32,
+    pub turning_speed: f32,
+    pub current_velocity: Vec3,
+    pub target_position: Option<Vec3>,
+    #[allow(dead_code)]
+    pub path: Vec<Vec3>,
+    #[allow(dead_code)]
+    pub path_index: usize,
+}
+
+impl Default for Movement {
+    fn default() -> Self {
+        Self {
+            max_speed: 100.0,
+            acceleration: 200.0,
+            turning_speed: 3.0,
+            current_velocity: Vec3::ZERO,
+            target_position: None,
+            path: Vec::new(),
+            path_index: 0,
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct RTSHealth {
+    pub current: f32,
+    pub max: f32,
+    pub armor: f32,
+    pub regeneration_rate: f32,
+    pub last_damage_time: f32,
+}
+
+impl Default for RTSHealth {
+    fn default() -> Self {
+        Self {
+            current: 100.0,
+            max: 100.0,
+            armor: 0.0,
+            regeneration_rate: 0.5,
+            last_damage_time: 0.0,
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Combat {
+    pub attack_damage: f32,
+    pub attack_range: f32,
+    #[allow(dead_code)]
+    pub attack_speed: f32,
+    pub last_attack_time: f32,
+    pub target: Option<Entity>,
+    pub attack_type: AttackType,
+    pub attack_cooldown: f32,
+    pub is_attacking: bool,
+    pub auto_attack: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AttackType {
+    Melee,
+    Ranged,
+    Siege,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct ResourceGatherer {
+    pub gather_rate: f32,
+    pub capacity: f32,
+    pub carried_amount: f32,
+    pub resource_type: Option<ResourceType>,
+    pub target_resource: Option<Entity>,
+    pub drop_off_building: Option<Entity>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ResourceType {
+    Nectar,
+    Chitin,
+    Minerals,
+    Pheromones,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct ResourceSource {
+    pub resource_type: ResourceType,
+    pub amount: f32,
+    #[allow(dead_code)]
+    pub max_gatherers: u32,
+    #[allow(dead_code)]
+    pub current_gatherers: u32,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Building {
+    pub building_type: BuildingType,
+    pub construction_progress: f32,
+    pub max_construction: f32,
+    pub is_complete: bool,
+    pub rally_point: Option<Vec3>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum BuildingType {
+    Queen,
+    Nursery,
+    WarriorChamber,
+    HunterChamber,
+    Stable,
+    FungalGarden,
+    WoodProcessor,
+    MineralProcessor,
+    StorageChamber,
+    EvolutionChamber,
+    TradingPost,
+    ChitinWall,
+    GuardTower,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct ProductionQueue {
+    pub queue: Vec<UnitType>,
+    pub current_progress: f32,
+    pub production_time: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum UnitType {
+    WorkerAnt,
+    SoldierAnt,
+    HunterWasp,
+    BeetleKnight,
+    SpearMantis,
+    ScoutAnt,
+    BatteringBeetle,
+    AcidSpitter,
+    
+    // Additional unit types for new models
+    DragonFly,      // Flying reconnaissance unit
+    DefenderBug,    // Defensive unit
+    EliteSpider,    // Elite predator unit
+    SpecialOps,     // Special operations unit
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Selectable {
+    pub is_selected: bool,
+    pub selection_radius: f32,
+}
+
+impl Default for Selectable {
+    fn default() -> Self {
+        Self {
+            is_selected: false,
+            selection_radius: 5.0,
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Formation {
+    pub formation_type: FormationType,
+    pub position_in_formation: Vec2,
+    pub leader: Option<Entity>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FormationType {
+    Line,
+    Box,
+    Wedge,
+    Circle,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Vision {
+    pub sight_range: f32,
+    #[allow(dead_code)]
+    pub line_of_sight: bool,
+}
+
+impl Default for Vision {
+    fn default() -> Self {
+        Self {
+            sight_range: 150.0,
+            line_of_sight: true,
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Component, Debug, Clone)]
+pub struct Constructable {
+    pub building_type: BuildingType,
+    pub build_time: f32,
+    pub resource_cost: Vec<(ResourceType, f32)>,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Constructor {
+    pub build_speed: f32,
+    pub current_target: Option<Entity>,
+}
+
+#[allow(dead_code)]
+#[derive(Component, Debug, Clone)]
+pub struct Age {
+    pub current_age: GameAge,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum GameAge {
+    LarvalStage,
+    PupalStage,
+    AdultStage,
+    SwarmStage,
+}
+
+#[allow(dead_code)]
+#[derive(Component, Debug, Clone)]
+pub struct Technology {
+    pub tech_type: TechnologyType,
+    pub is_researched: bool,
+    pub research_time: f32,
+    pub research_cost: Vec<(ResourceType, f32)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum TechnologyType {
+    ChitinWeaving,
+    SharpMandibles,
+    PheromoneBoost,
+    CargoSacs,
+    SwiftLegs,
+    ColonyWatch,
+    ColonyPatrol,
+    StrongGenetics,
+    Metamorphosis,
+    ChitinForging,
+    AcidGlands,
+    VenomSacs,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct Garrison {
+    #[allow(dead_code)]
+    pub capacity: u32,
+    #[allow(dead_code)]
+    pub garrisoned_units: Vec<Entity>,
+    #[allow(dead_code)]
+    pub protection_bonus: f32,
+}
+
+#[allow(dead_code)]
+#[derive(Component, Debug, Clone)]
+pub struct Garrisonable {
+    pub size: u32,
+    pub garrisoned_in: Option<Entity>,
+}
+
+#[derive(Component)]
+pub struct SelectionIndicator {
+    pub target: Entity,
+}
+
+#[derive(Component)]
+pub struct DragSelection {
+    pub start_position: Vec2,
+    pub current_position: Vec2,
+    pub is_active: bool,
+}
+
+#[derive(Component)]
+pub struct SelectionBox;
+
+// Combat system components
+#[derive(Event, Debug)]
+pub struct DamageEvent {
+    pub damage: f32,
+    pub attacker: Entity,
+    pub target: Entity,
+    pub damage_type: DamageType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DamageType {
+    Physical,
+    Pierce,
+    Siege,
+    True,
+}
+
+#[derive(Event, Debug)]
+pub struct DeathEvent {
+    pub entity: Entity,
+    #[allow(dead_code)]
+    pub killer: Option<Entity>,
+}
+
+/// Component to mark entities that are in the process of dying
+/// This prevents duplicate death processing and race conditions
+#[derive(Component, Debug)]
+pub struct Dying;
+
+/// General entity state for game logic (separate from animation states)
+/// This tracks the high-level state of what an entity is doing
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct EntityState {
+    pub current: UnitState,
+    pub previous: UnitState,
+    pub state_timer: f32, // How long the entity has been in this state
+}
+
+impl Default for EntityState {
+    fn default() -> Self {
+        Self {
+            current: UnitState::Idle,
+            previous: UnitState::Idle,
+            state_timer: 0.0,
+        }
+    }
+}
+
+/// High-level states that entities can be in
+/// This affects AI behavior, decision making, and game logic
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnitState {
+    /// Entity is not doing anything specific
+    Idle,
+    /// Entity is moving to a target location
+    Moving,
+    /// Entity is in combat (attacking or being attacked)
+    Fighting,
+    /// Entity is gathering resources
+    Gathering,
+    /// Entity is constructing a building
+    #[allow(dead_code)]
+    Building,
+    /// Entity is dead and should be cleaned up
+    Dead,
+    /// Entity is following another entity
+    #[allow(dead_code)]
+    Following,
+    /// Entity is patrolling between waypoints
+    #[allow(dead_code)]
+    Patrolling,
+    /// Entity is guarding a specific location or entity
+    #[allow(dead_code)]
+    Guarding,
+}
+
+#[derive(Component, Debug)]
+pub struct HealthBar {
+    pub offset: Vec3,
+    #[allow(dead_code)]
+    pub size: Vec2,
+    pub always_visible: bool,
+}
+
+impl Default for HealthBar {
+    fn default() -> Self {
+        Self {
+            offset: Vec3::new(0.0, 3.0, 0.0),
+            size: Vec2::new(2.0, 0.3),
+            always_visible: false,
+        }
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct CombatStats {
+    pub kills: u32,
+    pub damage_dealt: f32,
+    pub damage_taken: f32,
+    pub experience: f32,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct CollisionRadius {
+    pub radius: f32,
+}
+
+impl Default for CollisionRadius {
+    fn default() -> Self {
+        Self {
+            radius: 2.5, // Larger default radius for GLB models with scaling
+        }
+    }
+}

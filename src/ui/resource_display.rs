@@ -1,0 +1,162 @@
+use bevy::prelude::*;
+use crate::components::*;
+use crate::ui::icons::UIIcons;
+
+#[derive(Resource, Default)]
+pub struct PlayerResources {
+    pub nectar: f32,
+    pub chitin: f32,
+    pub minerals: f32,
+    pub pheromones: f32,
+    pub population_used: u32,
+    pub population_limit: u32,
+}
+
+#[derive(Component)]
+pub struct ResourceDisplay;
+
+#[derive(Component)]
+pub struct ResourceCounter {
+    pub resource_type: ResourceType,
+}
+
+#[derive(Component)]
+pub struct PopulationCounter;
+
+pub fn setup_resource_display(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
+    use crate::constants::ui::*;
+    
+    // Top bar - Resources
+    parent.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Px(RESOURCE_BAR_HEIGHT),
+            border: UiRect::all(Val::Px(2.0)),
+            padding: UiRect::all(Val::Px(RESOURCE_BAR_PADDING)),
+            justify_content: JustifyContent::SpaceEvenly,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BackgroundColor(BACKGROUND_COLOR),
+        BorderColor(BORDER_COLOR),
+        ResourceDisplay,
+    )).with_children(|parent| {
+        // Resource counters with icons
+        create_resource_counters(parent, ui_icons);
+        create_population_counter(parent, ui_icons);
+    });
+}
+
+fn create_resource_counters(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
+    use crate::constants::ui::*;
+    
+    let resource_data = [
+        (ResourceType::Nectar, ui_icons.nectar_icon.clone()),
+        (ResourceType::Chitin, ui_icons.chitin_icon.clone()),
+        (ResourceType::Minerals, ui_icons.minerals_icon.clone()),
+        (ResourceType::Pheromones, ui_icons.pheromones_icon.clone()),
+    ];
+    
+    for (resource, icon_handle) in resource_data {
+        parent.spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(5.0),
+                ..default()
+            },
+        )).with_children(|parent| {
+            // Resource icon
+            parent.spawn((
+                ImageNode::new(icon_handle),
+                Node {
+                    width: Val::Px(24.0),
+                    height: Val::Px(24.0),
+                    ..default()
+                },
+            ));
+            // Resource text
+            parent.spawn((
+                Text::new("1000"),
+                TextFont {
+                    font_size: RESOURCE_TEXT_SIZE,
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+                ResourceCounter { resource_type: resource },
+            ));
+        });
+    }
+}
+
+fn create_population_counter(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
+    use crate::constants::ui::*;
+    
+    parent.spawn((
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(5.0),
+            ..default()
+        },
+    )).with_children(|parent| {
+        // Population icon
+        parent.spawn((
+            ImageNode::new(ui_icons.population_icon.clone()),
+            Node {
+                width: Val::Px(24.0),
+                height: Val::Px(24.0),
+                ..default()
+            },
+        ));
+        // Population text
+        parent.spawn((
+            Text::new("0/200"),
+            TextFont {
+                font_size: RESOURCE_TEXT_SIZE,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            PopulationCounter,
+        ));
+    });
+}
+
+// Sync the UI resource system with the main game resource system
+pub fn sync_player_resources(
+    main_resources: Res<crate::resources::PlayerResources>,
+    mut ui_resources: ResMut<PlayerResources>,
+) {
+    if main_resources.is_changed() {
+        ui_resources.nectar = main_resources.nectar;
+        ui_resources.chitin = main_resources.chitin;
+        ui_resources.minerals = main_resources.minerals;
+        ui_resources.pheromones = main_resources.pheromones;
+        ui_resources.population_used = main_resources.current_population;
+        ui_resources.population_limit = main_resources.max_population;
+    }
+}
+
+pub fn update_resource_display(
+    player_resources: Res<PlayerResources>,
+    mut resource_query: Query<(&ResourceCounter, &mut Text)>,
+    mut population_query: Query<&mut Text, (With<PopulationCounter>, Without<ResourceCounter>)>,
+) {
+    if !player_resources.is_changed() {
+        return;
+    }
+
+    for (counter, mut text) in resource_query.iter_mut() {
+        let amount = match counter.resource_type {
+            ResourceType::Nectar => player_resources.nectar,
+            ResourceType::Chitin => player_resources.chitin,
+            ResourceType::Minerals => player_resources.minerals,
+            ResourceType::Pheromones => player_resources.pheromones,
+        };
+        **text = format!("{:.0}", amount);
+    }
+
+    for mut text in population_query.iter_mut() {
+        **text = format!("{}/{}", player_resources.population_used, player_resources.population_limit);
+    }
+}
