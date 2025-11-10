@@ -199,7 +199,6 @@ pub mod models {
     pub const GRASS_SCALE: f32 = 50.0;              // Natural grass scale
     pub const GRASS_2_SCALE: f32 = 10.2;            // Slightly larger grass variant
     pub const HIVE_SCALE: f32 = 0.02;               // Moderate hive structure (adjusted for visibility)
-    pub const STICK_SHELTER_SCALE: f32 = 2.0;      // Medium shelter scale
     pub const WOOD_STICK_SCALE: f32 = 1.5;         // Small debris scale
     pub const SIMPLE_GRASS_CHUNKS_SCALE: f32 = 1.2; // Compact grass chunks (increased for visibility)
     

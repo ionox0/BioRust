@@ -535,8 +535,6 @@ pub enum EnvironmentObjectType {
     Grass,
     /// Hive structures for insect theme
     Hive,
-    /// Stick shelters for natural cover
-    StickShelter,
     /// Wood stick debris for natural clutter
     WoodStick,
     

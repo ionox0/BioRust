@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::animation::AnimationNodeIndex;
+// use bevy::animation::AnimationNodeIndex;
 use crate::core::components::*;
 use crate::rendering::model_loader::UseGLBModel;
 
@@ -563,7 +563,6 @@ pub fn create_animation_clips_for_unit(
         crate::rendering::model_loader::InsectModelType::Grass |
         crate::rendering::model_loader::InsectModelType::Grass2 |
         crate::rendering::model_loader::InsectModelType::Hive |
-        crate::rendering::model_loader::InsectModelType::StickShelter |
         crate::rendering::model_loader::InsectModelType::WoodStick |
         crate::rendering::model_loader::InsectModelType::SimpleGrassChunks |
         crate::rendering::model_loader::InsectModelType::CherryBlossomTree |

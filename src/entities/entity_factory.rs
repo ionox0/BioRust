@@ -379,7 +379,7 @@ impl EntityFactory {
             // All building types use the anthill model for now
             BuildingType::Queen => InsectModelType::Anthill,
             BuildingType::Nursery => InsectModelType::Anthill,
-            BuildingType::WarriorChamber => InsectModelType::Anthill,
+            BuildingType::WarriorChamber => InsectModelType::PineCone,
             BuildingType::HunterChamber => InsectModelType::Anthill,
             BuildingType::Stable => InsectModelType::Anthill,
             BuildingType::FungalGarden => InsectModelType::Anthill,

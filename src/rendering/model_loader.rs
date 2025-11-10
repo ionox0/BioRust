@@ -81,7 +81,6 @@ pub struct ModelAssets {
     pub grass: Handle<Scene>,           // Grass patches
     pub grass_2: Handle<Scene>,         // Grass variant 2
     pub hive: Handle<Scene>,            // Hive structure
-    pub stick_shelter: Handle<Scene>,   // Stick shelter
     pub wood_stick: Handle<Scene>,      // Wood stick debris
     pub simple_grass_chunks: Handle<Scene>, // Simple grass chunks
     
@@ -131,7 +130,6 @@ impl Default for ModelAssets {
             grass: Handle::default(),
             grass_2: Handle::default(),
             hive: Handle::default(),
-            stick_shelter: Handle::default(),
             wood_stick: Handle::default(),
             simple_grass_chunks: Handle::default(),
             
@@ -200,7 +198,6 @@ pub enum InsectModelType {
     Grass,            // Grass patches - ground coverage
     Grass2,           // Grass variant 2 - ground coverage
     Hive,             // Hive structure - insect habitat
-    StickShelter,     // Stick shelter - natural cover
     WoodStick,        // Wood stick debris - natural clutter
     SimpleGrassChunks, // Simple grass chunks - ground decoration
     
@@ -226,7 +223,6 @@ pub enum SceneryModelType {
     Grass,
     Grass2,
     Hive,
-    StickShelter,
     Stick,
 }
 
@@ -293,7 +289,6 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("grass", "models/objects/grass.glb#Scene0", "Grass patches"),
     ModelConfig::new("grass_2", "models/objects/grass_2.glb#Scene0", "Grass variant 2"),
     ModelConfig::new("hive", "models/objects/hive.glb#Scene0", "Hive structure"),
-    ModelConfig::new("stick_shelter", "models/objects/stick_shelter.glb#Scene0", "Stick shelter"),
     ModelConfig::new("wood_stick", "models/objects/wood_stick_03.glb#Scene0", "Wood stick debris"),
     ModelConfig::new("simple_grass_chunks", "models/objects/simple_grass_chunks.glb#Scene0", "Simple grass chunks"),
     
@@ -360,7 +355,6 @@ pub fn load_models(
     load_model_handle(&mut model_assets.grass, &asset_server, "grass");
     load_model_handle(&mut model_assets.grass_2, &asset_server, "grass_2");
     load_model_handle(&mut model_assets.hive, &asset_server, "hive");
-    load_model_handle(&mut model_assets.stick_shelter, &asset_server, "stick_shelter");
     load_model_handle(&mut model_assets.wood_stick, &asset_server, "wood_stick");
     load_model_handle(&mut model_assets.simple_grass_chunks, &asset_server, "simple_grass_chunks");
     
@@ -627,7 +621,6 @@ impl ModelAssets {
             InsectModelType::Grass => self.grass.clone(),
             InsectModelType::Grass2 => self.grass_2.clone(),
             InsectModelType::Hive => self.hive.clone(),
-            InsectModelType::StickShelter => self.stick_shelter.clone(),
             InsectModelType::WoodStick => self.wood_stick.clone(),
             InsectModelType::SimpleGrassChunks => self.simple_grass_chunks.clone(),
             
@@ -842,7 +835,6 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::Grass => GRASS_SCALE,                         // 1.0
         InsectModelType::Grass2 => GRASS_2_SCALE,                      // 1.2
         InsectModelType::Hive => HIVE_SCALE,                           // 3.0
-        InsectModelType::StickShelter => STICK_SHELTER_SCALE,          // 2.0
         InsectModelType::WoodStick => WOOD_STICK_SCALE,                // 1.5
         InsectModelType::SimpleGrassChunks => SIMPLE_GRASS_CHUNKS_SCALE, // 0.8
         

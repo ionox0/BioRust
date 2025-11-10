@@ -784,12 +784,12 @@ impl RTSEntityFactory {
         model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
-            if models.models_loaded && models.stick_shelter != Handle::default() {
-                // Use GLB model - stick shelter placed on terrain surface
+            if models.models_loaded && models.pine_cone != Handle::default() {
+                // Use GLB model - pine cone placed on terrain surface
                 commands.spawn((
-                    SceneRoot(models.stick_shelter.clone()),
-                    Transform::from_translation(position + Vec3::new(0.0, 2.0, 0.0))
-                        .with_scale(Vec3::splat(0.08)), // Medium building size
+                    SceneRoot(models.pine_cone.clone()),
+                    Transform::from_translation(position + Vec3::new(0.0, 2.0, 10.0))
+                        .with_scale(Vec3::splat(7.0)), // Medium building size
                     UseGLBModel,
                 ))
             } else {
