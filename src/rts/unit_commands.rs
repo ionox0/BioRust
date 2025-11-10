@@ -13,8 +13,8 @@ pub fn unit_command_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    mut units: Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
-    all_units: Query<(&Transform, &RTSUnit), With<RTSUnit>>,
+    mut units: Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
+    all_units: Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
     resources: Query<(Entity, &Transform), With<ResourceSource>>,
     buildings: Query<(Entity, &Transform), With<Building>>,
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
@@ -56,27 +56,27 @@ pub fn unit_command_system(
 
 fn find_enemy_target(
     ray: Ray3d,
-    units: &Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
-    all_units: &Query<(&Transform, &RTSUnit), With<RTSUnit>>,
+    units: &Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
+    all_units: &Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
 ) -> Option<Entity> {
     let mut closest_distance = f32::INFINITY;
     let mut target_enemy = None;
-    
-    for (target_transform, target_unit) in all_units.iter() {
+
+    for (entity, target_transform, target_unit) in all_units.iter() {
         let projected_distance = calculate_projected_distance(ray, target_transform.translation)?;
-        
+
         if projected_distance >= closest_distance {
             continue;
         }
-        
+
         let distance_to_ray = calculate_distance_to_ray(ray, target_transform.translation, projected_distance);
-        
+
         if distance_to_ray < 8.0 && is_enemy_unit(target_unit, units) {
             closest_distance = projected_distance;
-            target_enemy = find_entity_by_transform(target_transform, target_unit, all_units);
+            target_enemy = Some(entity); // Use entity directly instead of searching
         }
     }
-    
+
     target_enemy
 }
 
@@ -98,9 +98,9 @@ fn calculate_distance_to_ray(ray: Ray3d, target_position: Vec3, projected_distan
 
 fn is_enemy_unit(
     target_unit: &RTSUnit,
-    units: &Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
+    units: &Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
 ) -> bool {
-    for (_, _, _, selectable, unit, _) in units.iter() {
+    for (_, _, _, _, selectable, unit, _) in units.iter() {
         if selectable.is_selected && unit.player_id != target_unit.player_id {
             return true;
         }
@@ -111,12 +111,12 @@ fn is_enemy_unit(
 fn find_entity_by_transform(
     target_transform: &Transform,
     target_unit: &RTSUnit,
-    all_units: &Query<(&Transform, &RTSUnit), With<RTSUnit>>,
+    all_units: &Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
 ) -> Option<Entity> {
-    for (entity, (transform_comp, unit_comp)) in all_units.iter().enumerate() {
-        if transform_comp.translation == target_transform.translation && 
+    for (entity, transform_comp, unit_comp) in all_units.iter() {
+        if transform_comp.translation == target_transform.translation &&
            unit_comp.player_id == target_unit.player_id {
-            return Some(Entity::from_raw(entity as u32));
+            return Some(entity);
         }
     }
     None
@@ -190,7 +190,7 @@ fn is_valid_target_point(target_point: Vec3) -> bool {
 }
 
 fn execute_commands_for_selected_units(
-    units: &mut Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
+    units: &mut Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
     buildings: &Query<(Entity, &Transform), With<Building>>,
     commands: &mut Commands,
     keyboard: &Res<ButtonInput<KeyCode>>,
@@ -202,25 +202,27 @@ fn execute_commands_for_selected_units(
 
     // Count selected units first (immutable borrow)
     let selected_count = units.iter()
-        .filter(|(_, _, _, selectable, unit, _)| selectable.is_selected && unit.player_id == 1)
+        .filter(|(_, _, _, _, selectable, unit, _)| selectable.is_selected && unit.player_id == 1)
         .count();
 
     // Now do mutable iteration
     let mut index = 0;
-    for (unit_entity, mut movement, mut combat, selectable, unit, gatherer) in units.iter_mut() {
+    for (unit_entity, transform, mut movement, mut combat, selectable, unit, gatherer) in units.iter_mut() {
         if !selectable.is_selected || unit.player_id != 1 {
             continue;
         }
 
-        // Calculate distributed position for resource gathering
-        let adjusted_target = if target_resource.is_some() {
-            calculate_gathering_position(target_point, index, selected_count)
+        // Calculate distributed position for all move commands to prevent bunching
+        let adjusted_target = if selected_count > 1 {
+            // Spread units in a formation when multiple units are selected
+            calculate_formation_position(target_point, index, selected_count)
         } else {
             target_point
         };
 
         execute_unit_command(
             unit_entity,
+            transform.translation,
             &mut movement,
             &mut combat,
             gatherer,
@@ -234,6 +236,27 @@ fn execute_commands_for_selected_units(
         );
         index += 1;
     }
+}
+
+/// Calculate a formation position for units to spread out and avoid bunching
+fn calculate_formation_position(target_pos: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+    if total_units == 1 {
+        return target_pos;
+    }
+
+    // Spread units in concentric circles
+    let units_per_ring = 8;
+    let ring = unit_index / units_per_ring;
+    let pos_in_ring = unit_index % units_per_ring;
+
+    let formation_radius = 3.0 + (ring as f32 * 4.0); // Each ring is 4 units further out
+    let angle = (pos_in_ring as f32 / units_per_ring as f32) * std::f32::consts::TAU;
+
+    Vec3::new(
+        target_pos.x + angle.cos() * formation_radius,
+        target_pos.y,
+        target_pos.z + angle.sin() * formation_radius,
+    )
 }
 
 /// Calculate a position in a circle around the resource for better distribution
@@ -254,6 +277,7 @@ fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_uni
 
 fn execute_unit_command(
     _unit_entity: Entity,
+    unit_pos: Vec3,
     movement: &mut Movement,
     combat: &mut Combat,
     gatherer: Option<Mut<ResourceGatherer>>,
@@ -273,8 +297,8 @@ fn execute_unit_command(
     } else if let Some((resource_entity, _resource_transform)) = target_resource {
         // Resource gathering command - only for workers with ResourceGatherer
         if let Some(mut resource_gatherer) = gatherer {
-            // Find nearest building for drop-off
-            let nearest_building = find_nearest_building(unit.player_id, movement.current_velocity, buildings);
+            // Find nearest building for drop-off using unit's actual position
+            let nearest_building = find_nearest_building(unit.player_id, unit_pos, buildings);
 
             resource_gatherer.target_resource = Some(resource_entity);
             resource_gatherer.drop_off_building = nearest_building;

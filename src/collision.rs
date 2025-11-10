@@ -163,7 +163,7 @@ pub fn unit_collision_avoidance_system(
             }
 
             let distance = unit_transform.translation.distance(*other_pos);
-            let min_distance = unit_radius.radius + other_radius + 0.5; // Always maintain minimum spacing
+            let min_distance = unit_radius.radius + other_radius + 1.5; // Larger buffer for better spacing
 
             // Apply separation whenever units are too close
             if distance < min_distance && distance > 0.001 {
@@ -173,18 +173,18 @@ pub fn unit_collision_avoidance_system(
 
                 // Use stronger force when both units are stationary (at destination)
                 let force_multiplier = if !is_moving && *other_stationary {
-                    20.0 // Strong push when both stationary
+                    35.0 // Very strong push when both stationary to prevent stacking
                 } else if !is_moving || *other_stationary {
-                    15.0 // Medium push when one is stationary
+                    25.0 // Strong push when one is stationary
                 } else {
-                    10.0 // Gentle push when both moving
+                    15.0 // Medium push when both moving
                 };
 
                 avoidance_force += direction * force_magnitude * force_multiplier;
 
-                // If units are overlapping significantly, directly push them apart
-                if distance < min_distance * 0.7 {
-                    let push_distance = (min_distance - distance) * 0.3;
+                // If units are overlapping significantly, directly push them apart more aggressively
+                if distance < min_distance * 0.8 {
+                    let push_distance = (min_distance - distance) * 0.5; // More aggressive direct push
                     unit_transform.translation += direction * push_distance;
                 }
             }
@@ -196,8 +196,8 @@ pub fn unit_collision_avoidance_system(
             if is_moving {
                 movement.current_velocity += avoidance_force * dt;
             } else {
-                // For stationary units, directly adjust position
-                unit_transform.translation += avoidance_force.normalize() * dt * 3.0;
+                // For stationary units, directly adjust position with higher speed
+                unit_transform.translation += avoidance_force.normalize() * dt * 8.0;
             }
 
             // If we're very close to an obstacle or unit, push directly away
