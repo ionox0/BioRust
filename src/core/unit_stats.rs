@@ -211,8 +211,8 @@ pub const BEETLE_KNIGHT_STATS: UnitStatsConfig = UnitStatsConfig {
     collision_radius: crate::constants::collision::BEETLE_KNIGHT_COLLISION_RADIUS,
 };
 
-/// Special Ops - Elite ranged unit with exceptional stats
-pub const SPECIAL_OPS_STATS: UnitStatsConfig = UnitStatsConfig {
+/// DragonFly - Elite ranged unit with exceptional stats
+pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
     health: HealthStats {
         current: 250.0,
         max: 250.0,
@@ -235,7 +235,7 @@ pub const SPECIAL_OPS_STATS: UnitStatsConfig = UnitStatsConfig {
         sight_range: 250.0,
         line_of_sight: true,
     },
-    collision_radius: 25.0, // Much larger collision for massive model
+    collision_radius: 2.0,
 };
 
 /// Battering Beetle - Siege unit specialized for destroying buildings
@@ -301,7 +301,7 @@ pub fn get_unit_stats(unit_type: &UnitType) -> UnitStatsConfig {
         UnitType::SpearMantis => SPEAR_MANTIS_STATS,
         UnitType::ScoutAnt => SCOUT_ANT_STATS,
         UnitType::BeetleKnight => BEETLE_KNIGHT_STATS,
-        UnitType::SpecialOps => SPECIAL_OPS_STATS,
+        UnitType::DragonFly => DRAGONFLY_STATS,
         UnitType::BatteringBeetle => BATTERING_BEETLE_STATS,
         // Add new unit types here
         _ => DEFAULT_UNIT_STATS,

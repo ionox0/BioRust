@@ -48,14 +48,14 @@ pub mod camera {
 
 // === COLLISION SYSTEM ===
 pub mod collision {
-    // Collision radii for different unit types - increased for better model spacing
+    // Collision radii for different unit 
     pub const WORKER_ANT_COLLISION_RADIUS: f32 = 6.0;     // Increased from 2.0 for better spacing
     pub const SOLDIER_ANT_COLLISION_RADIUS: f32 = 7.0;    // Increased from 3.0 for better spacing
     pub const HUNTER_WASP_COLLISION_RADIUS: f32 = 6.5;    // Increased from 2.5 for better spacing
     pub const BEETLE_KNIGHT_COLLISION_RADIUS: f32 = 8.0;  // Increased from 4.0 for better spacing
-    pub const DEFAULT_UNIT_COLLISION_RADIUS: f32 = 10.0;   // Default increased for better spacing
+    pub const DEFAULT_UNIT_COLLISION_RADIUS: f32 = 10.0;   
     
-    // Building collision radii - also increased for better spacing
+    // Building collision radii 
     pub const NURSERY_COLLISION_RADIUS: f32 = 8.0;        // Increased for building spacing
     pub const WARRIOR_CHAMBER_COLLISION_RADIUS: f32 = 10.0; // Increased for building spacing
     pub const QUEEN_COLLISION_RADIUS: f32 = 12.0;         // Increased for building spacing
@@ -171,27 +171,27 @@ pub mod models {
     pub const UNIFORM_UNIT_SCALE: f32 = 2.5;       // Standard scale for all unit models (increased)
     pub const UNIFORM_BUILDING_SCALE: f32 = 3.0;   // Standard scale for all building models (increased)
     
-    // === INDIVIDUAL MODEL SCALES (ALL INCREASED FOR BETTER VISIBILITY) ===
+    // === INDIVIDUAL MODEL SCALES 
     // Classic models - all increased
-    pub const SCORPION_SCALE: f32 = 5.5;           // Increased for better visibility
-    pub const BEE_SCALE: f32 = 0.5;                // Increased for better visibility
-    pub const SPIDER_SCALE: f32 = 2.5;             // Increased for better visibility
-    pub const MANTIS_SCALE: f32 = 3.5;             // Increased for better visibility
-    pub const APIS_MELLIFERA_SCALE: f32 = 2.5;     // Increased for better visibility
-    pub const BEETLE_SCALE: f32 = 2.5;             // Increased for better visibility
-    pub const LADYBUG_SCALE: f32 = 2.5;            // Increased for better visibility
+    pub const SCORPION_SCALE: f32 = 5.5;
+    pub const BEE_SCALE: f32 = 0.5;
+    pub const SPIDER_SCALE: f32 = 2.5;
+    pub const MANTIS_SCALE: f32 = 3.5;
+    pub const APIS_MELLIFERA_SCALE: f32 = 2.5;
+    pub const BEETLE_SCALE: f32 = 2.5;
+    pub const LADYBUG_SCALE: f32 = 2.5;
     
-    // New models - all increased for better visibility
+    // New models 
     pub const MEGANEURA_SCALE: f32 = 25.0;         // Massively increased - 10x bigger (dragonfly)
-    pub const ANIMATED_SPIDER_SCALE: f32 = 2.5;    // Increased for better visibility
-    pub const RHINO_BEETLE_SCALE: f32 = 2.5;       // Increased for better visibility
-    pub const HORNET_SCALE: f32 = 5.0;             // Massively increased for better visibility
-    pub const FOURMI_SCALE: f32 = 2.5;             // Increased for better visibility
+    pub const ANIMATED_SPIDER_SCALE: f32 = 2.5;
+    pub const RHINO_BEETLE_SCALE: f32 = 2.5;
+    pub const HORNET_SCALE: f32 = 5.0;             
+    pub const FOURMI_SCALE: f32 = 2.5;
     pub const CAIRNS_BIRDWING_SCALE: f32 = 8.0;    // Increased much more for better visibility
-    pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;    // Increased for better visibility
-    pub const ROLY_POLY_SCALE: f32 = 0.1;          // Increased for better visibility
-    pub const MYSTERY_MODEL_SCALE: f32 = 50.0;     // Massively increased - 10x bigger
-    pub const WOLF_SPIDER_SCALE: f32 = 2.5;        // Increased for better visibility
+    pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;
+    pub const ROLY_POLY_SCALE: f32 = 0.1;
+    pub const DRAGONFLY_SCALE: f32 = 150.0;     // Massively increased - 10x bigger
+    pub const WOLF_SPIDER_SCALE: f32 = 2.5;
     pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0;    // Increased much more for better visibility
     
     // Environment object scales

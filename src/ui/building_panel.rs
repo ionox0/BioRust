@@ -198,7 +198,7 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     
         (UnitType::SpearMantis, ui_icons.worker_icon.clone(), "Mantis", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
         (UnitType::ScoutAnt, ui_icons.soldier_icon.clone(), "Scout", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST), (ResourceType::Pheromones, SOLDIER_ANT_PHEROMONES_COST)], BuildingType::WarriorChamber),
-        (UnitType::SpecialOps, ui_icons.hunter_icon.clone(), "Ops", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST), (ResourceType::Pheromones, HUNTER_WASP_PHEROMONES_COST)], BuildingType::HunterChamber),
+        (UnitType::DragonFly, ui_icons.hunter_icon.clone(), "DragonFly", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST), (ResourceType::Pheromones, HUNTER_WASP_PHEROMONES_COST)], BuildingType::HunterChamber),
     
         (UnitType::BeetleKnight, ui_icons.worker_icon.clone(), "Beetle", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
         (UnitType::BatteringBeetle, ui_icons.soldier_icon.clone(), "Battering", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST), (ResourceType::Pheromones, SOLDIER_ANT_PHEROMONES_COST)], BuildingType::WarriorChamber),
@@ -305,8 +305,8 @@ fn spawn_unit_from_building(
     
     // Use appropriate height offset based on unit type
     let height_offset = match unit_type {
-        UnitType::SpecialOps => 5.0,  // Ops model needs higher spawn height
-        UnitType::HunterWasp => 3.0,  // Flying units spawn higher
+        UnitType::DragonFly => 30.0,  // DragonFly model needs higher spawn height
+        UnitType::HunterWasp => 30.0,  // Flying units spawn higher
         _ => 2.0,  // Standard ground units
     };
     let spawn_position = Vec3::new(x, height_offset, z);

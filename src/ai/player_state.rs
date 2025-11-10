@@ -56,7 +56,7 @@ impl PlayerCounts {
                         UnitType::ScoutAnt | UnitType::BatteringBeetle | 
                         UnitType::AcidSpitter | UnitType::DragonFly |
                         UnitType::DefenderBug | UnitType::EliteSpider |
-                        UnitType::SpecialOps => {
+                        UnitType::DragonFly => {
                             self.military_count += 1;
                         },
                     }

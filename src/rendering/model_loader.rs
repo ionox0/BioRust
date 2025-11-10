@@ -193,7 +193,7 @@ pub enum InsectModelType {
     CairnsBirdwing,   // Butterfly - scouts/light flying units
     LadybugLowpoly,   // Low-poly ladybug variant - alternative style
     RolyPoly,         // Pill bug (isopod) - defensive units
-    MysteryModel,     // Unknown special model - unique units
+    DragonFly,     // Unknown special model - unique units
     
     // Environment objects - decorative non-interactive models
     Mushrooms,        // Mushroom cluster - environment decoration
@@ -620,7 +620,7 @@ impl ModelAssets {
             InsectModelType::CairnsBirdwing => self.cairns_birdwing.clone(),
             InsectModelType::LadybugLowpoly => self.ladybug_lowpoly.clone(),
             InsectModelType::RolyPoly => self.roly_poly.clone(),
-            InsectModelType::MysteryModel => self.mystery_model.clone(),
+            InsectModelType::DragonFly => self.mystery_model.clone(),
             
             // Environment objects
             InsectModelType::Mushrooms => self.mushrooms.clone(),
@@ -747,7 +747,7 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::DragonFly => InsectModelType::Meganeura, // Ancient dragonfly
         crate::core::components::UnitType::DefenderBug => InsectModelType::RolyPoly, // Defensive pill bug
         crate::core::components::UnitType::EliteSpider => InsectModelType::AnimatedSpider, // Predator
-        crate::core::components::UnitType::SpecialOps => InsectModelType::MysteryModel, // Unknown/special
+        crate::core::components::UnitType::DragonFly => InsectModelType::DragonFly, // Unknown/special
         
         // Default fallback - high-quality honey bee
         _ => InsectModelType::ApisMellifera,
@@ -786,7 +786,7 @@ pub fn get_building_insect_model(building_type: &crate::core::components::Buildi
         // Resource buildings - functional models
         crate::core::components::BuildingType::FungalGarden => InsectModelType::Mushrooms, // Perfect match!
         crate::core::components::BuildingType::WoodProcessor => InsectModelType::Beetle, // Wood processing
-        crate::core::components::BuildingType::MineralProcessor => InsectModelType::MysteryModel, // Advanced tech
+        crate::core::components::BuildingType::MineralProcessor => InsectModelType::DragonFly, // Advanced tech
         
         // Default fallback
         _ => InsectModelType::Spider,
@@ -835,7 +835,7 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::CairnsBirdwing => CAIRNS_BIRDWING_SCALE, // 1.5
         InsectModelType::LadybugLowpoly => LADYBUG_LOWPOLY_SCALE, // 1.5
         InsectModelType::RolyPoly => ROLY_POLY_SCALE,          // 1.5
-        InsectModelType::MysteryModel => MYSTERY_MODEL_SCALE,   // 1.5
+        InsectModelType::DragonFly => DRAGONFLY_SCALE,   // 1.5
         
         // Environment objects - various scales for different types
         InsectModelType::Mushrooms => MUSHROOMS_SCALE,                 // 2.5

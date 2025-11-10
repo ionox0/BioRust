@@ -11,20 +11,8 @@ const CAMERA_PITCH_ANGLE: f32 = -0.8;
 const LIGHT_ROTATION_X: f32 = -0.8;
 const LIGHT_ROTATION_Y: f32 = -0.3;
 
-// === SPAWNING CONSTANTS ===
-const PLAYER_1_BASE_POS: Vec3 = Vec3::new(-80.0, 10.0, -80.0);
-const PLAYER_2_BASE_POS: Vec3 = Vec3::new(80.0, 10.0, 80.0);
-const WORKER_ANT_COUNT_PER_PLAYER: usize = 8;
-const WORKER_ANT_SPAWN_RADIUS_BASE: f32 = 30.0;
-const WORKER_ANT_SPAWN_RADIUS_INCREMENT: f32 = 5.0;
-const BUILDING_SPAWN_HEIGHT: f32 = 10.0;
 #[allow(dead_code)]
 const RESOURCE_SPAWN_AREAS: usize = 6;
-const MILITARY_UNIT_COUNT: usize = 6;
-const ARCHER_COUNT: usize = 4;
-const WOOD_RESOURCE_COUNT: usize = 12;
-const STONE_RESOURCE_COUNT: usize = 8;
-const GOLD_RESOURCE_COUNT: usize = 6;
 
 pub fn setup_game(
     mut commands: Commands,
@@ -335,14 +323,14 @@ fn spawn_minimal_environment_objects(
             
             // Spread out environment objects across the map for better distribution
             let object_positions = [
-                (80.0, 120.0),   // Far northeast
-                (-120.0, 80.0),  // Far northwest  
-                (0.0, -100.0),   // Far south
-                (150.0, -50.0),  // Far southeast
-                (-150.0, -30.0), // Far southwest
-                (60.0, -60.0),   // Southeast quadrant
-                (-80.0, 60.0),   // Northwest quadrant
-                (20.0, 80.0),    // North-center
+                (800.0, 1200.0),   // Far northeast
+                (-1200.0, 800.0),  // Far northwest  
+                (0.0, -1000.0),   // Far south
+                (1500.0, -500.0),  // Far southeast
+                (-1500.0, -300.0), // Far southwest
+                (600.0, -600.0),   // Southeast quadrant
+                (-800.0, 600.0),   // Northwest quadrant
+                (200.0, 800.0),    // North-center
             ];
             
             for (i, &(x, z)) in object_positions.iter().enumerate() {

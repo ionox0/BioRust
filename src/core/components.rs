@@ -249,7 +249,6 @@ pub enum UnitType {
     DragonFly,      // Flying reconnaissance unit
     DefenderBug,    // Defensive unit
     EliteSpider,    // Elite predator unit
-    SpecialOps,     // Special operations unit
 }
 
 #[derive(Component, Debug, Clone)]

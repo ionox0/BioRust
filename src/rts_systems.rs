@@ -392,14 +392,14 @@ pub fn drag_selection_system(
                                         // Spawn selection indicator if selected
                                         if selectable.is_selected {
                                             commands.spawn((
-                                                Mesh3d(meshes.add(Torus::new(selectable.selection_radius * 0.8, 0.1))),
+                                                Mesh3d(meshes.add(Torus::new(selectable.selection_radius * 1.0, selectable.selection_radius * 1.1))),
                                                 MeshMaterial3d(materials.add(StandardMaterial {
-                                                    base_color: Color::srgb(0.0, 0.4, 0.0),
-                                                    emissive: Color::srgb(0.0, 0.5, 0.0).into(),
+                                                    base_color: Color::srgb(0.0, 0.0, 1.0),
+                                                    emissive: Color::srgb(0.0, 0.0, 1.0).into(),
                                                     alpha_mode: AlphaMode::Blend,
                                                     ..default()
                                                 })),
-                                                Transform::from_translation(Vec3::new(transform.translation.x, 1.0, transform.translation.z)),
+                                                Transform::from_translation(Vec3::new(transform.translation.x, 5.0, transform.translation.z)),
                                                 SelectionIndicator { target: entity },
                                             ));
                                         }
@@ -444,14 +444,14 @@ pub fn drag_selection_system(
                                         
                                         if selectable.is_selected {
                                             commands.spawn((
-                                                Mesh3d(meshes.add(Torus::new(selectable.selection_radius * 0.8, 0.5))),
+                                                Mesh3d(meshes.add(Torus::new(selectable.selection_radius * 1.0, selectable.selection_radius * 1.1))),
                                                 MeshMaterial3d(materials.add(StandardMaterial {
-                                                    base_color: Color::srgb(0.0, 1.0, 0.0),
-                                                    emissive: Color::srgb(0.0, 0.5, 0.0).into(),
+                                                    base_color: Color::srgb(0.0, 0.0, 0.5),
+                                                    emissive: Color::srgb(0.0, 0.0, 0.2).into(),
                                                     alpha_mode: AlphaMode::Blend,
                                                     ..default()
                                                 })),
-                                                Transform::from_translation(Vec3::new(transform.translation.x, 1.0, transform.translation.z)),
+                                                Transform::from_translation(Vec3::new(transform.translation.x, 50.0, transform.translation.z)),
                                                 SelectionIndicator { target: entity },
                                             ));
                                         }

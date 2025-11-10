@@ -511,7 +511,7 @@ pub fn create_animation_clips_for_unit(
                 special: vec![], // Could add rolling animation
             }
         },
-        crate::rendering::model_loader::InsectModelType::MysteryModel => {
+        crate::rendering::model_loader::InsectModelType::DragonFly => {
             // Mystery model - unknown capabilities
             UnitAnimationClips {
                 idle: None,

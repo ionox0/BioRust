@@ -192,16 +192,6 @@ impl EntityFactory {
         stats: crate::core::unit_stats::UnitStatsConfig,
         model_scale: f32,
     ) {
-        // Apply smart movement scaling (reduced penalty for large models)
-        let effective_scale = if model_scale >= 5.0 { 
-            // For extremely large models (Ops), use minimal penalty
-            if model_scale >= 50.0 { 1.0 } // No speed penalty for massive units
-            else if model_scale >= 8.0 { 1.5 } 
-            else { 2.0 }
-        } else { 
-            model_scale 
-        };
-        
         // Add base components
         entity.insert((
             RTSUnit { 
@@ -215,8 +205,8 @@ impl EntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: stats.movement.max_speed / effective_scale,
-                acceleration: stats.movement.acceleration / effective_scale,
+                max_speed: stats.movement.max_speed / model_scale,
+                acceleration: stats.movement.acceleration / model_scale,
                 turning_speed: stats.movement.turning_speed,
                 ..default()
             },
@@ -574,8 +564,8 @@ impl EntityFactory {
             // Beetle models need 180° rotation - they're facing backwards
             (UnitType::BeetleKnight, InsectModelType::RhinoBeetle) => Quat::from_rotation_y(std::f32::consts::PI),
             
-            // SpecialOps model - may need specific rotation
-            (UnitType::SpecialOps, InsectModelType::MysteryModel) => Quat::from_rotation_y(std::f32::consts::PI),
+            // DragonFly model - may need specific rotation
+            (UnitType::DragonFly, InsectModelType::DragonFly) => Quat::from_rotation_y(std::f32::consts::PI),
             
             // BatteringBeetle uses black_ox_beetle_small.glb
             (UnitType::BatteringBeetle, InsectModelType::Beetle) => Quat::from_rotation_y(std::f32::consts::PI),
