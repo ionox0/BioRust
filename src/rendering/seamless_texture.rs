@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::{AddressMode, SamplerDescriptor, FilterMode};
+use bevy::render::texture::ImageSampler;
 use noise::{NoiseFn, Perlin};
 
 // Create a seamless terrain texture inspired by Bug_Game
