@@ -906,11 +906,12 @@ pub fn setup_animation_controllers(
         
         // Create animation clips specific to this unit type
         let clips = create_animation_clips_for_unit(unit_type);
-        
+
         let animation_controller = UnitAnimationController {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
+            animation_node_index: None, // Will be populated by setup_glb_animations system
             clips,
         };
         

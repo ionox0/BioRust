@@ -26,6 +26,7 @@ pub struct UnitAnimationController {
     pub current_state: AnimationState,
     pub previous_state: AnimationState,
     pub animation_player: Option<Entity>,
+    pub animation_node_index: Option<AnimationNodeIndex>,
     pub clips: UnitAnimationClips,
 }
 
@@ -148,14 +149,17 @@ pub fn update_animations(
             // Try to play the animation if we have a player
             if let Some(player_entity) = controller.animation_player {
                 if let Ok(mut player) = animation_players.get_mut(player_entity) {
-                    // For now, all GLB models play their first animation (index 0)
+                    // Use the stored node index from the animation graph
+                    // For now, all GLB models use the same animation (first clip)
                     // TODO: Map animation states to specific animation indices when models have multiple animations
+                    if let Some(node_index) = controller.animation_node_index {
+                        player.play(node_index).repeat();
 
-                    // Always play and repeat the animation to ensure it's running
-                    player.play(AnimationNodeIndex::new(0)).repeat();
-
-                    debug!("🎬 Animation state changed: {:?} → {:?} for entity {:?}",
-                          controller.previous_state, event.new_state, event.entity);
+                        debug!("🎬 Animation state changed: {:?} → {:?} for entity {:?}",
+                              controller.previous_state, event.new_state, event.entity);
+                    } else {
+                        debug!("No animation node index stored for entity {:?}", event.entity);
+                    }
                 } else {
                     warn!("AnimationPlayer entity {:?} not found for controller on entity {:?}",
                           player_entity, event.entity);
@@ -280,9 +284,9 @@ pub fn start_idle_animations(
         // If we just got an animation player assigned, start the idle animation
         if let Some(player_entity) = controller.animation_player {
             if let Ok(mut player) = animation_players.get_mut(player_entity) {
-                // Start playing the first animation (index 0) on repeat
-                // In Bevy 0.15, animations from GLB files are indexed starting at 0
-                player.play(AnimationNodeIndex::new(0)).repeat();
+                // Use the stored node index if available, otherwise fall back to index 0
+                let node_index = controller.animation_node_index.unwrap_or(AnimationNodeIndex::new(0));
+                player.play(node_index).repeat();
                 debug!("Started idle animation for newly assigned player on entity {:?}", entity);
             }
         }
@@ -607,11 +611,12 @@ pub fn add_missing_animation_controllers(
         
         // Create animation clips specific to this unit type
         let clips = create_animation_clips_for_unit(unit_type);
-        
+
         let animation_controller = UnitAnimationController {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
+            animation_node_index: None, // Will be populated by setup_glb_animations system
             clips,
         };
         
@@ -626,10 +631,12 @@ pub fn add_missing_animation_controllers(
 pub fn setup_glb_animations(
     mut glb_models: Query<(Entity, &SceneRoot, &mut UnitAnimationController), Without<AnimationPlayerSearched>>,
     mut animation_players: Query<&mut AnimationPlayer>,
+    mut animation_graphs: ResMut<Assets<bevy::animation::AnimationGraph>>,
     mut commands: Commands,
     children: Query<&Children>,
+    asset_server: Res<AssetServer>,
 ) {
-    for (entity, _scene_root, mut controller) in glb_models.iter_mut() {
+    for (entity, scene_root, mut controller) in glb_models.iter_mut() {
         // Check if scene has children (indicating it's loaded)
         if children.get(entity).is_err() {
             continue;
@@ -643,10 +650,32 @@ pub fn setup_glb_animations(
             // Store the AnimationPlayer entity in the controller
             controller.animation_player = Some(player_entity);
 
-            // Start playing animation immediately (don't wait for next frame)
-            if let Ok(mut player) = animation_players.get_mut(player_entity) {
-                player.play(AnimationNodeIndex::new(0)).repeat();
-                info!("✓ Found AnimationPlayer {:?}, assigned to controller on entity {:?}, and started animation", player_entity, entity);
+            // Create AnimationGraph from the first animation clip in the GLB
+            // GLB animations are indexed as #Animation0, #Animation1, etc.
+            if let Some(scene_path) = asset_server.get_path(scene_root.0.id()) {
+                let animation_path = format!("{}#Animation0", scene_path.path().display());
+                let animation_clip: Handle<bevy::animation::AnimationClip> =
+                    asset_server.load(&animation_path);
+
+                // Create graph from clip
+                let (graph, node_index) = bevy::animation::AnimationGraph::from_clip(animation_clip);
+                let graph_handle = animation_graphs.add(graph);
+
+                // Store the node index in the controller for later use
+                controller.animation_node_index = Some(node_index);
+
+                // Insert the graph handle on the AnimationPlayer entity
+                commands.entity(player_entity).insert(
+                    bevy::animation::AnimationGraphHandle(graph_handle)
+                );
+
+                // Start playing animation immediately
+                if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                    player.play(node_index).repeat();
+                    info!("✓ Created AnimationGraph, assigned to player {:?} on entity {:?}, and started animation", player_entity, entity);
+                }
+            } else {
+                warn!("Could not get asset path for scene {:?}", scene_root.0.id());
             }
         } else {
             // Some GLB models might not have animations, that's okay

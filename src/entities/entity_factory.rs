@@ -244,6 +244,7 @@ impl EntityFactory {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
+            animation_node_index: None, // Will be populated by setup_glb_animations system
             clips,
         });
         info!("Added animation controller to unit {:?}", unit_type);
