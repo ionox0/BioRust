@@ -78,65 +78,58 @@ pub struct AnimationStateChangeEvent {
 }
 
 // System to manage animation state changes based on unit behavior
+// Runs every frame to ensure smooth animation transitions
 pub fn animation_state_manager(
     mut animation_events: EventWriter<AnimationStateChangeEvent>,
-    // Units with movement
-    moving_units: Query<
-        (Entity, &Movement, &UnitAnimationController),
-        (With<RTSUnit>, Changed<Movement>)
-    >,
-    // Units in combat
-    combat_units: Query<
-        (Entity, &Combat, &UnitAnimationController),
-        (With<RTSUnit>, Changed<Combat>)
-    >,
-    // Units taking damage
-    damaged_units: Query<
-        (Entity, &RTSHealth, &UnitAnimationController),
-        (With<RTSUnit>, Changed<RTSHealth>)
-    >,
+    // All units with animation controllers
+    units: Query<(Entity, &Movement, &Combat, Option<&RTSHealth>, &UnitAnimationController), With<RTSUnit>>,
 ) {
-    // Handle movement state changes
-    for (entity, movement, controller) in moving_units.iter() {
-        let new_state = if movement.current_velocity.length() > 0.1 {
-            if movement.current_velocity.length() > movement.max_speed * 0.7 {
-                AnimationState::Running
-            } else {
-                AnimationState::Walking
-            }
-        } else {
-            AnimationState::Idle
-        };
+    for (entity, movement, combat, health, controller) in units.iter() {
+        // Determine the appropriate animation state based on unit behavior
+        let new_state = determine_animation_state(movement, combat, health, &controller);
 
+        // Send animation change event if state changed
         if controller.current_state != new_state {
+            let force = matches!(new_state, AnimationState::Death);
             animation_events.send(AnimationStateChangeEvent {
                 entity,
                 new_state,
-                force: false,
+                force,
             });
         }
     }
+}
 
-    // Handle combat state changes
-    for (entity, combat, controller) in combat_units.iter() {
-        if combat.is_attacking && controller.current_state != AnimationState::Attacking {
-            animation_events.send(AnimationStateChangeEvent {
-                entity,
-                new_state: AnimationState::Attacking,
-                force: false,
-            });
+fn determine_animation_state(
+    movement: &Movement,
+    combat: &Combat,
+    health: Option<&RTSHealth>,
+    _controller: &UnitAnimationController,
+) -> AnimationState {
+    // Priority order: Death > Attacking > Moving > Idle
+
+    // Check if dead
+    if let Some(health) = health {
+        if health.current <= 0.0 {
+            return AnimationState::Death;
         }
     }
 
-    // Handle damage state changes
-    for (entity, health, controller) in damaged_units.iter() {
-        if health.current <= 0.0 && controller.current_state != AnimationState::Death {
-            animation_events.send(AnimationStateChangeEvent {
-                entity,
-                new_state: AnimationState::Death,
-                force: true, // Death animations should be immediate
-            });
+    // Check if attacking
+    if combat.is_attacking {
+        return AnimationState::Attacking;
+    }
+
+    // Check movement state
+    let velocity = movement.current_velocity.length();
+    if velocity > 0.1 {
+        if velocity > movement.max_speed * 0.7 {
+            AnimationState::Running
+        } else {
+            AnimationState::Walking
         }
+    } else {
+        AnimationState::Idle
     }
 }
 
@@ -155,22 +148,20 @@ pub fn update_animations(
             // Try to play the animation if we have a player
             if let Some(player_entity) = controller.animation_player {
                 if let Ok(mut player) = animation_players.get_mut(player_entity) {
-                    if let Some(_animation_name) = get_animation_name_for_state(&controller.clips, &event.new_state) {
-                        // In Bevy 0.15, GLB animations are automatically played
-                        // We just log the state change for debugging
-                        debug!("Animation state changed to {:?} for entity {:?}",
-                              event.new_state, event.entity);
+                    // For now, all GLB models play their first animation (index 0)
+                    // TODO: Map animation states to specific animation indices when models have multiple animations
 
-                        // Try to start the animation with node index 0 (first animation)
-                        // This assumes GLB files have at least one animation at index 0
-                        player.play(AnimationNodeIndex::new(0)).repeat();
-                    } else {
-                        // No specific animation for this state, play default animation
-                        debug!("No specific animation for state {:?} on entity {:?}, using default",
-                              event.new_state, event.entity);
-                        player.play(AnimationNodeIndex::new(0)).repeat();
-                    }
+                    // Always play and repeat the animation to ensure it's running
+                    player.play(AnimationNodeIndex::new(0)).repeat();
+
+                    debug!("🎬 Animation state changed: {:?} → {:?} for entity {:?}",
+                          controller.previous_state, event.new_state, event.entity);
+                } else {
+                    warn!("AnimationPlayer entity {:?} not found for controller on entity {:?}",
+                          player_entity, event.entity);
                 }
+            } else {
+                debug!("No AnimationPlayer assigned to controller on entity {:?}", event.entity);
             }
         }
     }
