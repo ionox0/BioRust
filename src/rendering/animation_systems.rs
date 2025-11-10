@@ -559,7 +559,6 @@ pub fn create_animation_clips_for_unit(
             }
         },
         // Environment objects - all static, no animations
-        crate::rendering::model_loader::InsectModelType::Mushrooms |
         crate::rendering::model_loader::InsectModelType::Grass |
         crate::rendering::model_loader::InsectModelType::Grass2 |
         crate::rendering::model_loader::InsectModelType::Hive |

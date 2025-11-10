@@ -99,7 +99,7 @@ impl Default for PlayerResources {
             chitin: 200.0,
             minerals: 100.0,
             pheromones: 100.0,
-            max_population: 5, // Start with nursery capacity
+            max_population: 500, // Start with nursery capacity
             current_population: 0,
             idle_workers: 0,
         }
