@@ -327,7 +327,7 @@ pub fn get_building_cost(building_type: &BuildingType) -> Vec<(ResourceType, f32
         BuildingType::HunterChamber => vec![(ResourceType::Chitin, HUNTER_CHAMBER_CHITIN_COST)],
         BuildingType::FungalGarden => vec![(ResourceType::Chitin, FUNGAL_GARDEN_CHITIN_COST)],
         BuildingType::WoodProcessor => vec![(ResourceType::Chitin, WOOD_PROCESSOR_CHITIN_COST)],
-        BuildingType::MineralProcessor => vec![(ResourceType::Chitin, MINERAL_PROCESSOR_WOOD_COST)],
+        BuildingType::MineralProcessor => vec![(ResourceType::Chitin, MINERAL_PROCESSOR_CHITIN_COST)],
         _ => vec![(ResourceType::Chitin, DEFAULT_BUILDING_CHITIN_COST)],
     }
 }

@@ -143,7 +143,7 @@ fn create_building_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
         (BuildingType::WarriorChamber, ui_icons.warrior_chamber_icon.clone(), "Warriors", vec![(ResourceType::Chitin, WARRIOR_CHAMBER_CHITIN_COST), (ResourceType::Minerals, WARRIOR_CHAMBER_MINERALS_COST)]),
         (BuildingType::HunterChamber, ui_icons.hunter_chamber_icon.clone(), "Hunters", vec![(ResourceType::Chitin, HUNTER_CHAMBER_CHITIN_COST)]),
         (BuildingType::WoodProcessor, ui_icons.wood_processor_icon.clone(), "Processor", vec![(ResourceType::Chitin, WOOD_PROCESSOR_CHITIN_COST)]),
-        (BuildingType::MineralProcessor, ui_icons.mineral_processor_icon.clone(), "Mineral Processor", vec![(ResourceType::Chitin, MINERAL_PROCESSOR_WOOD_COST)]),
+        (BuildingType::MineralProcessor, ui_icons.mineral_processor_icon.clone(), "Mineral Processor", vec![(ResourceType::Chitin, MINERAL_PROCESSOR_CHITIN_COST)]),
         (BuildingType::FungalGarden, ui_icons.fungal_garden_icon.clone(), "Garden", vec![(ResourceType::Chitin, FUNGAL_GARDEN_CHITIN_COST)]),
     ];
     

@@ -31,10 +31,10 @@ pub mod movement {
 // === CAMERA SYSTEM ===
 pub mod camera {
     // Camera height constraints relative to terrain
-    pub const MIN_HEIGHT_ABOVE_TERRAIN: f32 = 5.0;    // Never go below 5 units above terrain
-    pub const MAX_HEIGHT_ABOVE_TERRAIN: f32 = 500.0;  // Never go above 500 units above terrain
-    pub const ZOOM_SPEED_BASE: f32 = 150.0;           // Base zoom speed (unused for scroll wheel)
-    pub const CAMERA_MOVE_SPEED: f32 = 500.0;         // Base camera movement speed
+    pub const MIN_HEIGHT_ABOVE_TERRAIN: f32 = 50.0;    // Never go below 5 units above terrain
+    pub const MAX_HEIGHT_ABOVE_TERRAIN: f32 = 1000.0;  // Never go above 500 units above terrain
+    pub const ZOOM_SPEED_BASE: f32 = 15.0;           // Base zoom speed (unused for scroll wheel)
+    pub const CAMERA_MOVE_SPEED: f32 = 250.0;         // Base camera movement speed
     
     // Scroll wheel zoom settings
     pub const SCROLL_ZOOM_SENSITIVITY: f32 = 2.0;     // Units of movement per scroll wheel click (reduced for better control)
@@ -226,51 +226,14 @@ pub mod resources {
     pub const STARTING_POPULATION_LIMIT: u32 = 200;
     
     // Resource costs for buildings (using new theme)
-    pub const NURSERY_CHITIN_COST: f32 = 25.0;
-    pub const WARRIOR_CHAMBER_CHITIN_COST: f32 = 50.0;
-    pub const WARRIOR_CHAMBER_MINERALS_COST: f32 = 25.0;
-    pub const HUNTER_CHAMBER_CHITIN_COST: f32 = 75.0;
-    pub const FUNGAL_GARDEN_CHITIN_COST: f32 = 60.0;
-    pub const WOOD_PROCESSOR_CHITIN_COST: f32 = 100.0;
-    pub const MINERAL_PROCESSOR_CHITIN_COST: f32 = 100.0;
-    pub const DEFAULT_BUILDING_CHITIN_COST: f32 = 50.0;
-    
-    // Legacy constants for compatibility - use proper insect building names
-    pub const NURSERY_WOOD_COST: f32 = NURSERY_CHITIN_COST;  // Legacy alias
-    pub const WARRIOR_CHAMBER_WOOD_COST: f32 = WARRIOR_CHAMBER_CHITIN_COST;  // Legacy alias
-    pub const WARRIOR_CHAMBER_STONE_COST: f32 = WARRIOR_CHAMBER_MINERALS_COST;  // Legacy alias
-    pub const HUNTER_CHAMBER_WOOD_COST: f32 = HUNTER_CHAMBER_CHITIN_COST;  // Legacy alias
-    pub const FUNGAL_GARDEN_WOOD_COST: f32 = FUNGAL_GARDEN_CHITIN_COST;  // Legacy alias
-    pub const WOOD_PROCESSOR_WOOD_COST: f32 = WOOD_PROCESSOR_CHITIN_COST;  // Legacy alias
-    pub const MINERAL_PROCESSOR_WOOD_COST: f32 = MINERAL_PROCESSOR_CHITIN_COST;  // Proper insect building name
-    
-    // Legacy constants - using old Age of Empires style names (deprecated)
-    #[deprecated(note = "Use NURSERY_CHITIN_COST instead")]
-    pub const HOUSE_WOOD_COST: f32 = NURSERY_CHITIN_COST;
-    #[deprecated(note = "Use WARRIOR_CHAMBER_CHITIN_COST instead")]
-    pub const BARRACKS_WOOD_COST: f32 = WARRIOR_CHAMBER_CHITIN_COST;
-    #[deprecated(note = "Use WARRIOR_CHAMBER_MINERALS_COST instead")]
-    pub const BARRACKS_STONE_COST: f32 = WARRIOR_CHAMBER_MINERALS_COST;
-    #[deprecated(note = "Use HUNTER_CHAMBER_CHITIN_COST instead")]
-    pub const ARCHERY_WOOD_COST: f32 = HUNTER_CHAMBER_CHITIN_COST;
-    #[deprecated(note = "Use FUNGAL_GARDEN_CHITIN_COST instead")]
-    pub const FARM_WOOD_COST: f32 = FUNGAL_GARDEN_CHITIN_COST;
-    #[deprecated(note = "Use WOOD_PROCESSOR_CHITIN_COST instead")]
-    pub const LUMBER_CAMP_WOOD_COST: f32 = WOOD_PROCESSOR_CHITIN_COST;
-    #[deprecated(note = "Use MINERAL_PROCESSOR_CHITIN_COST instead")]
-    pub const MINING_CAMP_WOOD_COST: f32 = MINERAL_PROCESSOR_CHITIN_COST;
-    #[deprecated(note = "Use DEFAULT_BUILDING_CHITIN_COST instead")]
-    pub const DEFAULT_BUILDING_WOOD_COST: f32 = DEFAULT_BUILDING_CHITIN_COST;
-    
-    // Legacy starting resources for compatibility - these should not be used in new code
-    #[deprecated(note = "Use STARTING_NECTAR instead")]
-    pub const STARTING_FOOD: f32 = STARTING_NECTAR;
-    #[deprecated(note = "Use STARTING_CHITIN instead")]
-    pub const STARTING_WOOD: f32 = STARTING_CHITIN;
-    #[deprecated(note = "Use STARTING_MINERALS instead")]
-    pub const STARTING_STONE: f32 = STARTING_MINERALS;
-    #[deprecated(note = "Use STARTING_PHEROMONES instead")]
-    pub const STARTING_GOLD: f32 = STARTING_PHEROMONES;
+    pub const NURSERY_CHITIN_COST: f32 = 1.0;
+    pub const WARRIOR_CHAMBER_CHITIN_COST: f32 = 1.0;
+    pub const WARRIOR_CHAMBER_MINERALS_COST: f32 = 1.0;
+    pub const HUNTER_CHAMBER_CHITIN_COST: f32 = 1.0;
+    pub const FUNGAL_GARDEN_CHITIN_COST: f32 = 1.0;
+    pub const WOOD_PROCESSOR_CHITIN_COST: f32 = 1.0;
+    pub const MINERAL_PROCESSOR_CHITIN_COST: f32 = 1.0;
+    pub const DEFAULT_BUILDING_CHITIN_COST: f32 = 1.0;
     
     // Resource costs for units (using new theme)
     pub const WORKER_ANT_NECTAR_COST: f32 = 50.0;
@@ -279,27 +242,9 @@ pub mod resources {
     pub const HUNTER_WASP_CHITIN_COST: f32 = 25.0;
     pub const HUNTER_WASP_PHEROMONES_COST: f32 = 45.0;
     
-    // Legacy unit costs for compatibility - use proper insect unit names
-    #[deprecated(note = "Use WORKER_ANT_NECTAR_COST instead")]
-    pub const VILLAGER_FOOD_COST: f32 = WORKER_ANT_NECTAR_COST;
-    #[deprecated(note = "Use SOLDIER_ANT_NECTAR_COST instead")]
-    pub const MILITIA_FOOD_COST: f32 = SOLDIER_ANT_NECTAR_COST;
-    #[deprecated(note = "Use SOLDIER_ANT_PHEROMONES_COST instead")]
-    pub const MILITIA_GOLD_COST: f32 = SOLDIER_ANT_PHEROMONES_COST;
-    #[deprecated(note = "Use HUNTER_WASP_CHITIN_COST instead")]
-    pub const ARCHER_WOOD_COST: f32 = HUNTER_WASP_CHITIN_COST;
-    #[deprecated(note = "Use HUNTER_WASP_PHEROMONES_COST instead")]
-    pub const ARCHER_GOLD_COST: f32 = HUNTER_WASP_PHEROMONES_COST;
-    
     // Housing values
     pub const NURSERY_POPULATION_CAPACITY: u32 = 5;
     pub const QUEEN_POPULATION_CAPACITY: u32 = 5;
-    
-    // Legacy housing for compatibility
-    #[deprecated(note = "Use NURSERY_POPULATION_CAPACITY instead")]
-    pub const HOUSE_POPULATION_CAPACITY: u32 = NURSERY_POPULATION_CAPACITY;
-    #[deprecated(note = "Use QUEEN_POPULATION_CAPACITY instead")]
-    pub const TOWN_CENTER_POPULATION_CAPACITY: u32 = QUEEN_POPULATION_CAPACITY;
 }
 
 // === AI SYSTEM ===
