@@ -622,6 +622,8 @@ impl RTSEntityFactory {
             .filter(|m| m.models_loaded && m.anthill != Handle::default())
             .map(|m| m.anthill.clone());
 
+        let position_offset = Vec3::new(0.0, if model_handle.is_some() { 5.0 } else { 7.5 }, 0.0);
+
         let mut entity_commands = Self::spawn_building_visual(
             commands,
             meshes,
@@ -631,7 +633,7 @@ impl RTSEntityFactory {
             model_handle,
             Vec3::splat(10.0),
             (20.0, 15.0, 20.0),
-            Vec3::new(0.0, if model_handle.is_some() { 5.0 } else { 7.5 }, 0.0),
+            position_offset,
         );
 
         entity_commands.insert((
@@ -744,6 +746,12 @@ impl RTSEntityFactory {
             .filter(|m| m.models_loaded && m.pine_cone != Handle::default())
             .map(|m| m.pine_cone.clone());
 
+        let position_offset = if model_handle.is_some() {
+            Vec3::new(0.0, 2.0, 10.0)
+        } else {
+            Vec3::new(0.0, 4.0, 0.0)
+        };
+
         let mut entity_commands = Self::spawn_building_visual(
             commands,
             meshes,
@@ -753,11 +761,7 @@ impl RTSEntityFactory {
             model_handle,
             Vec3::splat(7.0),
             (12.0, 8.0, 12.0),
-            if model_handle.is_some() {
-                Vec3::new(0.0, 2.0, 10.0)
-            } else {
-                Vec3::new(0.0, 4.0, 0.0)
-            },
+            position_offset,
         );
 
         entity_commands.insert((
