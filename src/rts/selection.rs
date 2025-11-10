@@ -68,6 +68,13 @@ pub fn click_selection_system(
                 selectable.is_selected = false;
             }
         }
+    } else if !shift_held {
+        // Clicked on empty space without shift - clear all selections
+        for (_, mut selectable, _, unit) in selectables.iter_mut() {
+            if unit.player_id == 1 && selectable.is_selected {
+                selectable.is_selected = false;
+            }
+        }
     }
 }
 
@@ -173,11 +180,23 @@ fn cleanup_old_selection_box(
     }
 }
 
-fn create_visual_selection_box(_bounds: &SelectionBounds, commands: &mut Commands) {
-    // TODO: Implement visual selection box rendering
-    // For now, just create a placeholder entity  
+fn create_visual_selection_box(bounds: &SelectionBounds, commands: &mut Commands) {
+    let width = bounds.max_x - bounds.min_x;
+    let height = bounds.max_y - bounds.min_y;
+
+    // Spawn a UI node that shows the selection box
     commands.spawn((
-        Transform::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(bounds.min_x),
+            top: Val::Px(bounds.min_y),
+            width: Val::Px(width),
+            height: Val::Px(height),
+            border: UiRect::all(Val::Px(2.0)),
+            ..default()
+        },
+        BorderColor(Color::srgba(0.3, 0.8, 1.0, 0.8)), // Bright blue border
+        BackgroundColor(Color::srgba(0.3, 0.8, 1.0, 0.15)), // Semi-transparent blue fill
         SelectionBox,
     ));
 }
