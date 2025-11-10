@@ -30,8 +30,8 @@ impl RTSEntityFactory {
     }
 
     // Helper function to spawn unit visual representation (GLB model or primitive)
-    fn spawn_unit_visual(
-        commands: &mut Commands,
+    fn spawn_unit_visual<'a>(
+        commands: &'a mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
         position: Vec3,
@@ -40,7 +40,7 @@ impl RTSEntityFactory {
         model_scale: f32,
         model_assets: Option<&ModelAssets>,
         primitive_mesh: Mesh,
-    ) -> EntityCommands {
+    ) -> EntityCommands<'a> {
         if let Some(models) = model_assets {
             // Use GLB model
             let model_type = get_unit_insect_model(unit_type);
@@ -72,8 +72,8 @@ impl RTSEntityFactory {
     }
 
     // Helper function to spawn building visual representation (GLB model or primitive)
-    fn spawn_building_visual(
-        commands: &mut Commands,
+    fn spawn_building_visual<'a>(
+        commands: &'a mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
         position: Vec3,
@@ -82,7 +82,7 @@ impl RTSEntityFactory {
         model_scale: Vec3,
         primitive_size: (f32, f32, f32),
         position_offset: Vec3,
-    ) -> EntityCommands {
+    ) -> EntityCommands<'a> {
         if let Some(model) = model_handle {
             // Use GLB model
             commands.spawn((
