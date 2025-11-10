@@ -31,14 +31,14 @@ pub fn ai_combat_system(
 ) {
     let current_time = time.elapsed_secs();
 
-    for (entity, mut movement, mut combat, unit_transform, unit, health, combat_state_opt) in ai_units.iter_mut() {
+    for (entity, mut movement, mut combat, unit_transform, unit, health, mut combat_state_opt) in ai_units.iter_mut() {
         // Skip player 1 units
         if unit.player_id == 1 || !combat.auto_attack {
             continue;
         }
 
         // Ensure unit has combat state
-        let mut state = if let Some(state) = combat_state_opt {
+        let mut state = if let Some(ref state) = combat_state_opt {
             state.clone()
         } else {
             commands.entity(entity).insert(CombatState::default());
@@ -69,7 +69,7 @@ pub fn ai_combat_system(
         );
 
         // Update combat state
-        if let Some(mut cs) = combat_state_opt {
+        if let Some(ref mut cs) = combat_state_opt {
             *cs = state;
         }
     }
