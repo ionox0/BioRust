@@ -28,6 +28,7 @@ impl Plugin for AIPlugin {
                 ai_resource_management_system,
                 ai_combat_system,
                 ai_strategy_system,
+                ai_worker_dropoff_system,
             ));
     }
 }

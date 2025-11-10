@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub fn production_system(
     mut buildings: Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
-    game_costs: Res<crate::resources::GameCosts>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
+    game_costs: Res<crate::core::resources::GameCosts>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -35,9 +35,9 @@ fn process_production_queue(
     queue: &mut ProductionQueue,
     building: &Building,
     unit: &RTSUnit,
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
-    game_costs: &Res<crate::resources::GameCosts>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
+    game_costs: &Res<crate::core::resources::GameCosts>,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -61,9 +61,9 @@ fn process_production_queue(
 fn can_afford_production(
     player_id: u8, 
     unit_type: &UnitType, 
-    game_costs: &Res<crate::resources::GameCosts>,
-    player_resources: &ResMut<crate::resources::PlayerResources>,
-    ai_resources: &ResMut<crate::resources::AIResources>,
+    game_costs: &Res<crate::core::resources::GameCosts>,
+    player_resources: &ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &ResMut<crate::core::resources::AIResources>,
 ) -> bool {
     let Some(cost) = game_costs.unit_costs.get(unit_type) else {
         return true;
@@ -83,9 +83,9 @@ fn complete_production(
     building: &Building,
     unit: &RTSUnit,
     unit_type: UnitType,
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
-    game_costs: &Res<crate::resources::GameCosts>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
+    game_costs: &Res<crate::core::resources::GameCosts>,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -102,9 +102,9 @@ fn complete_production(
 fn pay_production_cost(
     player_id: u8, 
     unit_type: &UnitType, 
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
-    game_costs: &Res<crate::resources::GameCosts>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
+    game_costs: &Res<crate::core::resources::GameCosts>,
 ) {
     let Some(cost) = game_costs.unit_costs.get(unit_type) else {
         return;
@@ -130,7 +130,7 @@ fn spawn_produced_unit(
     let spawn_position = building.rally_point.unwrap_or(Vec3::ZERO);
     let unit_id = rand::random();
     
-    use crate::rts_entities::RTSEntityFactory;
+    use crate::entities::rts_entities::RTSEntityFactory;
     
     match unit_type {
         UnitType::WorkerAnt => {
@@ -184,7 +184,7 @@ fn handle_production_failure(player_id: u8) {
 }
 
 pub fn building_completion_system(
-    mut buildings: Query<(&mut Building, &mut crate::components::RTSHealth), With<Building>>,
+    mut buildings: Query<(&mut Building, &mut crate::core::components::RTSHealth), With<Building>>,
     time: Res<Time>,
 ) {
     for (mut building, mut health) in buildings.iter_mut() {
@@ -204,8 +204,8 @@ pub fn building_completion_system(
 }
 
 pub fn population_management_system(
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
     units: Query<&RTSUnit, With<RTSUnit>>,
 ) {
     reset_population_counts(&mut player_resources, &mut ai_resources);
@@ -213,8 +213,8 @@ pub fn population_management_system(
 }
 
 fn reset_population_counts(
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
     player_resources.current_population = 0;
     
@@ -225,8 +225,8 @@ fn reset_population_counts(
 
 fn count_active_units(
     units: &Query<&RTSUnit, With<RTSUnit>>,
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
     for unit in units.iter() {
         if unit.player_id == 1 {

@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub fn resource_gathering_system(
     mut gatherers: Query<(Entity, &mut ResourceGatherer, &Transform, &RTSUnit), With<RTSUnit>>,
     mut resources: Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
@@ -71,8 +71,8 @@ fn process_resource_delivery(
     gatherer_transform: &Transform,
     unit: &RTSUnit,
     resources: &Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
     if gatherer.carried_amount < gatherer.capacity {
         return;
@@ -97,8 +97,8 @@ fn deliver_resources_to_player(
     player_id: u8,
     resource_type: ResourceType,
     amount: f32,
-    player_resources: &mut ResMut<crate::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::resources::AIResources>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
     if player_id == 1 {
         player_resources.add_resource(resource_type.clone(), amount);

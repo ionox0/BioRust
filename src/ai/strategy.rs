@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use crate::components::*;
-use crate::resources::*;
-use crate::rts_entities::RTSEntityFactory;
+use crate::core::components::*;
+use crate::core::resources::*;
+use crate::entities::rts_entities::RTSEntityFactory;
 
 // System to spawn initial resources for AI strategy testing
 pub fn ai_resource_initialization_system(
@@ -9,8 +9,8 @@ pub fn ai_resource_initialization_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     resource_query: Query<&ResourceSource>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     mut initialized: Local<bool>,
 ) {
     // Only run once at startup
@@ -21,46 +21,13 @@ pub fn ai_resource_initialization_system(
     
     // Check if resources already exist
     if resource_query.iter().count() > 0 {
-        info!("Resources already exist, skipping AI resource initialization");
+        info!("Resources already exist (environment objects with ResourceSource components), skipping AI primitive resource initialization");
         return;
     }
     
-    info!("Initializing resources for AI strategy testing");
-    
-    // Helper function to get terrain-aware position
-    let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::terrain_v2::sample_terrain_height(
-            x, z, &terrain_manager.noise_generator, &terrain_settings
-        );
-        Vec3::new(x, terrain_height + height_offset, z)
-    };
-    
-    // Spawn some basic resource sources for AI to collect (near Player 2's area)
-    let resource_positions_2d = [
-        ((60.0, -60.0), ResourceType::Nectar),
-        ((80.0, -40.0), ResourceType::Chitin),
-        ((100.0, -60.0), ResourceType::Minerals),
-        ((120.0, -80.0), ResourceType::Pheromones),
-    ];
-    
-    for ((x, z), resource_type) in resource_positions_2d.iter() {
-        let position = get_terrain_position(*x, *z, 1.0); // Use same height offset as existing resources
-        
-        match resource_type {
-            ResourceType::Nectar => {
-                RTSEntityFactory::spawn_nectar_source(&mut commands, &mut meshes, &mut materials, position);
-            },
-            ResourceType::Chitin => {
-                RTSEntityFactory::spawn_chitin_source(&mut commands, &mut meshes, &mut materials, position);
-            },
-            ResourceType::Minerals => {
-                RTSEntityFactory::spawn_mineral_deposit(&mut commands, &mut meshes, &mut materials, position);
-            },
-            ResourceType::Pheromones => {
-                RTSEntityFactory::spawn_pheromone_cache(&mut commands, &mut meshes, &mut materials, position);
-            },
-        }
-    }
+    info!("No resources found - environment objects should be providing resources via ResourceSource components");
+    // The environment objects (mushrooms for Nectar, rocks for Minerals) now provide all needed resources
+    // No need to spawn additional primitive cube/sphere resources
     
     info!("AI resource initialization complete");
 }
@@ -171,8 +138,10 @@ pub fn ai_strategy_system(
     buildings: Query<(&Building, &RTSUnit), With<Building>>,
     mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    mut construction_workers: Query<(Entity, &mut Movement, &RTSUnit), (With<RTSUnit>, Without<ConstructionTask>, Without<ResourceGatherer>)>,
+    mut building_sites: Query<(Entity, &mut BuildingSite), With<BuildingSite>>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
@@ -201,6 +170,14 @@ pub fn ai_strategy_system(
                 &mut workers,
                 &resource_sources,
             );
+            
+            // Assign workers to construction tasks
+            assign_workers_to_construction(
+                player_id,
+                &mut commands,
+                &mut construction_workers,
+                &mut building_sites,
+            );
         }
     }
 }
@@ -215,8 +192,8 @@ fn execute_strategy(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     units: &Query<&RTSUnit>,
     buildings: &Query<(&Building, &RTSUnit), With<Building>>,
-    terrain_manager: &Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
     current_time: f32,
 ) {
     // Update strategy phase based on resources and units
@@ -280,8 +257,8 @@ fn execute_next_goal(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     units: &Query<&RTSUnit>,
     buildings: &Query<(&Building, &RTSUnit), With<Building>>,
-    terrain_manager: &Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
     current_time: f32,
 ) {
     if strategy.priority_queue.is_empty() {
@@ -419,8 +396,8 @@ fn try_build_building(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    terrain_manager: &Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
 ) -> bool {
     // Check if we can afford the building
     if let Some(cost) = game_costs.building_costs.get(&building_type) {
@@ -431,7 +408,7 @@ fn try_build_building(
     
     // Helper function to get terrain-aware position
     let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::terrain_v2::sample_terrain_height(
+        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
             x, z, &terrain_manager.noise_generator, &terrain_settings
         );
         Vec3::new(x, terrain_height + height_offset, z)
@@ -443,68 +420,20 @@ fn try_build_building(
     let building_x = base_x + rand::random::<f32>() * 40.0 - 20.0; // Random offset within 40x40 area
     let building_z = base_z + rand::random::<f32>() * 40.0 - 20.0;
     
-    // Spawn the building using terrain-aware positioning (same as in systems.rs)
+    // Get the building position using terrain-aware positioning
     let building_position = get_terrain_position(building_x, building_z, 0.0); // Buildings use height offset 0.0
     
-    match building_type {
-        BuildingType::Queen => {
-            RTSEntityFactory::spawn_queen_chamber(
-                commands,
-                meshes,
-                materials,
-                building_position,
-                player_id,
-            );
-        },
-        BuildingType::Nursery => {
-            RTSEntityFactory::spawn_nursery(
-                commands,
-                meshes,
-                materials,
-                building_position,
-                player_id,
-            );
-        },
-        BuildingType::WarriorChamber => {
-            RTSEntityFactory::spawn_warrior_chamber(
-                commands,
-                meshes,
-                materials,
-                building_position,
-                player_id,
-            );
-        },
-        BuildingType::HunterChamber => {
-            // For now, use warrior chamber as fallback for hunter chamber
-            RTSEntityFactory::spawn_warrior_chamber(
-                commands,
-                meshes,
-                materials,
-                building_position,
-                player_id,
-            );
-        },
-        BuildingType::FungalGarden => {
-            // For now, use nursery as fallback for fungal garden
-            RTSEntityFactory::spawn_nursery(
-                commands,
-                meshes,
-                materials,
-                building_position,
-                player_id,
-            );
-        },
-        _ => {
-            // Use queen chamber as fallback for other building types
-            RTSEntityFactory::spawn_queen_chamber(
-                commands,
-                meshes,
-                materials,
-                building_position,
-                player_id,
-            );
-        }
-    }
+    // Create a building site instead of directly spawning the building
+    let building_site = commands.spawn(BuildingSite {
+        building_type: building_type.clone(),
+        position: building_position,
+        player_id,
+        assigned_worker: None,
+        construction_started: false,
+        site_reserved: false,
+    }).id();
+    
+    info!("AI Player {} created building site for {:?} at {:?}", player_id, building_type, building_position);
     
     true
 }
@@ -606,5 +535,108 @@ fn assign_workers_to_resources(
                 }
             }
         }
+    }
+}
+
+/// System to manage AI worker drop-off building assignment
+pub fn ai_worker_dropoff_system(
+    mut workers: Query<(&mut ResourceGatherer, &Transform, &RTSUnit), With<RTSUnit>>,
+    buildings: Query<(Entity, &Building, &Transform, &RTSUnit), Without<ResourceGatherer>>,
+) {
+    for (mut gatherer, worker_transform, unit) in workers.iter_mut() {
+        // Only process AI workers (not player 1)
+        if unit.player_id == 1 {
+            continue;
+        }
+        
+        // If gatherer doesn't have a drop-off building or is carrying resources, find the closest one
+        if gatherer.drop_off_building.is_none() || gatherer.carried_amount > 0.0 {
+            // Find the closest building of the same player
+            let mut closest_building: Option<Entity> = None;
+            let mut closest_distance = f32::MAX;
+            
+            for (building_entity, building, building_transform, building_unit) in buildings.iter() {
+                // Only consider buildings owned by the same player
+                if building_unit.player_id != unit.player_id {
+                    continue;
+                }
+                
+                // Only consider completed buildings that can accept resources
+                if !building.is_complete {
+                    continue;
+                }
+                
+                // Check if building type can accept resources (Queen, StorageChamber, etc.)
+                match building.building_type {
+                    BuildingType::Queen | 
+                    BuildingType::StorageChamber |
+                    BuildingType::Nursery => {
+                        let distance = worker_transform.translation.distance(building_transform.translation);
+                        if distance < closest_distance {
+                            closest_distance = distance;
+                            closest_building = Some(building_entity);
+                        }
+                    }
+                    _ => continue,
+                }
+            }
+            
+            if let Some(building) = closest_building {
+                gatherer.drop_off_building = Some(building);
+            }
+        }
+    }
+}
+
+/// Assign available workers to construction tasks
+fn assign_workers_to_construction(
+    player_id: u8,
+    commands: &mut Commands,
+    construction_workers: &mut Query<(Entity, &mut Movement, &RTSUnit), (With<RTSUnit>, Without<ConstructionTask>, Without<ResourceGatherer>)>,
+    building_sites: &mut Query<(Entity, &mut BuildingSite), With<BuildingSite>>,
+) {
+    // Find unassigned building sites for this player
+    for (site_entity, mut site) in building_sites.iter_mut() {
+        if site.player_id == player_id && site.assigned_worker.is_none() && !site.site_reserved {
+            // Find an available worker for this player
+            for (worker_entity, mut movement, unit) in construction_workers.iter_mut() {
+                if unit.player_id == player_id {
+                    // Assign this worker to the construction site
+                    site.assigned_worker = Some(worker_entity);
+                    site.site_reserved = true;
+                    
+                    // Give the worker a construction task and movement target
+                    movement.target_position = Some(site.position);
+                    
+                    // Add construction task component to worker
+                    commands.entity(worker_entity).insert(ConstructionTask {
+                        building_site: site_entity,
+                        building_type: site.building_type.clone(),
+                        target_position: site.position,
+                        is_moving_to_site: true,
+                        construction_progress: 0.0,
+                        total_build_time: get_building_construction_time(&site.building_type),
+                    });
+                    
+                    info!("AI Player {} assigned worker {} to construct {:?} at {:?}", 
+                          player_id, unit.unit_id, site.building_type, site.position);
+                    
+                    break; // Only assign one worker per iteration
+                }
+            }
+        }
+    }
+}
+
+/// Get the construction time for a building type
+fn get_building_construction_time(building_type: &BuildingType) -> f32 {
+    match building_type {
+        BuildingType::Queen => 120.0,
+        BuildingType::Nursery => 80.0,
+        BuildingType::WarriorChamber => 100.0,
+        BuildingType::HunterChamber => 100.0,
+        BuildingType::FungalGarden => 90.0,
+        BuildingType::StorageChamber => 60.0,
+        _ => 100.0, // Default construction time
     }
 }

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub struct MovementContext {
     pub delta_time: f32,
@@ -22,8 +22,8 @@ impl MovementContext {
 
 pub fn movement_system(
     mut units_query: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     time: Res<Time>,
 ) {
     let context = MovementContext::new(&time, &units_query);
@@ -39,8 +39,8 @@ fn process_unit_movement(
     movement: &mut Movement,
     collision_radius: &CollisionRadius,
     context: &MovementContext,
-    terrain_manager: &crate::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::terrain_v2::TerrainSettings,
+    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
+    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
 ) {
     use crate::constants::movement::*;
     
@@ -123,7 +123,7 @@ fn clamp_velocity(velocity: Vec3) -> Vec3 {
 
 fn apply_collision_avoidance(
     entity: Entity,
-    mut new_position: Vec3,
+    new_position: Vec3,
     movement: &mut Movement,
     collision_radius: &CollisionRadius,
     context: &MovementContext,
@@ -197,13 +197,13 @@ fn calculate_separation_force(
 fn update_position_with_terrain(
     transform: &mut Transform,
     new_position: Vec3,
-    terrain_manager: &crate::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::terrain_v2::TerrainSettings,
+    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
+    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
 ) {
     use crate::constants::movement::TERRAIN_SAMPLE_LIMIT;
     
     let terrain_height = if new_position.x.abs() < TERRAIN_SAMPLE_LIMIT && new_position.z.abs() < TERRAIN_SAMPLE_LIMIT {
-        crate::terrain_v2::sample_terrain_height(
+        crate::world::terrain_v2::sample_terrain_height(
             new_position.x,
             new_position.z,
             &terrain_manager.noise_generator,

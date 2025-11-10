@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use crate::components::*;
-use crate::resources::*;
+use crate::core::components::*;
+use crate::core::resources::*;
 use crate::ai::player_state::{AIPlayer, AIType, AIDecision, PlayerCounts};
 
 pub fn ai_decision_system(
@@ -13,7 +13,7 @@ pub fn ai_decision_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
-    _model_assets: Option<Res<crate::model_loader::ModelAssets>>,
+    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
     for mut ai_player in ai_players.iter_mut() {
         ai_player.decision_timer.tick(time.delta());
@@ -40,12 +40,13 @@ pub fn ai_decision_system(
                 &mut commands,
                 &mut meshes,
                 &mut materials,
+                &model_assets,
             );
         }
     }
 }
 
-fn make_ai_decision(ai_type: &AIType, resources: &crate::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
+fn make_ai_decision(ai_type: &AIType, resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
     
     match ai_type {
         AIType::Economic => make_economic_decision(resources, counts),
@@ -54,7 +55,7 @@ fn make_ai_decision(ai_type: &AIType, resources: &crate::resources::PlayerResour
     }
 }
 
-fn make_economic_decision(resources: &crate::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
+fn make_economic_decision(resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
     use crate::constants::ai::{AI_MIN_WORKERS_FOR_WARRIOR_CHAMBER, AI_MAX_MILITARY_UNITS_EARLY};
     
     if resources.current_population >= resources.max_population && counts.houses < 3 {
@@ -70,7 +71,7 @@ fn make_economic_decision(resources: &crate::resources::PlayerResources, counts:
     }
 }
 
-fn make_aggressive_decision(resources: &crate::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
+fn make_aggressive_decision(resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
     use crate::constants::ai::{AI_MAX_MILITARY_UNITS_MID, AI_MIN_MILITARY_FOR_ATTACK};
     
     if counts.barracks == 0 && resources.chitin >= 175.0 {
@@ -86,7 +87,7 @@ fn make_aggressive_decision(resources: &crate::resources::PlayerResources, count
     }
 }
 
-fn make_balanced_decision(resources: &crate::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
+fn make_balanced_decision(resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
     use crate::constants::ai::AI_MIN_MILITARY_FOR_DEFEND;
     
     if resources.current_population >= resources.max_population {
@@ -111,6 +112,7 @@ fn execute_ai_decision(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
     match decision {
         AIDecision::BuildWorkerAnt => {
@@ -120,7 +122,7 @@ fn execute_ai_decision(
             execute_build_military(player_id, unit_type, ai_resources, game_costs, buildings);
         },
         AIDecision::BuildBuilding(building_type) => {
-            execute_build_building(player_id, building_type, ai_resources, game_costs, commands, meshes, materials);
+            execute_build_building(player_id, building_type, ai_resources, game_costs, commands, meshes, materials, &model_assets);
         },
         AIDecision::AttackPlayer(_target_player) => {
             info!("AI Player {} initiating attack!", player_id);
@@ -193,6 +195,7 @@ fn execute_build_building(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
     if let Some(cost) = game_costs.building_costs.get(&building_type) {
         if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
@@ -201,16 +204,18 @@ fn execute_build_building(
                 
                 let position = generate_ai_building_position();
                 
+                let model_assets_ref = model_assets.as_ref().map(|r| &**r);
+                
                 match building_type {
                     BuildingType::Nursery => {
-                        crate::rts_entities::RTSEntityFactory::spawn_nursery(
-                            commands, meshes, materials, position, player_id
+                        crate::entities::rts_entities::RTSEntityFactory::spawn_nursery(
+                            commands, meshes, materials, position, player_id, model_assets_ref
                         );
                         resources.add_housing(5); // Nurseries provide 5 population
                     },
                     BuildingType::WarriorChamber => {
-                        crate::rts_entities::RTSEntityFactory::spawn_warrior_chamber(
-                            commands, meshes, materials, position, player_id
+                        crate::entities::rts_entities::RTSEntityFactory::spawn_warrior_chamber(
+                            commands, meshes, materials, position, player_id, model_assets_ref
                         );
                     },
                     _ => {}

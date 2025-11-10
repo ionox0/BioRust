@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use crate::resources::PlayerResources;
-use crate::game::GameState;
+use crate::core::resources::PlayerResources;
+use crate::core::game::GameState;
 
 pub struct ResourceUIPlugin;
 

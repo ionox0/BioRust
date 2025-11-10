@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 use crate::ui::resource_display::PlayerResources;
 
 #[derive(Resource, Default)]
@@ -27,10 +27,11 @@ pub fn handle_building_placement(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     mut player_resources: ResMut<PlayerResources>,
-    mut main_resources: ResMut<crate::resources::PlayerResources>,
+    mut main_resources: ResMut<crate::core::resources::PlayerResources>,
+    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     mut preview_transforms: Query<&mut Transform, With<PlacementPreview>>,
 ) {
     // Cancel building placement with ESC
@@ -53,6 +54,7 @@ pub fn handle_building_placement(
             &terrain_manager,
             &terrain_settings,
             &mouse_button,
+            &model_assets,
             &mut preview_transforms,
         );
     }
@@ -73,13 +75,14 @@ fn handle_active_placement(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_resources: &mut ResMut<PlayerResources>,
-    main_resources: &mut ResMut<crate::resources::PlayerResources>,
+    main_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     building_type: BuildingType,
     windows: &Query<&Window>,
     camera_q: &Query<(&Camera, &GlobalTransform)>,
-    terrain_manager: &crate::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::terrain_v2::TerrainSettings,
+    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
+    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
     mouse_button: &ButtonInput<MouseButton>,
+    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
     preview_transforms: &mut Query<&mut Transform, With<PlacementPreview>>,
 ) {
     let window = windows.single();
@@ -93,7 +96,7 @@ fn handle_active_placement(
             
             if mouse_button.just_pressed(MouseButton::Left) {
                 info!("Attempting to place building at: {:?}", placement_pos);
-                attempt_building_placement(placement, commands, meshes, materials, player_resources, main_resources, building_type, placement_pos);
+                attempt_building_placement(placement, commands, meshes, materials, player_resources, main_resources, building_type, placement_pos, model_assets);
             }
         }
     }
@@ -101,15 +104,15 @@ fn handle_active_placement(
 
 fn calculate_placement_position(
     ray: Ray3d,
-    terrain_manager: &crate::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::terrain_v2::TerrainSettings,
+    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
+    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
 ) -> Vec3 {
     // Method 1: Try ray-plane intersection with y=0 plane first (most common case)
     if ray.direction.y.abs() > 0.001 {
         let t = -ray.origin.y / ray.direction.y;
         if t > 0.0 {
             let intersection = ray.origin + ray.direction * t;
-            let terrain_height = crate::terrain_v2::sample_terrain_height(
+            let terrain_height = crate::world::terrain_v2::sample_terrain_height(
                 intersection.x,
                 intersection.z,
                 &terrain_manager.noise_generator,
@@ -124,7 +127,7 @@ fn calculate_placement_position(
     let projected_point = ray.origin + ray.direction * forward_distance;
     
     // Sample terrain at the projected point
-    let terrain_height = crate::terrain_v2::sample_terrain_height(
+    let terrain_height = crate::world::terrain_v2::sample_terrain_height(
         projected_point.x,
         projected_point.z,
         &terrain_manager.noise_generator,
@@ -165,14 +168,15 @@ fn attempt_building_placement(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     player_resources: &mut ResMut<PlayerResources>,
-    main_resources: &mut ResMut<crate::resources::PlayerResources>,
+    main_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     building_type: BuildingType,
     placement_pos: Vec3,
+    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
     let building_cost = get_building_cost(&building_type);
     if can_afford_building(&building_cost, player_resources) {
         deduct_building_cost(&building_cost, player_resources, main_resources);
-        place_building(commands, meshes, materials, building_type.clone(), placement_pos);
+        place_building(commands, meshes, materials, building_type.clone(), placement_pos, model_assets);
         
         // Clear placement
         placement.active_building = None;
@@ -187,7 +191,7 @@ fn attempt_building_placement(
 fn deduct_building_cost(
     cost: &[(ResourceType, f32)],
     player_resources: &mut PlayerResources,
-    main_resources: &mut crate::resources::PlayerResources,
+    main_resources: &mut crate::core::resources::PlayerResources,
 ) {
     for (resource_type, cost_amount) in cost {
         match resource_type {
@@ -245,13 +249,16 @@ fn place_building(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     building_type: BuildingType,
     position: Vec3,
+    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
-    use crate::rts_entities::RTSEntityFactory;
+    use crate::entities::rts_entities::RTSEntityFactory;
+    
+    let model_assets_ref = model_assets.as_ref().map(|r| &**r);
     
     let _building_entity = match building_type {
-        BuildingType::Queen => RTSEntityFactory::spawn_queen_chamber(commands, meshes, materials, position, 1),
-        BuildingType::Nursery => RTSEntityFactory::spawn_nursery(commands, meshes, materials, position, 1),
-        BuildingType::WarriorChamber => RTSEntityFactory::spawn_warrior_chamber(commands, meshes, materials, position, 1),
+        BuildingType::Queen => RTSEntityFactory::spawn_queen_chamber(commands, meshes, materials, position, 1, model_assets_ref),
+        BuildingType::Nursery => RTSEntityFactory::spawn_nursery(commands, meshes, materials, position, 1, model_assets_ref),
+        BuildingType::WarriorChamber => RTSEntityFactory::spawn_warrior_chamber(commands, meshes, materials, position, 1, model_assets_ref),
         _ => create_fallback_building(commands, meshes, materials, building_type, position),
     };
 }
@@ -284,15 +291,15 @@ fn create_fallback_building(
             is_complete: true,
             rally_point: None,
         },
-        crate::components::RTSHealth {
+        crate::core::components::RTSHealth {
             current: DEFAULT_BUILDING_HEALTH,
             max: DEFAULT_BUILDING_HEALTH,
             armor: DEFAULT_BUILDING_ARMOR,
             regeneration_rate: 0.0,
             last_damage_time: 0.0,
         },
-        crate::components::Selectable::default(),
-        crate::components::GameEntity,
+        crate::core::components::Selectable::default(),
+        crate::core::components::GameEntity,
     )).id()
 }
 

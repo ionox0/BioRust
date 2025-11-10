@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub struct RTSSystemsPlugin;
 
@@ -24,8 +24,8 @@ impl Plugin for RTSSystemsPlugin {
 
 pub fn movement_system(
     mut units_query: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     time: Res<Time>,
 ) {
     use crate::constants::movement::*;
@@ -162,7 +162,7 @@ pub fn movement_system(
                 
                 // Sample terrain height safely
                 let terrain_height = if new_position.x.abs() < TERRAIN_SAMPLE_LIMIT && new_position.z.abs() < TERRAIN_SAMPLE_LIMIT {
-                    crate::terrain_v2::sample_terrain_height(
+                    crate::world::terrain_v2::sample_terrain_height(
                         new_position.x,
                         new_position.z,
                         &terrain_manager.noise_generator,
@@ -212,8 +212,8 @@ pub fn movement_system(
 pub fn resource_gathering_system(
     mut gatherers: Query<(Entity, &mut ResourceGatherer, &Transform, &RTSUnit), With<RTSUnit>>,
     mut resources: Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
@@ -392,9 +392,9 @@ pub fn drag_selection_system(
                                         // Spawn selection indicator if selected
                                         if selectable.is_selected {
                                             commands.spawn((
-                                                Mesh3d(meshes.add(Torus::new(selectable.selection_radius * 0.8, 0.5))),
+                                                Mesh3d(meshes.add(Torus::new(selectable.selection_radius * 0.8, 0.1))),
                                                 MeshMaterial3d(materials.add(StandardMaterial {
-                                                    base_color: Color::srgb(0.0, 1.0, 0.0),
+                                                    base_color: Color::srgb(0.0, 0.4, 0.0),
                                                     emissive: Color::srgb(0.0, 0.5, 0.0).into(),
                                                     alpha_mode: AlphaMode::Blend,
                                                     ..default()
@@ -476,9 +476,9 @@ pub fn drag_selection_system(
 
 pub fn production_system(
     mut buildings: Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
-    game_costs: Res<crate::resources::GameCosts>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
+    game_costs: Res<crate::core::resources::GameCosts>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -531,7 +531,7 @@ pub fn production_system(
                     
                     match unit_type {
                         UnitType::WorkerAnt => {
-                            crate::rts_entities::RTSEntityFactory::spawn_worker_ant(
+                            crate::entities::rts_entities::RTSEntityFactory::spawn_worker_ant(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -541,7 +541,7 @@ pub fn production_system(
                             );
                         },
                         UnitType::SoldierAnt => {
-                            crate::rts_entities::RTSEntityFactory::spawn_soldier_ant(
+                            crate::entities::rts_entities::RTSEntityFactory::spawn_soldier_ant(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -551,7 +551,7 @@ pub fn production_system(
                             );
                         },
                         UnitType::HunterWasp => {
-                            crate::rts_entities::RTSEntityFactory::spawn_hunter_wasp(
+                            crate::entities::rts_entities::RTSEntityFactory::spawn_hunter_wasp(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -561,7 +561,7 @@ pub fn production_system(
                             );
                         },
                         UnitType::BeetleKnight => {
-                            crate::rts_entities::RTSEntityFactory::spawn_beetle_knight(
+                            crate::entities::rts_entities::RTSEntityFactory::spawn_beetle_knight(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -681,8 +681,8 @@ pub fn unit_command_system(
     all_units: Query<(&Transform, &RTSUnit), With<RTSUnit>>,
     resources: Query<&Transform, With<ResourceSource>>,
     _gatherers: Query<&mut ResourceGatherer>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
 ) {
     if mouse_button.just_pressed(MouseButton::Right) {
         let window = windows.single();
@@ -789,7 +789,7 @@ pub fn unit_command_system(
                 
                 // Sample the actual terrain height at the target location
                 let terrain_height = if horizontal_intersection.x.abs() < 10000.0 && horizontal_intersection.z.abs() < 10000.0 {
-                    crate::terrain_v2::sample_terrain_height(
+                    crate::world::terrain_v2::sample_terrain_height(
                         horizontal_intersection.x,
                         horizontal_intersection.z,
                         &terrain_manager.noise_generator,
@@ -873,8 +873,8 @@ pub fn spawn_test_units_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    camera_q: Query<&Transform, With<crate::components::RTSCamera>>,
-    mut units_q: Query<(&mut Movement, &Transform), (With<RTSUnit>, Without<crate::components::RTSCamera>)>,
+    camera_q: Query<&Transform, With<crate::core::components::RTSCamera>>,
+    mut units_q: Query<(&mut Movement, &Transform), (With<RTSUnit>, Without<crate::core::components::RTSCamera>)>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyM) {
         // Spawn militia unit at ground level near camera
@@ -949,8 +949,8 @@ pub fn spawn_test_units_system(
 
 pub fn building_completion_system(
     mut buildings: Query<(Entity, &mut Building, &RTSUnit), Changed<Building>>,
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
 ) {
     for (_, mut building, unit) in buildings.iter_mut() {
         if building.is_complete && building.construction_progress >= building.max_construction {
@@ -985,8 +985,8 @@ pub fn building_completion_system(
 
 pub fn population_management_system(
     units: Query<&RTSUnit, With<RTSUnit>>,
-    mut player_resources: ResMut<crate::resources::PlayerResources>,
-    mut ai_resources: ResMut<crate::resources::AIResources>,
+    mut player_resources: ResMut<crate::core::resources::PlayerResources>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
     time: Res<Time>,
     mut update_timer: Local<Timer>,
 ) {

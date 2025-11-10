@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::resources::AIResources;
+use crate::core::resources::AIResources;
 
 pub fn ai_resource_management_system(
     mut ai_resources: ResMut<AIResources>,

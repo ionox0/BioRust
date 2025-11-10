@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub fn vision_system(
     units: Query<(Entity, &Position, &Vision, &RTSUnit)>,

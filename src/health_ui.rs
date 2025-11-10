@@ -1,6 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
-use crate::debug_health::debug_health_system;
+use crate::core::components::*;
 
 pub struct HealthUIPlugin;
 
@@ -11,7 +10,6 @@ impl Plugin for HealthUIPlugin {
             update_health_bars,
             cleanup_orphaned_health_bars,
             health_status_indicator_system,
-            debug_health_system, // Debug system to test health tracking
         ));
     }
 }
@@ -130,8 +128,8 @@ pub fn update_health_bars(
         let status_changed = *health_status != new_status;
         *health_status = new_status;
         
-        // Only show health bar if unit is damaged
-        let should_show = health_ratio < 1.0;
+        // Always show health bars for units (changed to always be visible)
+        let should_show = true;
         
         if should_show {
             let bar_position = unit_transform.translation + Vec3::new(0.0, 3.0, 0.0);

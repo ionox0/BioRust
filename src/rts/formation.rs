@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub fn formation_system(
     mut units: Query<(&mut Movement, &Formation), With<RTSUnit>>,

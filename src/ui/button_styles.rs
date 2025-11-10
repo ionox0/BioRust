@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 // Button style definitions to reduce duplication
 pub struct ButtonStyle {

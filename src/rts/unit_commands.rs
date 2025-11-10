@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub struct CommandContext<'a> {
     pub camera: &'a Camera,
     pub camera_transform: &'a GlobalTransform,
-    pub terrain_manager: &'a crate::terrain_v2::TerrainChunkManager,
-    pub terrain_settings: &'a crate::terrain_v2::TerrainSettings,
+    pub terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
+    pub terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
 }
 
 pub fn unit_command_system(
@@ -16,8 +16,8 @@ pub fn unit_command_system(
     mut units: Query<(&mut Movement, &mut Combat, &Selectable, &RTSUnit), With<RTSUnit>>,
     all_units: Query<(&Transform, &RTSUnit), With<RTSUnit>>,
     resources: Query<&Transform, With<ResourceSource>>,
-    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
 ) {
     if !mouse_button.just_pressed(MouseButton::Right) {
         return;
@@ -165,7 +165,7 @@ fn clamp_position(position: Vec3) -> Vec3 {
 
 fn sample_terrain_height_safe(position: Vec3, context: &CommandContext) -> f32 {
     if position.x.abs() < 10000.0 && position.z.abs() < 10000.0 {
-        crate::terrain_v2::sample_terrain_height(
+        crate::world::terrain_v2::sample_terrain_height(
             position.x,
             position.z,
             &context.terrain_manager.noise_generator,
@@ -234,7 +234,7 @@ pub fn spawn_test_units_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    camera_q: Query<&Transform, With<crate::components::RTSCamera>>,
+    camera_q: Query<&Transform, With<crate::core::components::RTSCamera>>,
 ) {
     let Ok(camera_transform) = camera_q.get_single() else { return };
     
@@ -252,13 +252,13 @@ pub fn spawn_test_units_system(
         let spawn_pos = camera_ground_pos + Vec3::new(0.0, 1.0, crate::constants::combat::UNIT_SPAWN_RANGE);
         
         // Use the new EntityFactory for enemy spawning
-        let config = crate::entity_factory::SpawnConfig::unit(
-            crate::entity_factory::EntityType::from_unit(UnitType::SoldierAnt),
+        let config = crate::entities::entity_factory::SpawnConfig::unit(
+            crate::entities::entity_factory::EntityType::from_unit(UnitType::SoldierAnt),
             spawn_pos,
             2, // Player 2 (enemy)
         );
         
-        crate::entity_factory::EntityFactory::spawn(
+        crate::entities::entity_factory::EntityFactory::spawn(
             &mut commands,
             &mut meshes,
             &mut materials,
@@ -282,13 +282,13 @@ fn spawn_test_unit(
     let spawn_pos = camera_ground_pos + Vec3::new(offset_x, 1.0, 0.0);
     
     // Use the new EntityFactory instead of the old create_combat_unit
-    let config = crate::entity_factory::SpawnConfig::unit(
-        crate::entity_factory::EntityType::from_unit(unit_type.clone()),
+    let config = crate::entities::entity_factory::SpawnConfig::unit(
+        crate::entities::entity_factory::EntityType::from_unit(unit_type.clone()),
         spawn_pos,
         player_id,
     );
     
-    crate::entity_factory::EntityFactory::spawn(
+    crate::entities::entity_factory::EntityFactory::spawn(
         commands,
         meshes,
         materials,

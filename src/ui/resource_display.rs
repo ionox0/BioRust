@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 use crate::ui::icons::UIIcons;
 
 #[derive(Resource, Default)]
@@ -124,7 +124,7 @@ fn create_population_counter(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
 
 // Sync the UI resource system with the main game resource system
 pub fn sync_player_resources(
-    main_resources: Res<crate::resources::PlayerResources>,
+    main_resources: Res<crate::core::resources::PlayerResources>,
     mut ui_resources: ResMut<PlayerResources>,
 ) {
     if main_resources.is_changed() {

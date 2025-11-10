@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use crate::components::*;
-use crate::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+use crate::core::components::*;
+use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
 use rand;
 use crate::ui::{
     resource_display::{PlayerResources, setup_resource_display},
@@ -215,7 +215,7 @@ pub fn handle_building_panel_interactions(
     mut unit_interaction_query: Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
     mut placement: ResMut<BuildingPlacement>,
     player_resources: Res<PlayerResources>,
-    model_assets: Option<Res<crate::model_loader::ModelAssets>>,
+    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -263,7 +263,7 @@ fn handle_building_button_interactions(
 fn handle_unit_button_interactions(
     unit_interaction_query: &mut Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
     player_resources: &PlayerResources,
-    model_assets: Option<Res<crate::model_loader::ModelAssets>>,
+    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -297,7 +297,7 @@ fn spawn_unit_from_building(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     unit_type: UnitType,
-    model_assets: Option<&crate::model_loader::ModelAssets>,
+    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
 ) {
     use crate::constants::combat::*;
     let x = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;

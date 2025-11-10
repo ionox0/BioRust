@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::components::*;
+use crate::core::components::*;
 
 pub fn ai_combat_system(
     mut ai_units: Query<(&mut Movement, &mut Combat, &Transform, &RTSUnit), With<Combat>>,
