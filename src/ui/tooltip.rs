@@ -187,11 +187,14 @@ pub fn update_tooltip_system(
             );
 
             let unit_type = match unit.unit_type {
-                UnitType::WorkerAnt => "Worker Ant",
-                UnitType::SoldierAnt => "Soldier Ant",
-                UnitType::HunterWasp => "Hunter Wasp",
-                UnitType::SentryAnt => "Sentry Ant",
-                UnitType::BeetleKnight => "Beetle Knight",
+                Some(UnitType::WorkerAnt) => "Worker Ant",
+                Some(UnitType::SoldierAnt) => "Soldier Ant",
+                Some(UnitType::HunterWasp) => "Hunter Wasp",
+                Some(UnitType::BeetleKnight) => "Beetle Knight",
+                Some(UnitType::SpearMantis) => "Spear Mantis",
+                Some(UnitType::ScoutAnt) => "Scout Ant",
+                Some(UnitType::DragonFly) => "DragonFly",
+                _ => "Unit",
             };
 
             // Update tooltip text

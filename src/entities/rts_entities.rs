@@ -543,7 +543,7 @@ impl RTSEntityFactory {
         let model_scale = if let Some(_models) = model_assets {
             let model_type = get_unit_insect_model(&UnitType::DragonFly);
             match model_type {
-                crate::rendering::model_loader::InsectModelType::Dragonfly => crate::rendering::model_loader::get_model_scale(&model_type),
+                crate::rendering::model_loader::InsectModelType::DragonFly => crate::rendering::model_loader::get_model_scale(&model_type),
                 _ => crate::rendering::model_loader::get_model_scale(&model_type),
             }
         } else {

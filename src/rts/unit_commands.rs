@@ -192,11 +192,12 @@ fn execute_commands_for_selected_units(
 ) {
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
 
-    // For resource gathering, distribute units in a circle around the resource
-    let selected_units: Vec<_> = units.iter()
+    // Count selected units first (immutable borrow)
+    let selected_count = units.iter()
         .filter(|(_, _, selectable, unit)| selectable.is_selected && unit.player_id == 1)
-        .collect();
+        .count();
 
+    // Now do mutable iteration
     let mut index = 0;
     for (mut movement, mut combat, selectable, unit) in units.iter_mut() {
         if !selectable.is_selected || unit.player_id != 1 {
@@ -205,7 +206,7 @@ fn execute_commands_for_selected_units(
 
         // Calculate distributed position for resource gathering
         let adjusted_target = if target_resource.is_some() {
-            calculate_gathering_position(target_point, index, selected_units.len())
+            calculate_gathering_position(target_point, index, selected_count)
         } else {
             target_point
         };
