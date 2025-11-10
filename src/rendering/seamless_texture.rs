@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::render_resource::{AddressMode, SamplerDescriptor, FilterMode};
 use noise::{NoiseFn, Perlin};
 
 // Create a seamless terrain texture inspired by Bug_Game
@@ -58,17 +59,15 @@ pub fn create_seamless_terrain_texture(images: &mut ResMut<Assets<Image>>) -> Ha
             // Add subtle variation
             let detail = ((value * 16.0).fract() - 0.5) as f32 * 0.1;
             
-            texture_data.push(((r + detail) * 255.0).clamp(50.0, 50.0) as u8);
-            texture_data.push(((r + detail) * 255.0).clamp(50.0, 50.0) as u8);
-            texture_data.push(((r + detail) * 255.0).clamp(50.0, 50.0) as u8);
-            // texture_data.push(((g + detail) * 255.0).clamp(0.0, 255.0) as u8);
-            // texture_data.push(((b + detail) * 255.0).clamp(0.0, 180.0) as u8);
+            texture_data.push(((r + detail) * 255.0).clamp(0.0, 255.0) as u8);
+            texture_data.push(((g + detail) * 255.0).clamp(0.0, 255.0) as u8);
+            texture_data.push(((b + detail) * 255.0).clamp(0.0, 180.0) as u8);
             texture_data.push(255); // Alpha
         }
     }
     
     // Create the image with proper wrapping for seamless tiling
-    let image = Image::new(
+    let mut image = Image::new(
         bevy::render::render_resource::Extent3d {
             width: texture_size,
             height: texture_size,
@@ -79,9 +78,17 @@ pub fn create_seamless_terrain_texture(images: &mut ResMut<Assets<Image>>) -> Ha
         bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::RENDER_WORLD,
     );
-    
-    // For Bevy 0.15, sampler configuration is handled differently
-    // Let the material system handle texture sampling
-    
+
+    // Configure sampler for repeating/tiling texture
+    image.sampler = bevy::render::texture::ImageSampler::Descriptor(SamplerDescriptor {
+        address_mode_u: AddressMode::Repeat,
+        address_mode_v: AddressMode::Repeat,
+        address_mode_w: AddressMode::Repeat,
+        mag_filter: FilterMode::Linear,
+        min_filter: FilterMode::Linear,
+        mipmap_filter: FilterMode::Linear,
+        ..Default::default()
+    });
+
     images.add(image)
 }

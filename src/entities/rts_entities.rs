@@ -631,11 +631,11 @@ impl RTSEntityFactory {
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
             if models.models_loaded && models.anthill != Handle::default() {
-                // Use GLB model
+                // Use GLB model - anthill raised 5 units above terrain to sit on top
                 commands.spawn((
                     SceneRoot(models.anthill.clone()),
-                    Transform::from_translation(position)
-                        .with_scale(Vec3::splat(8.0)), // Scale up anthill to building size
+                    Transform::from_translation(position + Vec3::new(0.0, 5.0, 0.0))
+                        .with_scale(Vec3::splat(10.0)), // Large main building
                     UseGLBModel,
                 ))
             } else {
@@ -715,11 +715,11 @@ impl RTSEntityFactory {
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
             if models.models_loaded && models.hive != Handle::default() {
-                // Use GLB model
+                // Use GLB model - hive placed on terrain surface
                 commands.spawn((
                     SceneRoot(models.hive.clone()),
-                    Transform::from_translation(position + Vec3::new(0.0, 2.0, 0.0))
-                        .with_scale(Vec3::splat(0.04)), // Scale hive appropriately and raise it up
+                    Transform::from_translation(position + Vec3::new(0.0, 3.0, 0.0))
+                        .with_scale(Vec3::splat(0.05)), // Medium-sized building
                     UseGLBModel,
                 ))
             } else {
@@ -785,11 +785,11 @@ impl RTSEntityFactory {
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
             if models.models_loaded && models.stick_shelter != Handle::default() {
-                // Use GLB model
+                // Use GLB model - stick shelter placed on terrain surface
                 commands.spawn((
                     SceneRoot(models.stick_shelter.clone()),
-                    Transform::from_translation(position + Vec3::new(0.0, -2.0, 0.0))
-                        .with_scale(Vec3::splat(0.06)), // Scale down by 100x and lower into terrain
+                    Transform::from_translation(position + Vec3::new(0.0, 2.0, 0.0))
+                        .with_scale(Vec3::splat(0.08)), // Medium building size
                     UseGLBModel,
                 ))
             } else {

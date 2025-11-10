@@ -488,11 +488,11 @@ pub fn generate_terrain_chunk_v2(
             
             vertices.push([world_x, height, world_z]);
 
-            // Use slightly extended UVs to prevent visible seams at chunk boundaries
-            // This creates a small overlap in texture space to hide gridlines
-            let uv_margin = 0.01; // Small margin to eliminate seams
-            let u = (x as f32 / resolution as f32) * (1.0 + uv_margin * 2.0) - uv_margin;
-            let v = (z as f32 / resolution as f32) * (1.0 + uv_margin * 2.0) - uv_margin;
+            // Use UVs that tile properly across chunk boundaries
+            // Multiply by chunk size to create tiling effect across the terrain
+            let tile_scale = 4.0; // Number of texture repeats per chunk
+            let u = (x as f32 / resolution as f32) * tile_scale;
+            let v = (z as f32 / resolution as f32) * tile_scale;
             uvs.push([u, v]);
             
             // Add vertex colors for terrain variation based on height and noise

@@ -179,7 +179,7 @@ pub fn setup_ai_resource_display(mut commands: Commands, ui_icons: Res<UIIcons>)
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(10.0),
+            bottom: Val::Px(170.0), // Position above the 150px bottom HUD + 20px margin
             left: Val::Px(10.0),
             flex_direction: FlexDirection::Column,
             padding: UiRect::all(Val::Px(10.0)),
