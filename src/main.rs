@@ -9,14 +9,12 @@ mod ui;
 mod ai;
 mod health_ui;
 mod resource_ui;
-mod rts_systems;
 mod combat_systems;
 mod collision;
 
 use core::game::*;
 use core::constants;
 use world::terrain_v2::TerrainPluginV2;
-use rts_systems::RTSSystemsPlugin;
 use combat_systems::CombatPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;
@@ -40,7 +38,7 @@ fn main() {
             }),
             GamePlugin,
             TerrainPluginV2,
-            RTSSystemsPlugin,
+            rts::RTSSystemsPlugin,
             CombatPlugin,
             HealthUIPlugin,
             UIPlugin,

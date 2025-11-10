@@ -136,7 +136,7 @@ pub fn ai_strategy_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     units: Query<&RTSUnit>,
     buildings: Query<(&Building, &RTSUnit), With<Building>>,
-    mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit), With<ResourceGatherer>>,
+    mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), (With<ResourceGatherer>, With<RTSUnit>)>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     mut construction_workers: Query<(Entity, &mut Movement, &RTSUnit), (With<RTSUnit>, Without<ConstructionTask>, Without<ResourceGatherer>)>,
     mut building_sites: Query<(Entity, &mut BuildingSite), With<BuildingSite>>,
@@ -333,12 +333,37 @@ fn try_build_unit(
         return false;
     }
     
-    // Spawn the unit directly (simplified approach)
-    let spawn_position = Vec3::new(
-        (player_id as f32 - 1.0) * 50.0,
-        0.0,
-        0.0,
-    );
+    // Find the appropriate building to spawn from
+    let spawn_building_type = match unit_type {
+        UnitType::WorkerAnt => BuildingType::Queen,
+        UnitType::SoldierAnt => BuildingType::WarriorChamber,
+        UnitType::HunterWasp => BuildingType::HunterChamber,
+        UnitType::BeetleKnight => BuildingType::WarriorChamber,
+        _ => BuildingType::Queen, // Default fallback
+    };
+    
+    // Find a suitable building to spawn from
+    let spawn_position = if let Some((building, _)) = buildings.iter()
+        .find(|(building, unit)| {
+            unit.player_id == player_id && 
+            building.building_type == spawn_building_type && 
+            building.is_complete
+        }) {
+        building.rally_point.unwrap_or_else(|| {
+            // Default rally point near building
+            Vec3::new(200.0 * player_id as f32, 10.0, 0.0)
+        })
+    } else {
+        // Fallback: spawn near player base (simplified for now)
+        let base_x = (player_id as f32 - 1.5) * 400.0; // Player 2 at x=200, etc.
+        let base_z = 0.0;
+        let spawn_x = base_x + (rand::random::<f32>() - 0.5) * 60.0; // Random offset within 60 units
+        let spawn_z = base_z + (rand::random::<f32>() - 0.5) * 60.0;
+        
+        // Use fixed height for now (terrain awareness can be added later)
+        Vec3::new(spawn_x, 10.0, spawn_z)
+    };
+    
     let unit_id = rand::random();
     
     match unit_type {
@@ -505,34 +530,93 @@ where
 fn assign_workers_to_resources(
     player_id: u8,
     strategy: &PlayerStrategy,
-    workers: &mut Query<(Entity, &mut ResourceGatherer, &RTSUnit), With<ResourceGatherer>>,
+    workers: &mut Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), (With<ResourceGatherer>, With<RTSUnit>)>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
 ) {
     // Find suitable resource sources for each resource type
     for priority_resource in &strategy.economy_targets.resource_priorities {
-        let suitable_sources: Vec<Entity> = resource_sources
+        let suitable_sources: Vec<(Entity, Vec3)> = resource_sources
             .iter()
-            .filter(|(_, source, _)| source.resource_type == *priority_resource)
-            .map(|(entity, _, _)| entity)
+            .filter(|(_, source, _)| source.resource_type == *priority_resource && source.amount > 0.0)
+            .map(|(entity, _, transform)| (entity, transform.translation))
             .collect();
         
         if suitable_sources.is_empty() {
             continue;
         }
         
-        // Find idle workers for this player and assign them
-        for (worker_entity, mut gatherer, unit) in workers.iter_mut() {
+        // Find idle workers for this player and assign them to nearest resource
+        for (worker_entity, mut gatherer, mut movement, worker_transform, unit) in workers.iter_mut() {
             if unit.player_id == player_id && gatherer.target_resource.is_none() {
-                // Assign worker to the first available suitable resource source
-                if let Some(source_entity) = suitable_sources.first() {
-                    gatherer.target_resource = Some(*source_entity);
+                // Find the closest resource source
+                let mut closest_resource: Option<Entity> = None;
+                let mut closest_distance = f32::MAX;
+                
+                for &(source_entity, source_position) in &suitable_sources {
+                    let distance = worker_transform.translation.distance(source_position);
+                    if distance < closest_distance {
+                        closest_distance = distance;
+                        closest_resource = Some(source_entity);
+                    }
+                }
+                
+                if let Some(source_entity) = closest_resource {
+                    gatherer.target_resource = Some(source_entity);
                     gatherer.resource_type = Some(priority_resource.clone());
                     
-                    // Reduced worker assignment logging
+                    // Set movement target to the resource location
+                    if let Ok((_, _, source_transform)) = resource_sources.get(source_entity) {
+                        movement.target_position = Some(source_transform.translation);
+                        info!("AI Player {} assigned worker {} to harvest {:?} at distance {:.1}", 
+                              player_id, unit.unit_id, priority_resource, closest_distance);
+                    }
                     
                     // Only assign one worker per iteration to avoid conflicts
                     break;
                 }
+            }
+        }
+    }
+}
+
+/// System to assign newly spawned AI workers to nearby resources
+pub fn ai_worker_initialization_system(
+    mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), (With<ResourceGatherer>, With<RTSUnit>, Added<ResourceGatherer>)>,
+    resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+) {
+    for (worker_entity, mut gatherer, mut movement, worker_transform, unit) in workers.iter_mut() {
+        // Only process AI workers (not player 1)
+        if unit.player_id == 1 {
+            continue;
+        }
+        
+        // Find the closest resource source (prioritize Nectar for new workers)
+        let mut closest_resource: Option<Entity> = None;
+        let mut closest_distance = f32::MAX;
+        
+        for (source_entity, source, source_transform) in resource_sources.iter() {
+            if source.amount > 0.0 {
+                let distance = worker_transform.translation.distance(source_transform.translation);
+                // Prioritize Nectar resources for new workers
+                let priority_bonus = if source.resource_type == ResourceType::Nectar { -50.0 } else { 0.0 };
+                let effective_distance = distance + priority_bonus;
+                
+                if effective_distance < closest_distance {
+                    closest_distance = effective_distance;
+                    closest_resource = Some(source_entity);
+                }
+            }
+        }
+        
+        // Assign to closest resource if found
+        if let Some(source_entity) = closest_resource {
+            if let Ok((_, source, source_transform)) = resource_sources.get(source_entity) {
+                gatherer.target_resource = Some(source_entity);
+                gatherer.resource_type = Some(source.resource_type.clone());
+                movement.target_position = Some(source_transform.translation);
+                
+                info!("AI Player {} newly spawned worker {} assigned to harvest {:?} at distance {:.1}", 
+                      unit.player_id, unit.unit_id, source.resource_type, closest_distance);
             }
         }
     }
