@@ -324,16 +324,16 @@ fn spawn_minimal_environment_objects(
         if models.models_loaded {
             info!("Spawning distributed environment objects across the map");
             
-            // Spread out environment objects across the map for better distribution
+            // Spread out environment objects far across the map with large spacing
             let object_positions = [
-                (800.0, 1200.0),   // Far northeast
-                (-1200.0, 800.0),  // Far northwest  
-                (0.0, -1000.0),   // Far south
-                (1500.0, -500.0),  // Far southeast
-                (-1500.0, -300.0), // Far southwest
-                (600.0, -600.0),   // Southeast quadrant
-                (-800.0, 600.0),   // Northwest quadrant
-                (200.0, 800.0),    // North-center
+                (800.0, 1200.0),    // Far northeast
+                (-1200.0, 800.0),   // Far northwest  
+                (0.0, -1000.0),     // Far south
+                (1500.0, -500.0),   // Far southeast
+                (-1500.0, -300.0),  // Far southwest
+                (600.0, -600.0),    // Southeast quadrant
+                (-800.0, 600.0),    // Northwest quadrant
+                (200.0, 800.0),     // North-center
             ];
             
             for (i, &(x, z)) in object_positions.iter().enumerate() {

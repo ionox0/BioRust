@@ -559,11 +559,11 @@ impl EntityFactory {
             // Butterfly/Scout models need 180° rotation - they're facing backwards  
             (UnitType::ScoutAnt, InsectModelType::CairnsBirdwing) => Quat::from_rotation_y(std::f32::consts::PI),
             
-            // Hornet/Wasp models need 180° rotation - they're facing backwards
-            (UnitType::HunterWasp, InsectModelType::Hornet) => Quat::from_rotation_y(std::f32::consts::PI),
+            // Hornet/Wasp models face forward correctly - no rotation needed
+            (UnitType::HunterWasp, InsectModelType::Hornet) => Quat::IDENTITY,
             
-            // Beetle models need 180° rotation - they're facing backwards
-            (UnitType::BeetleKnight, InsectModelType::RhinoBeetle) => Quat::from_rotation_y(std::f32::consts::PI),
+            // Beetle models face forward correctly - no rotation needed
+            (UnitType::BeetleKnight, InsectModelType::RhinoBeetle) => Quat::IDENTITY,
             
             // DragonFly model - may need specific rotation
             (UnitType::DragonFly, InsectModelType::DragonFly) => Quat::from_rotation_y(std::f32::consts::PI),

@@ -8,7 +8,7 @@ mod rendering;
 mod ui;
 mod ai;
 mod health_ui;
-// mod resource_ui;  // REMOVED: Duplicate of ui::resource_display
+mod resource_ui;
 mod combat_systems;
 mod collision;
 
@@ -39,7 +39,7 @@ fn main() {
             }),
             GamePlugin,
             TerrainPluginV2,
-            RTSSystemsPlugin,
+            rts::RTSSystemsPlugin,
             CombatPlugin,
             HealthUIPlugin,
             UIPlugin,  // Contains comprehensive resource display system
