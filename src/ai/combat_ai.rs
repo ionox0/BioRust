@@ -38,11 +38,12 @@ pub fn ai_combat_system(
         }
 
         // Ensure unit has combat state
-        let mut state = if let Some(ref state) = combat_state_opt {
-            state.clone()
-        } else {
-            commands.entity(entity).insert(CombatState::default());
-            CombatState::default()
+        let mut state = match &combat_state_opt {
+            Some(state) => (**state).clone(),
+            None => {
+                commands.entity(entity).insert(CombatState::default());
+                CombatState::default()
+            }
         };
 
         // Get tactical stance
