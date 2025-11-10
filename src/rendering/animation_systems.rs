@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::animation::AnimationNodeIndex;
+use bevy::animation::graph::AnimationNodeIndex;
 use crate::core::components::*;
 use crate::rendering::model_loader::UseGLBModel;
 
