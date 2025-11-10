@@ -98,7 +98,10 @@ fn handle_advanced_combat_ai(
         }
 
         if let Some(retreat_pos) = state.retreat_position {
-            movement.target_position = Some(retreat_pos);
+            // Only update if significantly different to avoid jitter
+            if should_update_target_position(&movement.target_position, retreat_pos, 2.0) {
+                movement.target_position = Some(retreat_pos);
+            }
         }
         return;
     } else {
@@ -123,10 +126,13 @@ fn handle_advanced_combat_ai(
                 handle_melee_combat(movement, combat, unit_transform, target_pos, target_distance);
             }
             _ => {
-                // Default combat behavior
-                if target_distance > combat.attack_range {
-                    movement.target_position = Some(target_pos);
-                } else {
+                // Default combat behavior with threshold to prevent jitter
+                let threshold = 1.0;
+                if target_distance > combat.attack_range + threshold {
+                    if should_update_target_position(&movement.target_position, target_pos, threshold) {
+                        movement.target_position = Some(target_pos);
+                    }
+                } else if target_distance <= combat.attack_range && movement.current_velocity.length() < 1.0 {
                     movement.target_position = None;
                 }
             }
@@ -141,7 +147,10 @@ fn handle_advanced_combat_ai(
         if stance == TacticalStance::Defensive {
             let home_pos = estimate_home_position(unit.player_id);
             if unit_transform.translation.distance(home_pos) > 40.0 {
-                movement.target_position = Some(home_pos);
+                // Only update if significantly different to avoid jitter
+                if should_update_target_position(&movement.target_position, home_pos, 2.0) {
+                    movement.target_position = Some(home_pos);
+                }
             }
         }
     }
@@ -258,6 +267,14 @@ fn calculate_target_priority(target_unit: &RTSUnit, target_health: &RTSHealth) -
     priority
 }
 
+/// Check if target position should be updated (avoids micro-adjustments)
+fn should_update_target_position(current_target: &Option<Vec3>, new_target: Vec3, threshold: f32) -> bool {
+    match current_target {
+        None => true, // No target set, always update
+        Some(current) => current.distance(new_target) > threshold, // Only update if significantly different
+    }
+}
+
 /// Ranged unit kiting behavior - maintain optimal distance
 fn handle_ranged_combat(
     movement: &mut Movement,
@@ -268,17 +285,27 @@ fn handle_ranged_combat(
 ) {
     let optimal_range = combat.attack_range * 0.9; // Stay at 90% of max range
     let min_range = combat.attack_range * 0.7; // Don't get closer than 70%
+    let threshold = 1.5; // Minimum distance change before updating position
 
-    if distance < min_range {
+    if distance < min_range - threshold {
         // Too close - back away (kiting)
         let retreat_direction = (unit_transform.translation - target_pos).normalize();
-        movement.target_position = Some(unit_transform.translation + retreat_direction * 10.0);
-    } else if distance > optimal_range {
+        let new_target = unit_transform.translation + retreat_direction * 10.0;
+
+        // Only update if significantly different from current target
+        if should_update_target_position(&movement.target_position, new_target, threshold) {
+            movement.target_position = Some(new_target);
+        }
+    } else if distance > optimal_range + threshold {
         // Too far - move closer
-        movement.target_position = Some(target_pos);
+        if should_update_target_position(&movement.target_position, target_pos, threshold) {
+            movement.target_position = Some(target_pos);
+        }
     } else {
-        // Perfect range - stop and attack
-        movement.target_position = None;
+        // In optimal range - maintain current position without micro-adjustments
+        if movement.current_velocity.length() < 1.0 {
+            movement.target_position = None;
+        }
     }
 }
 
@@ -290,13 +317,20 @@ fn handle_melee_combat(
     target_pos: Vec3,
     distance: f32,
 ) {
-    if distance > combat.attack_range {
-        // Chase target
-        movement.target_position = Some(target_pos);
-    } else {
-        // In range - attack
-        movement.target_position = None;
+    let threshold = 1.0; // Minimum distance change before updating
+
+    if distance > combat.attack_range + threshold {
+        // Too far - chase target
+        if should_update_target_position(&movement.target_position, target_pos, threshold) {
+            movement.target_position = Some(target_pos);
+        }
+    } else if distance <= combat.attack_range {
+        // In range - stop and attack
+        if movement.current_velocity.length() < 1.0 {
+            movement.target_position = None;
+        }
     }
+    // Else: in buffer zone, maintain current movement to avoid jitter
 }
 
 /// Estimate home base position for retreat
