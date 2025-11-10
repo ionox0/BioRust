@@ -98,9 +98,9 @@ fn calculate_distance_to_ray(ray: Ray3d, target_position: Vec3, projected_distan
 
 fn is_enemy_unit(
     target_unit: &RTSUnit,
-    units: &Query<(&mut Movement, &mut Combat, &Selectable, &RTSUnit), With<RTSUnit>>,
+    units: &Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
 ) -> bool {
-    for (_, _, selectable, unit) in units.iter() {
+    for (_, _, _, selectable, unit, _) in units.iter() {
         if selectable.is_selected && unit.player_id != target_unit.player_id {
             return true;
         }
