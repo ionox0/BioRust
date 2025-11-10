@@ -151,21 +151,21 @@ pub fn attack_system(
 // System to handle movement towards combat targets
 pub fn combat_movement_system(
     mut unit_query: Query<(&mut Movement, &Combat, &Transform, &RTSUnit)>,
-    target_query: Query<&Transform, (With<RTSHealth>, Without<Movement>)>,
+    target_query: Query<&Transform, With<RTSHealth>>,
 ) {
     for (mut movement, combat, unit_transform, unit) in unit_query.iter_mut() {
         if let Some(target_entity) = combat.target {
             if let Ok(target_transform) = target_query.get(target_entity) {
                 let distance = unit_transform.translation.distance(target_transform.translation);
-                
+
                 // Move towards target if out of attack range
                 if distance > combat.attack_range * 0.8 { // Use 80% of range to avoid jittering
                     // Calculate direction towards target
                     let direction = (target_transform.translation - unit_transform.translation).normalize();
                     let target_position = target_transform.translation - direction * (combat.attack_range * 0.7);
-                    
+
                     movement.target_position = Some(target_position);
-                    
+
                     // Moderate movement adjustment for enemies to approach targets
                     if unit.player_id != 1 { // Enemy units move slightly faster to targets
                         movement.max_speed = 50.0; // Slightly faster than default

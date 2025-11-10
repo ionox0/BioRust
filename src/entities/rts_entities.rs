@@ -74,9 +74,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-            max_speed: 25.0 / model_scale,
-            acceleration: 15.0 / model_scale,
-            turning_speed: 2.0,  // Turning speed doesn't need scaling
+            max_speed: 50.0 / model_scale,  // 2x speed increase
+            acceleration: 30.0 / model_scale,  // 2x acceleration increase
+            turning_speed: 3.0,  // Slightly faster turning
             ..default()
         },
             RTSHealth {
@@ -175,9 +175,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 30.0 / model_scale,
-                acceleration: 20.0 / model_scale,
-                turning_speed: 2.5,  // Turning speed doesn't need scaling
+                max_speed: 60.0 / model_scale,  // 2x speed increase
+                acceleration: 40.0 / model_scale,  // 2x acceleration increase
+                turning_speed: 3.5,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -228,9 +228,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 30.0,
-                acceleration: 60.0,
-                turning_speed: 2.5,
+                max_speed: 60.0,  // 2x speed increase
+                acceleration: 120.0,  // 2x acceleration increase
+                turning_speed: 3.5,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -330,9 +330,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 25.0 / model_scale.max(2.0), // Use reduced scale penalty for large models
-                acceleration: 55.0 / model_scale.max(2.0),
-                turning_speed: 2.8,
+                max_speed: 100.0 / model_scale.max(1.5), // 4x speed increase - faster mantis
+                acceleration: 200.0 / model_scale.max(1.5),  // 4x acceleration increase
+                turning_speed: 4.5,  // Faster turning
                 ..default()
             },
             RTSHealth {
@@ -432,9 +432,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 40.0 / model_scale.max(2.0), // Use reduced scale penalty for large models  
-                acceleration: 70.0 / model_scale.max(2.0),
-                turning_speed: 3.2,
+                max_speed: 80.0 / model_scale.max(2.0), // 2x speed increase
+                acceleration: 140.0 / model_scale.max(2.0),  // 2x acceleration increase
+                turning_speed: 4.2,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -488,9 +488,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 35.0,
-                acceleration: 70.0,
-                turning_speed: 3.0,
+                max_speed: 70.0,  // 2x speed increase
+                acceleration: 140.0,  // 2x acceleration increase
+                turning_speed: 4.0,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -519,6 +519,108 @@ impl RTSEntityFactory {
         )).id()
     }
 
+    pub fn spawn_dragonfly(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+    ) -> Entity {
+        Self::spawn_dragonfly_with_models(commands, meshes, materials, position, player_id, unit_id, None)
+    }
+
+    pub fn spawn_dragonfly_with_models(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+        model_assets: Option<&ModelAssets>,
+    ) -> Entity {
+        // Calculate model scale factor for movement adjustment
+        let model_scale = if let Some(_models) = model_assets {
+            let model_type = get_unit_insect_model(&UnitType::DragonFly);
+            match model_type {
+                crate::rendering::model_loader::InsectModelType::DragonFly => crate::rendering::model_loader::get_model_scale(&model_type),
+                _ => crate::rendering::model_loader::get_model_scale(&model_type),
+            }
+        } else {
+            1.0 // Primitive models use default scale
+        };
+
+        let mut entity = if let Some(models) = model_assets {
+            // Use GLB model
+            let model_type = get_unit_insect_model(&UnitType::DragonFly);
+            let model_handle = models.get_model_handle(&model_type);
+
+            commands.spawn((
+                SceneRoot(model_handle),
+                Transform::from_translation(position)
+                    .with_scale(Vec3::splat(model_scale))
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                InsectModel {
+                    model_type,
+                    scale: model_scale,
+                },
+                UseGLBModel,
+                TeamColor::new(player_id), // Add team coloring
+            ))
+        } else {
+            // Fallback to primitive shapes - elongated for dragonfly
+            commands.spawn((
+                Mesh3d(meshes.add(Capsule3d::new(0.6, 3.0))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: TeamColor::get_primitive_color(player_id),
+                    ..default()
+                })),
+                Transform::from_translation(position),
+            ))
+        };
+
+        entity.insert((
+            RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::DragonFly) },
+            TeamColor::new(player_id), // Add team coloring
+            Position {
+                translation: position,
+                rotation: Quat::IDENTITY,
+            },
+            Movement {
+                max_speed: 250.0 / model_scale.max(1.0), // Extremely fast flying scout
+                acceleration: 400.0 / model_scale.max(1.0),  // Very quick acceleration
+                turning_speed: 6.5,  // Excellent maneuverability
+                ..default()
+            },
+            RTSHealth {
+                current: 50.0,
+                max: 50.0,
+                armor: 0.0,
+                regeneration_rate: 0.3,
+                last_damage_time: 0.0,
+            },
+            Combat {
+                attack_damage: 10.0,
+                attack_range: 12.0, // Ranged attack
+                attack_speed: 2.5,
+                last_attack_time: 0.0,
+                target: None,
+                attack_type: AttackType::Ranged,
+                attack_cooldown: 0.0,
+                is_attacking: false,
+                auto_attack: true,
+            },
+            Selectable::default(),
+            Vision {
+                sight_range: 200.0, // Excellent vision for reconnaissance
+                line_of_sight: true,
+            },
+            CollisionRadius { radius: crate::constants::collision::DEFAULT_UNIT_COLLISION_RADIUS * 0.8 },
+            EntityState::default(),
+            GameEntity,
+        )).id()
+    }
+
     pub fn spawn_queen_chamber(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
@@ -529,11 +631,11 @@ impl RTSEntityFactory {
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
             if models.models_loaded && models.anthill != Handle::default() {
-                // Use GLB model
+                // Use GLB model - anthill raised 5 units above terrain to sit on top
                 commands.spawn((
                     SceneRoot(models.anthill.clone()),
-                    Transform::from_translation(position)
-                        .with_scale(Vec3::splat(8.0)), // Scale up anthill to building size
+                    Transform::from_translation(position + Vec3::new(0.0, 5.0, 0.0))
+                        .with_scale(Vec3::splat(10.0)), // Large main building
                     UseGLBModel,
                 ))
             } else {
@@ -613,11 +715,11 @@ impl RTSEntityFactory {
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
             if models.models_loaded && models.hive != Handle::default() {
-                // Use GLB model
+                // Use GLB model - hive placed on terrain surface
                 commands.spawn((
                     SceneRoot(models.hive.clone()),
-                    Transform::from_translation(position + Vec3::new(0.0, 2.0, 0.0))
-                        .with_scale(Vec3::splat(0.04)), // Scale hive appropriately and raise it up
+                    Transform::from_translation(position + Vec3::new(0.0, 3.0, 0.0))
+                        .with_scale(Vec3::splat(0.05)), // Medium-sized building
                     UseGLBModel,
                 ))
             } else {
@@ -682,12 +784,12 @@ impl RTSEntityFactory {
         model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
     ) -> Entity {
         let mut entity_commands = if let Some(models) = model_assets {
-            if models.models_loaded && models.stick_shelter != Handle::default() {
-                // Use GLB model
+            if models.models_loaded && models.pine_cone != Handle::default() {
+                // Use GLB model - pine cone placed on terrain surface
                 commands.spawn((
-                    SceneRoot(models.stick_shelter.clone()),
-                    Transform::from_translation(position + Vec3::new(0.0, -2.0, 0.0))
-                        .with_scale(Vec3::splat(0.06)), // Scale down by 100x and lower into terrain
+                    SceneRoot(models.pine_cone.clone()),
+                    Transform::from_translation(position + Vec3::new(0.0, 2.0, 10.0))
+                        .with_scale(Vec3::splat(7.0)), // Medium building size
                     UseGLBModel,
                 ))
             } else {

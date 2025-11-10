@@ -1,4 +1,6 @@
 use bevy::prelude::*;
+use bevy_animation::graph::AnimationNodeIndex;
+use bevy_animation::prelude::{AnimationGraph, AnimationGraphHandle};
 use crate::core::components::*;
 use crate::rendering::model_loader::UseGLBModel;
 
@@ -9,9 +11,11 @@ impl Plugin for AnimationPlugin {
         app
             .add_systems(Update, (
                 add_missing_animation_controllers, // Add this first
+                setup_glb_animations, // NEW: Set up animations for GLB models
                 animation_state_manager,
                 update_animations,
                 find_animation_players,
+                start_idle_animations, // Start animations for newly found players
                 animation_debug_system,
             ).chain())
             .add_event::<AnimationStateChangeEvent>();
@@ -23,6 +27,7 @@ pub struct UnitAnimationController {
     pub current_state: AnimationState,
     pub previous_state: AnimationState,
     pub animation_player: Option<Entity>,
+    pub animation_node_index: Option<AnimationNodeIndex>,
     pub clips: UnitAnimationClips,
 }
 
@@ -75,65 +80,58 @@ pub struct AnimationStateChangeEvent {
 }
 
 // System to manage animation state changes based on unit behavior
+// Runs every frame to ensure smooth animation transitions
 pub fn animation_state_manager(
     mut animation_events: EventWriter<AnimationStateChangeEvent>,
-    // Units with movement
-    moving_units: Query<
-        (Entity, &Movement, &UnitAnimationController),
-        (With<RTSUnit>, Changed<Movement>)
-    >,
-    // Units in combat
-    combat_units: Query<
-        (Entity, &Combat, &UnitAnimationController),
-        (With<RTSUnit>, Changed<Combat>)
-    >,
-    // Units taking damage
-    damaged_units: Query<
-        (Entity, &RTSHealth, &UnitAnimationController),
-        (With<RTSUnit>, Changed<RTSHealth>)
-    >,
+    // All units with animation controllers
+    units: Query<(Entity, &Movement, &Combat, Option<&RTSHealth>, &UnitAnimationController), With<RTSUnit>>,
 ) {
-    // Handle movement state changes
-    for (entity, movement, controller) in moving_units.iter() {
-        let new_state = if movement.current_velocity.length() > 0.1 {
-            if movement.current_velocity.length() > movement.max_speed * 0.7 {
-                AnimationState::Running
-            } else {
-                AnimationState::Walking
-            }
-        } else {
-            AnimationState::Idle
-        };
+    for (entity, movement, combat, health, controller) in units.iter() {
+        // Determine the appropriate animation state based on unit behavior
+        let new_state = determine_animation_state(movement, combat, health, &controller);
 
+        // Send animation change event if state changed
         if controller.current_state != new_state {
+            let force = matches!(new_state, AnimationState::Death);
             animation_events.send(AnimationStateChangeEvent {
                 entity,
                 new_state,
-                force: false,
+                force,
             });
         }
     }
+}
 
-    // Handle combat state changes
-    for (entity, combat, controller) in combat_units.iter() {
-        if combat.is_attacking && controller.current_state != AnimationState::Attacking {
-            animation_events.send(AnimationStateChangeEvent {
-                entity,
-                new_state: AnimationState::Attacking,
-                force: false,
-            });
+fn determine_animation_state(
+    movement: &Movement,
+    combat: &Combat,
+    health: Option<&RTSHealth>,
+    _controller: &UnitAnimationController,
+) -> AnimationState {
+    // Priority order: Death > Attacking > Moving > Idle
+
+    // Check if dead
+    if let Some(health) = health {
+        if health.current <= 0.0 {
+            return AnimationState::Death;
         }
     }
 
-    // Handle damage state changes
-    for (entity, health, controller) in damaged_units.iter() {
-        if health.current <= 0.0 && controller.current_state != AnimationState::Death {
-            animation_events.send(AnimationStateChangeEvent {
-                entity,
-                new_state: AnimationState::Death,
-                force: true, // Death animations should be immediate
-            });
+    // Check if attacking
+    if combat.is_attacking {
+        return AnimationState::Attacking;
+    }
+
+    // Check movement state
+    let velocity = movement.current_velocity.length();
+    if velocity > 0.1 {
+        if velocity > movement.max_speed * 0.7 {
+            AnimationState::Running
+        } else {
+            AnimationState::Walking
         }
+    } else {
+        AnimationState::Idle
     }
 }
 
@@ -148,25 +146,27 @@ pub fn update_animations(
             // Update animation state
             controller.previous_state = controller.current_state.clone();
             controller.current_state = event.new_state.clone();
-            
+
             // Try to play the animation if we have a player
             if let Some(player_entity) = controller.animation_player {
-                if let Ok(_player) = animation_players.get_mut(player_entity) {
-                    if let Some(animation_name) = get_animation_name_for_state(&controller.clips, &event.new_state) {
-                        debug!("Animation state changed to {:?} for entity {:?} (target animation: '{}')", 
-                              event.new_state, event.entity, animation_name);
-                        
-                        // In Bevy 0.15, animations are automatically played when GLB models are loaded
-                        // We log the state change but don't need to manually control playback for GLB animations
-                        // The animation player will automatically use the first animation from the GLB file
+                if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                    // Use the stored node index from the animation graph
+                    // For now, all GLB models use the same animation (first clip)
+                    // TODO: Map animation states to specific animation indices when models have multiple animations
+                    if let Some(node_index) = controller.animation_node_index {
+                        player.play(node_index).repeat();
+
+                        debug!("🎬 Animation state changed: {:?} → {:?} for entity {:?}",
+                              controller.previous_state, event.new_state, event.entity);
                     } else {
-                        // Only log missing animations occasionally to avoid spam
-                        if event.entity.index() % 10 == 0 {
-                            debug!("No specific animation for state {:?} on entity {:?}", 
-                                  event.new_state, event.entity);
-                        }
+                        debug!("No animation node index stored for entity {:?}", event.entity);
                     }
+                } else {
+                    warn!("AnimationPlayer entity {:?} not found for controller on entity {:?}",
+                          player_entity, event.entity);
                 }
+            } else {
+                debug!("No AnimationPlayer assigned to controller on entity {:?}", event.entity);
             }
         }
     }
@@ -274,6 +274,24 @@ fn search_simple_for_player(
     }
     
     None
+}
+
+// System to start idle animations for units that just got their animation player assigned
+pub fn start_idle_animations(
+    mut controllers: Query<(Entity, &mut UnitAnimationController), Changed<UnitAnimationController>>,
+    mut animation_players: Query<&mut AnimationPlayer>,
+) {
+    for (entity, controller) in controllers.iter_mut() {
+        // If we just got an animation player assigned, start the idle animation
+        if let Some(player_entity) = controller.animation_player {
+            if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                // Use the stored node index if available, otherwise fall back to index 0
+                let node_index = controller.animation_node_index.unwrap_or(AnimationNodeIndex::new(0));
+                player.play(node_index).repeat();
+                debug!("Started idle animation for newly assigned player on entity {:?}", entity);
+            }
+        }
+    }
 }
 
 // Helper function to get animation name for a state
@@ -538,11 +556,9 @@ pub fn create_animation_clips_for_unit(
             }
         },
         // Environment objects - all static, no animations
-        crate::rendering::model_loader::InsectModelType::Mushrooms |
         crate::rendering::model_loader::InsectModelType::Grass |
         crate::rendering::model_loader::InsectModelType::Grass2 |
         crate::rendering::model_loader::InsectModelType::Hive |
-        crate::rendering::model_loader::InsectModelType::StickShelter |
         crate::rendering::model_loader::InsectModelType::WoodStick |
         crate::rendering::model_loader::InsectModelType::SimpleGrassChunks |
         crate::rendering::model_loader::InsectModelType::CherryBlossomTree |
@@ -596,11 +612,12 @@ pub fn add_missing_animation_controllers(
         
         // Create animation clips specific to this unit type
         let clips = create_animation_clips_for_unit(unit_type);
-        
+
         let animation_controller = UnitAnimationController {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
+            animation_node_index: None, // Will be populated by setup_glb_animations system
             clips,
         };
         
@@ -608,6 +625,102 @@ pub fn add_missing_animation_controllers(
         commands.entity(entity).insert(animation_controller);
         debug!("Retroactively added animation controller to unit {:?} (entity {:?})", unit_type, entity);
     }
+}
+
+// System to set up animations for GLB models
+// In Bevy 0.15, GLB animations are loaded automatically, but AnimationPlayer might be on child entities
+pub fn setup_glb_animations(
+    mut glb_models: Query<(Entity, &SceneRoot, &mut UnitAnimationController), Without<AnimationPlayerSearched>>,
+    mut animation_players: Query<&mut AnimationPlayer>,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+    mut commands: Commands,
+    children: Query<&Children>,
+    asset_server: Res<AssetServer>,
+) {
+    for (entity, scene_root, mut controller) in glb_models.iter_mut() {
+        // Check if scene has children (indicating it's loaded)
+        if children.get(entity).is_err() {
+            continue;
+        }
+
+        // Mark this entity as searched so we don't search again
+        commands.entity(entity).insert(AnimationPlayerSearched);
+
+        // Search for AnimationPlayer in the entity hierarchy
+        if let Some(player_entity) = search_for_animation_player_entity(entity, &children, &animation_players) {
+            // Store the AnimationPlayer entity in the controller
+            controller.animation_player = Some(player_entity);
+
+            // Create AnimationGraph from the first animation clip in the GLB
+            // GLB animations are indexed as #Animation0, #Animation1, etc.
+            if let Some(scene_path) = asset_server.get_path(scene_root.0.id()) {
+                let animation_path = format!("{}#Animation0", scene_path.path().display());
+                let animation_clip: Handle<bevy::animation::AnimationClip> =
+                    asset_server.load(&animation_path);
+
+                // Create graph from clip
+                let (graph, node_index) = AnimationGraph::from_clip(animation_clip);
+                let graph_handle = animation_graphs.add(graph);
+
+                // Store the node index in the controller for later use
+                controller.animation_node_index = Some(node_index);
+
+                // Insert the graph handle on the AnimationPlayer entity
+                commands.entity(player_entity).insert(
+                    AnimationGraphHandle(graph_handle)
+                );
+
+                // Start playing animation immediately
+                if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                    player.play(node_index).repeat();
+                    info!("✓ Created AnimationGraph, assigned to player {:?} on entity {:?}, and started animation", player_entity, entity);
+                }
+            } else {
+                warn!("Could not get asset path for scene {:?}", scene_root.0.id());
+            }
+        } else {
+            // Some GLB models might not have animations, that's okay
+            debug!("No AnimationPlayer found for GLB model entity {:?} (model may not have animations)", entity);
+        }
+    }
+}
+
+// Mark component to track that we've searched for an animation player
+#[derive(Component)]
+struct AnimationPlayerSearched;
+
+// Helper function to recursively search for AnimationPlayer entity
+fn search_for_animation_player_entity(
+    entity: Entity,
+    children: &Query<&Children>,
+    animation_players: &Query<&mut AnimationPlayer>,
+) -> Option<Entity> {
+    search_for_animation_player_recursive(entity, children, animation_players, 0)
+}
+
+fn search_for_animation_player_recursive(
+    entity: Entity,
+    children: &Query<&Children>,
+    animation_players: &Query<&mut AnimationPlayer>,
+    depth: usize,
+) -> Option<Entity> {
+    if depth > 10 { return None; } // Prevent infinite recursion
+
+    // Check if this entity has AnimationPlayer
+    if animation_players.get(entity).is_ok() {
+        return Some(entity);
+    }
+
+    // Search children
+    if let Ok(children_list) = children.get(entity) {
+        for &child in children_list.iter() {
+            if let Some(player) = search_for_animation_player_recursive(child, children, animation_players, depth + 1) {
+                return Some(player);
+            }
+        }
+    }
+
+    None
 }
 
 // Debug system to check animation status

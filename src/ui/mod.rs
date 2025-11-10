@@ -5,12 +5,14 @@ pub mod resource_display;
 pub mod placement;
 pub mod button_styles;
 pub mod icons;
+pub mod tooltip;
 
 pub use building_panel::*;
 pub use resource_display::*;
 pub use placement::*;
 // pub use button_styles::*; // Not currently used
 pub use icons::*;
+pub use tooltip::*;
 
 use bevy::prelude::*;
 
@@ -22,15 +24,19 @@ impl Plugin for UIPlugin {
             .init_resource::<PlayerResources>()
             .init_resource::<BuildingPlacement>()
             .init_resource::<UIIcons>()
-            .add_systems(Startup, (load_ui_icons, setup_building_ui).chain())
+            .init_resource::<HoveredUnit>()
+            .add_systems(Startup, (load_ui_icons, setup_building_ui, setup_tooltip, setup_ai_resource_display).chain())
             .add_systems(Update, (
                 sync_player_resources,
                 update_resource_display,
+                update_ai_resource_display,
                 handle_building_panel_interactions,
                 handle_building_placement,
                 update_production_queue_display,
                 update_placement_status,
                 building_hotkeys_system,
+                unit_hover_detection_system,
+                update_tooltip_system,
             ));
     }
 }

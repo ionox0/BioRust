@@ -15,9 +15,9 @@ pub mod movement {
     pub const MAX_DISTANCE: f32 = 50000.0;
     
     // Movement physics
-    pub const UNIT_SPEED: f32 = 40.0;
-    pub const ARRIVAL_THRESHOLD: f32 = 1.0;
-    pub const DECELERATION_FACTOR: f32 = 2.0;
+    pub const UNIT_SPEED: f32 = 80.0;  // 2x speed increase
+    pub const ARRIVAL_THRESHOLD: f32 = 2.0;  // Slightly larger threshold for faster units
+    pub const DECELERATION_FACTOR: f32 = 2.5;  // Slightly higher deceleration
     
     // Collision and separation
     pub const SEPARATION_MULTIPLIER: f32 = 1.8;  // Units separate at 1.8x their radius (reduced to prevent jiggling)
@@ -199,7 +199,6 @@ pub mod models {
     pub const GRASS_SCALE: f32 = 50.0;              // Natural grass scale
     pub const GRASS_2_SCALE: f32 = 10.2;            // Slightly larger grass variant
     pub const HIVE_SCALE: f32 = 0.02;               // Moderate hive structure (adjusted for visibility)
-    pub const STICK_SHELTER_SCALE: f32 = 2.0;      // Medium shelter scale
     pub const WOOD_STICK_SCALE: f32 = 1.5;         // Small debris scale
     pub const SIMPLE_GRASS_CHUNKS_SCALE: f32 = 1.2; // Compact grass chunks (increased for visibility)
     
@@ -236,11 +235,11 @@ pub mod resources {
     pub const DEFAULT_BUILDING_CHITIN_COST: f32 = 1.0;
     
     // Resource costs for units (using new theme)
-    pub const WORKER_ANT_NECTAR_COST: f32 = 50.0;
-    pub const SOLDIER_ANT_NECTAR_COST: f32 = 60.0;
-    pub const SOLDIER_ANT_PHEROMONES_COST: f32 = 20.0;
-    pub const HUNTER_WASP_CHITIN_COST: f32 = 25.0;
-    pub const HUNTER_WASP_PHEROMONES_COST: f32 = 45.0;
+    pub const WORKER_ANT_NECTAR_COST: f32 = 1.0;
+    pub const SOLDIER_ANT_NECTAR_COST: f32 = 1.0;
+    pub const SOLDIER_ANT_PHEROMONES_COST: f32 = 1.0;
+    pub const HUNTER_WASP_CHITIN_COST: f32 = 1.0;
+    pub const HUNTER_WASP_PHEROMONES_COST: f32 = 1.0;
     
     // Housing values
     pub const NURSERY_POPULATION_CAPACITY: u32 = 5;

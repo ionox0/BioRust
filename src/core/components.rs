@@ -120,9 +120,9 @@ pub struct Movement {
 impl Default for Movement {
     fn default() -> Self {
         Self {
-            max_speed: 100.0,
-            acceleration: 200.0,
-            turning_speed: 3.0,
+            max_speed: 200.0,  // 2x speed increase for default
+            acceleration: 400.0,  // 2x acceleration increase for default
+            turning_speed: 4.0,  // Slightly faster turning
             current_velocity: Vec3::ZERO,
             target_position: None,
             path: Vec::new(),
@@ -183,7 +183,7 @@ pub struct ResourceGatherer {
     pub drop_off_building: Option<Entity>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ResourceType {
     Nectar,
     Chitin,
@@ -535,8 +535,6 @@ pub enum EnvironmentObjectType {
     Grass,
     /// Hive structures for insect theme
     Hive,
-    /// Stick shelters for natural cover
-    StickShelter,
     /// Wood stick debris for natural clutter
     WoodStick,
     

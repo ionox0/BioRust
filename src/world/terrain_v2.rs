@@ -441,9 +441,10 @@ pub fn retire_old_chunks(
     mut commands: Commands,
     mut terrain_manager: ResMut<TerrainChunkManager>,
 ) {
-    // Only retire chunks if we have plenty to spare - this prevents flashing
-    if terrain_manager.old_chunks.len() > 6 {
-        // Retire only 1 chunk per frame to be more conservative
+    // Be very conservative with chunk retirement to prevent flashing
+    // Only retire if we have accumulated many old chunks
+    if terrain_manager.old_chunks.len() > 20 {
+        // Retire only 1 chunk per frame to minimize visual pop
         if let Some(entity) = terrain_manager.old_chunks.pop_front() {
             debug!("Actually despawning old chunk entity: {:?}", entity);
             commands.entity(entity).despawn_recursive();
@@ -486,10 +487,12 @@ pub fn generate_terrain_chunk_v2(
             height_data[z as usize][x as usize] = height;
             
             vertices.push([world_x, height, world_z]);
-            
-            // Use normalized chunk-local coordinates to prevent bleeding across chunk boundaries
-            let u = x as f32 / resolution as f32;
-            let v = z as f32 / resolution as f32;
+
+            // Use world coordinates for UV mapping so texture tiles at consistent world-space scale
+            // This makes textures appear at the same scale regardless of chunk size
+            let texture_tile_size = 10.0; // Texture repeats every 10 world units
+            let u = world_x / texture_tile_size;
+            let v = world_z / texture_tile_size;
             uvs.push([u, v]);
             
             // Add vertex colors for terrain variation based on height and noise

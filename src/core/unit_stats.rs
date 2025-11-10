@@ -227,9 +227,9 @@ pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
         auto_attack: true,
     },
     movement: MovementStats {
-        max_speed: 60.0,  // 3x faster - even elite units should move well
-        acceleration: 120.0,
-        turning_speed: 1.5,
+        max_speed: 140.0,  // Fast elite flying unit - faster than scouts
+        acceleration: 150.0,  // Quick acceleration for elite mobility
+        turning_speed: 2.0,  // Improved turning for better maneuverability
     },
     vision: VisionStats {
         sight_range: 250.0,

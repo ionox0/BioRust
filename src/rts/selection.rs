@@ -3,6 +3,81 @@ use crate::core::components::*;
 
 // Helper functions for selection system
 
+/// System for raycast-based single-click selection
+pub fn click_selection_system(
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window>,
+    camera_q: Query<(&Camera, &GlobalTransform)>,
+    mut selectables: Query<(Entity, &mut Selectable, &Transform, &RTSUnit)>,
+) {
+    // Only trigger on left mouse button release (not drag)
+    if !mouse_button.just_released(MouseButton::Left) {
+        return;
+    }
+
+    let window = windows.single();
+    let Some(cursor_position) = window.cursor_position() else { return };
+    let (camera, camera_transform) = camera_q.single();
+    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else { return };
+
+    let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+
+    // Find closest unit to raycast
+    let mut closest_entity = None;
+    let mut closest_distance = f32::INFINITY;
+
+    for (entity, selectable, transform, unit) in selectables.iter() {
+        // Only select player 1 units
+        if unit.player_id != 1 {
+            continue;
+        }
+
+        let to_unit = transform.translation - ray.origin;
+        let projected_distance = to_unit.dot(ray.direction.normalize());
+
+        if projected_distance <= 0.0 {
+            continue;
+        }
+
+        let closest_point = ray.origin + ray.direction.normalize() * projected_distance;
+        let distance_to_ray = closest_point.distance(transform.translation);
+
+        // Use selection radius
+        if distance_to_ray < selectable.selection_radius && projected_distance < closest_distance {
+            closest_distance = projected_distance;
+            closest_entity = Some(entity);
+        }
+    }
+
+    // Apply selection
+    if let Some(selected_entity) = closest_entity {
+        for (entity, mut selectable, _, unit) in selectables.iter_mut() {
+            if unit.player_id != 1 {
+                continue;
+            }
+
+            if entity == selected_entity {
+                if shift_held {
+                    selectable.is_selected = !selectable.is_selected;
+                } else {
+                    selectable.is_selected = true;
+                }
+                info!("✅ Selected unit {:?}", unit.unit_id);
+            } else if !shift_held {
+                selectable.is_selected = false;
+            }
+        }
+    } else if !shift_held {
+        // Clicked on empty space without shift - clear all selections
+        for (_, mut selectable, _, unit) in selectables.iter_mut() {
+            if unit.player_id == 1 && selectable.is_selected {
+                selectable.is_selected = false;
+            }
+        }
+    }
+}
+
 pub fn drag_selection_system(
     mouse_button: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -105,11 +180,23 @@ fn cleanup_old_selection_box(
     }
 }
 
-fn create_visual_selection_box(_bounds: &SelectionBounds, commands: &mut Commands) {
-    // TODO: Implement visual selection box rendering
-    // For now, just create a placeholder entity  
+fn create_visual_selection_box(bounds: &SelectionBounds, commands: &mut Commands) {
+    let width = bounds.max_x - bounds.min_x;
+    let height = bounds.max_y - bounds.min_y;
+
+    // Spawn a UI node that shows the selection box
     commands.spawn((
-        Transform::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(bounds.min_x),
+            top: Val::Px(bounds.min_y),
+            width: Val::Px(width),
+            height: Val::Px(height),
+            border: UiRect::all(Val::Px(2.0)),
+            ..default()
+        },
+        BorderColor(Color::srgba(0.3, 0.8, 1.0, 0.8)), // Bright blue border
+        BackgroundColor(Color::srgba(0.3, 0.8, 1.0, 0.15)), // Semi-transparent blue fill
         SelectionBox,
     ));
 }
@@ -123,25 +210,27 @@ fn finalize_selection(
     commands: &mut Commands,
 ) {
     let Ok(mut drag_selection) = drag_selection_query.get_single_mut() else { return };
-    
+
     if !drag_selection.is_active {
         return;
     }
-    
+
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
     let bounds = calculate_selection_bounds(&drag_selection);
     let is_drag = is_significant_drag(&bounds);
-    
-    if !shift_held && !is_drag {
+
+    // Always clear selections if not holding shift and doing a click
+    if !shift_held {
         clear_all_selections(selectables);
     }
-    
+
     if is_drag {
         perform_box_selection(&bounds, selectables, shift_held);
     } else {
-        perform_click_selection(cursor_position, selectables, shift_held);
+        // Single click - don't select anything (just deselect previous)
+        // This will be handled by a separate raycast-based selection system
     }
-    
+
     drag_selection.is_active = false;
     cleanup_old_selection_box(selection_box_query, commands);
 }

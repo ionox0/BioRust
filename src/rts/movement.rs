@@ -21,15 +21,24 @@ impl MovementContext {
 }
 
 pub fn movement_system(
-    mut units_query: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
+    mut units_query: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius, &RTSUnit), With<RTSUnit>>,
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
     terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     time: Res<Time>,
 ) {
-    let context = MovementContext::new(&time, &units_query);
-    
-    for (entity, mut transform, mut movement, collision_radius) in units_query.iter_mut() {
-        process_unit_movement(entity, &mut transform, &mut movement, &collision_radius, &context, &terrain_manager, &terrain_settings);
+    // Create context without RTSUnit (use simpler query for context)
+    let unit_positions: Vec<(Entity, Vec3, f32)> = units_query
+        .iter()
+        .map(|(entity, transform, _, collision_radius, _)| (entity, transform.translation, collision_radius.radius))
+        .collect();
+
+    let context = MovementContext {
+        delta_time: time.delta_secs().min(0.1),
+        unit_positions,
+    };
+
+    for (entity, mut transform, mut movement, collision_radius, rts_unit) in units_query.iter_mut() {
+        process_unit_movement(entity, &mut transform, &mut movement, &collision_radius, rts_unit, &context, &terrain_manager, &terrain_settings);
     }
 }
 
@@ -38,39 +47,40 @@ fn process_unit_movement(
     transform: &mut Transform,
     movement: &mut Movement,
     collision_radius: &CollisionRadius,
+    rts_unit: &RTSUnit,
     context: &MovementContext,
     terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
     terrain_settings: &crate::world::terrain_v2::TerrainSettings,
 ) {
     use crate::constants::movement::*;
-    
+
     let current_pos = transform.translation;
-    
+
     if !is_valid_position(current_pos) {
         reset_unit_to_origin(transform, movement);
         return;
     }
-    
+
     if let Some(target) = movement.target_position {
         if !is_valid_position(target) {
             movement.target_position = None;
             return;
         }
-        
+
         let direction = (target - current_pos).normalize_or_zero();
         let distance = current_pos.distance(target);
-        
+
         if !distance.is_finite() || distance > MAX_DISTANCE {
             warn!("Invalid distance {:.1}, clearing target", distance);
             movement.target_position = None;
             return;
         }
-        
+
         if distance > ARRIVAL_THRESHOLD {
             let new_position = calculate_new_position(current_pos, target, movement, context);
             apply_collision_avoidance(entity, new_position, movement, collision_radius, context);
             update_position_with_terrain(transform, new_position, terrain_manager, terrain_settings);
-            update_rotation(transform, direction, movement, context.delta_time);
+            update_rotation(transform, direction, movement, rts_unit, context.delta_time);
         } else {
             // Apply collision avoidance even when stopped to prevent overlap at destination
             apply_collision_avoidance(entity, current_pos, movement, collision_radius, context);
@@ -218,12 +228,29 @@ fn update_position_with_terrain(
     transform.translation = final_position;
 }
 
-fn update_rotation(transform: &mut Transform, direction: Vec3, movement: &Movement, delta_time: f32) {
+fn update_rotation(transform: &mut Transform, direction: Vec3, movement: &Movement, rts_unit: &RTSUnit, delta_time: f32) {
+    use crate::core::components::UnitType;
+
     if direction.length() <= 0.1 {
         return;
     }
-    
-    let target_rotation = Quat::from_rotation_y(-direction.x.atan2(-direction.z));
+
+    // Calculate rotation based on model type
+    // Some models (Fourmi/Ant) naturally face forward and don't need pre-rotation
+    // Others face backward and are pre-rotated 180° in entity_factory
+    let target_rotation = match rts_unit.unit_type.as_ref() {
+        Some(UnitType::WorkerAnt) | Some(UnitType::SoldierAnt) => {
+            // Ant models naturally face backward in GLB, no pre-rotation applied
+            // Use negated formula for backward-facing models
+            Quat::from_rotation_y(-direction.x.atan2(-direction.z))
+        }
+        _ => {
+            // All other models are pre-rotated 180° to face forward
+            // Use standard formula for forward-facing models
+            Quat::from_rotation_y(direction.x.atan2(direction.z))
+        }
+    };
+
     let turn_speed = (movement.turning_speed * delta_time).min(0.1);
     transform.rotation = transform.rotation.slerp(target_rotation, turn_speed);
 }

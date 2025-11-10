@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::core::components::*;
 use crate::core::resources::*;
 use crate::ai::player_state::{AIPlayer, AIType, AIDecision, PlayerCounts};
+use crate::ai::intelligence::{IntelligenceSystem, EnemyStrategy, ThreatLevel};
 
 pub fn ai_decision_system(
     mut ai_players: Query<&mut AIPlayer>,
@@ -14,23 +15,28 @@ pub fn ai_decision_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    intelligence: Option<Res<IntelligenceSystem>>,
 ) {
     for mut ai_player in ai_players.iter_mut() {
         ai_player.decision_timer.tick(time.delta());
-        
+
         if !ai_player.decision_timer.finished() {
             continue;
         }
-        
+
         ai_player.decision_timer.reset();
-        
+
         if let Some(resources) = ai_resources.resources.get(&ai_player.player_id).cloned() {
             let mut counts = PlayerCounts::new();
             counts.count_units(&units, ai_player.player_id);
             counts.count_buildings(&buildings, ai_player.player_id);
-            
-            let decision = make_ai_decision(&ai_player.ai_type, &resources, &counts);
-            
+
+            // Get intelligence data for adaptive decision making
+            let enemy_intel = intelligence.as_ref()
+                .and_then(|intel| intel.get_intel(ai_player.player_id));
+
+            let decision = make_adaptive_ai_decision(&ai_player.ai_type, &resources, &counts, enemy_intel);
+
             execute_ai_decision(
                 decision,
                 ai_player.player_id,
@@ -46,8 +52,46 @@ pub fn ai_decision_system(
     }
 }
 
-fn make_ai_decision(ai_type: &AIType, resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
-    
+/// Adaptive decision making that considers enemy intelligence
+fn make_adaptive_ai_decision(
+    ai_type: &AIType,
+    resources: &crate::core::resources::PlayerResources,
+    counts: &PlayerCounts,
+    enemy_intel: Option<&crate::ai::intelligence::PlayerIntelligence>,
+) -> AIDecision {
+    // First check if we need to counter enemy strategy
+    if let Some(intel) = enemy_intel {
+        // Counter enemy rush with defensive units
+        if intel.enemy_strategy == EnemyStrategy::MilitaryRush && counts.military_count < 5 {
+            if counts.barracks > 0 {
+                return AIDecision::BuildMilitary(UnitType::SoldierAnt);
+            } else if resources.chitin >= 175.0 {
+                return AIDecision::BuildBuilding(BuildingType::WarriorChamber);
+            }
+        }
+
+        // If enemy is economy focused, we can be aggressive early
+        if intel.enemy_strategy == EnemyStrategy::EconomyRush && counts.military_count >= 3 {
+            return AIDecision::AttackPlayer(intel.player_id);
+        }
+
+        // If under high threat, prioritize defense
+        if intel.threat_level == ThreatLevel::High || intel.threat_level == ThreatLevel::Critical {
+            if counts.military_count < (intel.enemy_unit_composition.military_units + 2) as i32 {
+                if counts.barracks > 0 && resources.has_population_space() {
+                    // Build counter units based on enemy composition
+                    if intel.enemy_unit_composition.hunter_wasps > 2 {
+                        // Counter ranged with melee rush
+                        return AIDecision::BuildMilitary(UnitType::BeetleKnight);
+                    } else {
+                        return AIDecision::BuildMilitary(UnitType::SoldierAnt);
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to personality-based decisions
     match ai_type {
         AIType::Economic => make_economic_decision(resources, counts),
         AIType::Aggressive => make_aggressive_decision(resources, counts),

@@ -15,11 +15,12 @@ mod collision;
 use core::game::*;
 use core::constants;
 use world::terrain_v2::TerrainPluginV2;
+use rts::RTSSystemsPlugin;
 use combat_systems::CombatPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;
 use ai::AIPlugin;
-use resource_ui::ResourceUIPlugin;
+// use resource_ui::ResourceUIPlugin;  // REMOVED: Duplicate of ui::resource_display
 use rendering::model_loader::ModelLoaderPlugin;
 use rendering::animation_systems::AnimationPlugin;
 use entities::entity_state_systems::EntityStatePlugin;
@@ -41,9 +42,9 @@ fn main() {
             rts::RTSSystemsPlugin,
             CombatPlugin,
             HealthUIPlugin,
-            UIPlugin,
+            UIPlugin,  // Contains comprehensive resource display system
             AIPlugin,
-            ResourceUIPlugin,
+            // ResourceUIPlugin,  // REMOVED: Duplicate overlapping resource display
             ModelLoaderPlugin,
             AnimationPlugin,
             EntityStatePlugin,

@@ -116,38 +116,114 @@ impl CollisionUtils {
     }
 }
 
-/// System to prevent units from overlapping with buildings and environment objects
+/// System to prevent units from overlapping with buildings, environment objects, and other units
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
     obstacles: Query<(&Transform, &CollisionRadius), (With<GameEntity>, Without<RTSUnit>)>,
     time: Res<Time>,
 ) {
-    let dt = time.delta_secs();
-    
+    let dt = time.delta_secs().min(0.1); // Cap delta time to prevent large jumps
+
+    // Store unit transformations BEFORE mutating (immutable borrow, then release)
+    let unit_positions: Vec<(Entity, Vec3, f32, Vec3)> = units.iter()
+        .map(|(e, t, m, r)| {
+            (e, t.translation, r.radius, m.current_velocity)
+        })
+        .collect();
+
+    // Now do mutable iteration
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
         let mut avoidance_force = Vec3::ZERO;
-        
+        let velocity_magnitude = movement.current_velocity.length();
+        let is_moving = velocity_magnitude > 0.5; // Higher threshold to reduce sensitivity
+
         // Check collision with all static obstacles (buildings, environment objects)
         for (obstacle_transform, obstacle_radius) in obstacles.iter() {
             let distance = unit_transform.translation.distance(obstacle_transform.translation);
-            let min_distance = unit_radius.radius + obstacle_radius.radius;
-            
+            let min_distance = unit_radius.radius + obstacle_radius.radius + 1.5; // Larger buffer
+
             if distance < min_distance && distance > 0.001 {
                 // Calculate avoidance direction
                 let direction = (unit_transform.translation - obstacle_transform.translation).normalize();
-                let force_magnitude = (min_distance - distance) / min_distance;
-                avoidance_force += direction * force_magnitude * 50.0; // Strong avoidance force
+                let overlap = min_distance - distance;
+
+                // Only apply force if significantly overlapping
+                if overlap > 0.3 {
+                    let force_magnitude = (overlap / min_distance).min(1.0);
+                    avoidance_force += direction * force_magnitude * 40.0; // Reduced from 50.0
+
+                    // If seriously overlapping, push directly away
+                    if distance < min_distance * 0.85 {
+                        unit_transform.translation += direction * overlap * 0.3;
+                    }
+                }
             }
         }
-        
-        // Apply avoidance force to movement
-        if avoidance_force.length() > 0.001 {
-            movement.current_velocity += avoidance_force * dt;
-            
-            // If we're very close to an obstacle, push directly away
-            if avoidance_force.length() > 10.0 {
-                unit_transform.translation += avoidance_force.normalize() * dt * 5.0;
+
+        // Check collision with other units for separation
+        for (other_entity, other_pos, other_radius, other_velocity) in &unit_positions {
+            if unit_entity == *other_entity {
+                continue;
             }
+
+            let distance = unit_transform.translation.distance(*other_pos);
+            let min_distance = unit_radius.radius + other_radius + 1.2; // Larger spacing buffer
+
+            // Only process if within collision range
+            if distance < min_distance && distance > 0.001 {
+                let direction = (unit_transform.translation - other_pos).normalize();
+                let overlap = min_distance - distance;
+
+                // Add dead zone - don't apply forces for minor overlaps
+                if overlap > 0.4 {
+                    // Use relative velocity to determine force strength
+                    let relative_velocity = (movement.current_velocity - other_velocity).length();
+                    let is_converging = relative_velocity > 0.5;
+
+                    // Reduced forces to prevent oscillation
+                    let force_multiplier = if is_converging {
+                        5.0 // Apply force when units are moving toward each other
+                    } else if is_moving {
+                        2.0 // Gentle force when moving
+                    } else {
+                        1.0 // Minimal force when stationary
+                    };
+
+                    let force_magnitude = (overlap / min_distance).min(1.0);
+                    avoidance_force += direction * force_magnitude * force_multiplier;
+
+                    // Only push apart if seriously overlapping
+                    if overlap > min_distance * 0.6 {
+                        let push_distance = overlap * 0.05; // Very gentle push
+                        unit_transform.translation += direction * push_distance;
+                    }
+                }
+            }
+        }
+
+        // Apply avoidance force to movement with strong damping
+        let avoidance_magnitude = avoidance_force.length();
+        if avoidance_magnitude > 0.1 {
+            if is_moving {
+                // Smooth velocity adjustment with clamping
+                let adjustment = avoidance_force * dt * 0.3; // Reduced from 0.5
+                let new_velocity = movement.current_velocity + adjustment;
+
+                // Clamp velocity to prevent excessive speeds
+                let max_avoidance_speed = movement.max_speed * 1.2;
+                if new_velocity.length() > max_avoidance_speed {
+                    movement.current_velocity = new_velocity.normalize() * max_avoidance_speed;
+                } else {
+                    movement.current_velocity = new_velocity;
+                }
+            } else {
+                // For stationary units, minimal adjustment with exponential smoothing
+                let adjustment = avoidance_force.normalize() * dt * 0.5; // Reduced from 2.0
+                unit_transform.translation += adjustment;
+            }
+
+            // Apply velocity damping to reduce oscillation
+            movement.current_velocity *= 0.98; // Add slight damping
         }
     }
 }

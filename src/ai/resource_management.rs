@@ -2,16 +2,11 @@ use bevy::prelude::*;
 use crate::core::resources::AIResources;
 
 pub fn ai_resource_management_system(
-    mut ai_resources: ResMut<AIResources>,
-    time: Res<Time>,
+    _ai_resources: ResMut<AIResources>,
+    _time: Res<Time>,
 ) {
-    use crate::constants::ai::*;
-    
-    // Simple passive resource income for AI players
-    for (_, resources) in ai_resources.resources.iter_mut() {
-        resources.nectar += AI_FOOD_RATE * time.delta_secs();
-        resources.chitin += AI_WOOD_RATE * time.delta_secs();
-        resources.minerals += AI_STONE_RATE * time.delta_secs();
-        resources.pheromones += AI_GOLD_RATE * time.delta_secs();
-    }
+    // DISABLED: AI now must gather resources like the player, no passive income
+    // AI workers will collect resources and return them to base buildings
+
+    // Previous passive income code removed - AI must work for resources!
 }

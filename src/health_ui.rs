@@ -66,9 +66,9 @@ pub fn create_health_bars_for_new_units(
         let has_health_bar = existing_health_bars.iter().any(|hb| hb.target_entity == entity);
         
         if !has_health_bar {
-            // Create health bar background (red)
+            // Create health bar background (red) - larger size
             let background = commands.spawn((
-                Mesh3d(meshes.add(Rectangle::new(2.0, 0.3))),
+                Mesh3d(meshes.add(Rectangle::new(3.5, 0.6))),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: Color::srgb(0.8, 0.2, 0.2),
                     unlit: true,
@@ -79,9 +79,9 @@ pub fn create_health_bars_for_new_units(
                     .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
             )).id();
 
-            // Create health bar foreground (green)
+            // Create health bar foreground (green) - larger size
             let foreground = commands.spawn((
-                Mesh3d(meshes.add(Rectangle::new(2.0, 0.3))),
+                Mesh3d(meshes.add(Rectangle::new(3.5, 0.6))),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: Color::srgb(0.2, 0.8, 0.2),
                     unlit: true,
@@ -151,7 +151,7 @@ pub fn update_health_bars(
             // Update foreground position, rotation, and scale
             if let Ok(mut fg_transform) = health_bar_transforms.get_mut(health_bar.foreground) {
                 let fg_position = bar_position + Vec3::new(0.0, 0.01, 0.0); // Slightly above background
-                let offset_x = (1.0 - health_ratio) * -1.0; // Adjust for scaling from left
+                let offset_x = (1.0 - health_ratio) * -1.75; // Adjust for scaling from left (half of 3.5)
                 let final_fg_pos = fg_position + right * offset_x;
                 
                 fg_transform.translation = final_fg_pos;
@@ -203,6 +203,7 @@ pub fn health_status_indicator_system(
     existing_indicators: Query<(Entity, &HealthStatusIndicator)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut warned_critical: Local<std::collections::HashSet<Entity>>,
 ) {
     for (entity, transform, _health, status, _selectable) in units_query.iter() {
         // Remove existing status indicator if any
@@ -240,13 +241,19 @@ pub fn health_status_indicator_system(
                     },
                 )).id();
                 
-                // Reduced critical condition logging (only on status change)
-                if matches!(status, HealthStatus::Critical) {
+                // Only log critical condition once per unit
+                if matches!(status, HealthStatus::Critical) && !warned_critical.contains(&entity) {
                     warn!("⚠️ Unit {:?} is now in critical condition!", entity);
+                    warned_critical.insert(entity);
                 }
+            }
+            HealthStatus::Wounded => {
+                // If unit recovers from critical, allow warning again if it becomes critical later
+                warned_critical.remove(&entity);
             }
             HealthStatus::Healthy => {
                 // No indicator needed for healthy units
+                warned_critical.remove(&entity);
             }
         }
     }
