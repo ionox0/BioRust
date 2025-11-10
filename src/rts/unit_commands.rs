@@ -253,13 +253,13 @@ fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_uni
 }
 
 fn execute_unit_command(
-    unit_entity: Entity,
+    _unit_entity: Entity,
     movement: &mut Movement,
     combat: &mut Combat,
     gatherer: Option<Mut<ResourceGatherer>>,
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform), With<Building>>,
-    commands: &mut Commands,
+    _commands: &mut Commands,
     target_enemy: Option<Entity>,
     target_resource: Option<(Entity, Vec3)>,
     target_point: Vec3,

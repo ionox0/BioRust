@@ -247,7 +247,7 @@ pub fn health_status_indicator_system(
                     warned_critical.insert(entity);
                 }
             }
-            HealthStatus::Injured => {
+            HealthStatus::Wounded => {
                 // If unit recovers from critical, allow warning again if it becomes critical later
                 warned_critical.remove(&entity);
             }
