@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_animation::graph::AnimationNodeIndex;
+use bevy_animation::prelude::{AnimationGraph, AnimationGraphHandle};
 use crate::core::components::*;
 use crate::rendering::model_loader::UseGLBModel;
 
@@ -631,7 +632,7 @@ pub fn add_missing_animation_controllers(
 pub fn setup_glb_animations(
     mut glb_models: Query<(Entity, &SceneRoot, &mut UnitAnimationController), Without<AnimationPlayerSearched>>,
     mut animation_players: Query<&mut AnimationPlayer>,
-    mut animation_graphs: ResMut<Assets<bevy::animation::AnimationGraph>>,
+    mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     mut commands: Commands,
     children: Query<&Children>,
     asset_server: Res<AssetServer>,
@@ -658,7 +659,7 @@ pub fn setup_glb_animations(
                     asset_server.load(&animation_path);
 
                 // Create graph from clip
-                let (graph, node_index) = bevy::animation::AnimationGraph::from_clip(animation_clip);
+                let (graph, node_index) = AnimationGraph::from_clip(animation_clip);
                 let graph_handle = animation_graphs.add(graph);
 
                 // Store the node index in the controller for later use
@@ -666,7 +667,7 @@ pub fn setup_glb_animations(
 
                 // Insert the graph handle on the AnimationPlayer entity
                 commands.entity(player_entity).insert(
-                    bevy::animation::AnimationGraphHandle(graph_handle)
+                    AnimationGraphHandle(graph_handle)
                 );
 
                 // Start playing animation immediately
