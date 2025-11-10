@@ -122,13 +122,13 @@ fn find_entity_by_transform(
     None
 }
 
-fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With<ResourceSource>>) -> Option<(Entity, &Transform)> {
+fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With<ResourceSource>>) -> Option<(Entity, Vec3)> {
     for (resource_entity, resource_transform) in resources.iter() {
         let projected_distance = calculate_projected_distance(ray, resource_transform.translation)?;
         let distance_to_ray = calculate_distance_to_ray(ray, resource_transform.translation, projected_distance);
 
         if distance_to_ray < 6.0 {
-            return Some((resource_entity, resource_transform));
+            return Some((resource_entity, resource_transform.translation));
         }
     }
     None
