@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::render_resource::{AddressMode, FilterMode};
-use bevy::image::{ImageSampler, ImageSamplerDescriptor};
+use bevy::image::{ImageSampler, ImageSamplerDescriptor, ImageAddressMode, ImageFilterMode};
 use noise::{NoiseFn, Perlin};
 
 // Create a seamless terrain texture inspired by Bug_Game
@@ -82,12 +81,12 @@ pub fn create_seamless_terrain_texture(images: &mut ResMut<Assets<Image>>) -> Ha
 
     // Configure sampler for repeating/tiling texture
     image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-        address_mode_u: AddressMode::Repeat,
-        address_mode_v: AddressMode::Repeat,
-        address_mode_w: AddressMode::Repeat,
-        mag_filter: FilterMode::Linear,
-        min_filter: FilterMode::Linear,
-        mipmap_filter: FilterMode::Linear,
+        address_mode_u: ImageAddressMode::Repeat,
+        address_mode_v: ImageAddressMode::Repeat,
+        address_mode_w: ImageAddressMode::Repeat,
+        mag_filter: ImageFilterMode::Linear,
+        min_filter: ImageFilterMode::Linear,
+        mipmap_filter: ImageFilterMode::Linear,
         ..Default::default()
     });
 
