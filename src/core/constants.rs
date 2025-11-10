@@ -15,9 +15,9 @@ pub mod movement {
     pub const MAX_DISTANCE: f32 = 50000.0;
     
     // Movement physics
-    pub const UNIT_SPEED: f32 = 40.0;
-    pub const ARRIVAL_THRESHOLD: f32 = 1.0;
-    pub const DECELERATION_FACTOR: f32 = 2.0;
+    pub const UNIT_SPEED: f32 = 80.0;  // 2x speed increase
+    pub const ARRIVAL_THRESHOLD: f32 = 2.0;  // Slightly larger threshold for faster units
+    pub const DECELERATION_FACTOR: f32 = 2.5;  // Slightly higher deceleration
     
     // Collision and separation
     pub const SEPARATION_MULTIPLIER: f32 = 1.8;  // Units separate at 1.8x their radius (reduced to prevent jiggling)

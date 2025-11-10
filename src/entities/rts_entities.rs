@@ -74,9 +74,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-            max_speed: 25.0 / model_scale,
-            acceleration: 15.0 / model_scale,
-            turning_speed: 2.0,  // Turning speed doesn't need scaling
+            max_speed: 50.0 / model_scale,  // 2x speed increase
+            acceleration: 30.0 / model_scale,  // 2x acceleration increase
+            turning_speed: 3.0,  // Slightly faster turning
             ..default()
         },
             RTSHealth {
@@ -175,9 +175,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 30.0 / model_scale,
-                acceleration: 20.0 / model_scale,
-                turning_speed: 2.5,  // Turning speed doesn't need scaling
+                max_speed: 60.0 / model_scale,  // 2x speed increase
+                acceleration: 40.0 / model_scale,  // 2x acceleration increase
+                turning_speed: 3.5,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -228,9 +228,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 30.0,
-                acceleration: 60.0,
-                turning_speed: 2.5,
+                max_speed: 60.0,  // 2x speed increase
+                acceleration: 120.0,  // 2x acceleration increase
+                turning_speed: 3.5,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -330,9 +330,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 25.0 / model_scale.max(2.0), // Use reduced scale penalty for large models
-                acceleration: 55.0 / model_scale.max(2.0),
-                turning_speed: 2.8,
+                max_speed: 50.0 / model_scale.max(2.0), // 2x speed increase
+                acceleration: 110.0 / model_scale.max(2.0),  // 2x acceleration increase
+                turning_speed: 3.8,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -432,9 +432,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 40.0 / model_scale.max(2.0), // Use reduced scale penalty for large models  
-                acceleration: 70.0 / model_scale.max(2.0),
-                turning_speed: 3.2,
+                max_speed: 80.0 / model_scale.max(2.0), // 2x speed increase
+                acceleration: 140.0 / model_scale.max(2.0),  // 2x acceleration increase
+                turning_speed: 4.2,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
@@ -488,9 +488,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 35.0,
-                acceleration: 70.0,
-                turning_speed: 3.0,
+                max_speed: 70.0,  // 2x speed increase
+                acceleration: 140.0,  // 2x acceleration increase
+                turning_speed: 4.0,  // Slightly faster turning
                 ..default()
             },
             RTSHealth {
