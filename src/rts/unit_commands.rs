@@ -13,11 +13,13 @@ pub fn unit_command_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    mut units: Query<(&mut Movement, &mut Combat, &Selectable, &RTSUnit), With<RTSUnit>>,
+    mut units: Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
     all_units: Query<(&Transform, &RTSUnit), With<RTSUnit>>,
-    resources: Query<&Transform, With<ResourceSource>>,
+    resources: Query<(Entity, &Transform), With<ResourceSource>>,
+    buildings: Query<(Entity, &Transform), With<Building>>,
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
     terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    mut commands: Commands,
 ) {
     if !mouse_button.just_pressed(MouseButton::Right) {
         return;
@@ -38,19 +40,23 @@ pub fn unit_command_system(
     
     let target_enemy = find_enemy_target(ray, &units, &all_units);
     let target_resource = find_resource_target(ray, &resources);
-    let target_point = calculate_target_position(ray, &context);
-    
+    let target_point = if let Some((_, resource_transform)) = target_resource {
+        resource_transform.translation
+    } else {
+        calculate_target_position(ray, &context)
+    };
+
     if !is_valid_target_point(target_point) {
         warn!("Invalid target position calculated: {:?}, ignoring command", target_point);
         return;
     }
-    
-    execute_commands_for_selected_units(&mut units, &keyboard, target_enemy, target_resource, target_point);
+
+    execute_commands_for_selected_units(&mut units, &buildings, &mut commands, &keyboard, target_enemy, target_resource, target_point);
 }
 
 fn find_enemy_target(
     ray: Ray3d,
-    units: &Query<(&mut Movement, &mut Combat, &Selectable, &RTSUnit), With<RTSUnit>>,
+    units: &Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
     all_units: &Query<(&Transform, &RTSUnit), With<RTSUnit>>,
 ) -> Option<Entity> {
     let mut closest_distance = f32::INFINITY;
@@ -116,13 +122,13 @@ fn find_entity_by_transform(
     None
 }
 
-fn find_resource_target(ray: Ray3d, resources: &Query<&Transform, With<ResourceSource>>) -> Option<Vec3> {
-    for resource_transform in resources.iter() {
+fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With<ResourceSource>>) -> Option<(Entity, &Transform)> {
+    for (resource_entity, resource_transform) in resources.iter() {
         let projected_distance = calculate_projected_distance(ray, resource_transform.translation)?;
         let distance_to_ray = calculate_distance_to_ray(ray, resource_transform.translation, projected_distance);
-        
+
         if distance_to_ray < 6.0 {
-            return Some(resource_transform.translation);
+            return Some((resource_entity, resource_transform));
         }
     }
     None
@@ -184,22 +190,24 @@ fn is_valid_target_point(target_point: Vec3) -> bool {
 }
 
 fn execute_commands_for_selected_units(
-    units: &mut Query<(&mut Movement, &mut Combat, &Selectable, &RTSUnit), With<RTSUnit>>,
+    units: &mut Query<(Entity, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
+    buildings: &Query<(Entity, &Transform), With<Building>>,
+    commands: &mut Commands,
     keyboard: &Res<ButtonInput<KeyCode>>,
     target_enemy: Option<Entity>,
-    target_resource: Option<Vec3>,
+    target_resource: Option<(Entity, &Transform)>,
     target_point: Vec3,
 ) {
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
 
     // Count selected units first (immutable borrow)
     let selected_count = units.iter()
-        .filter(|(_, _, selectable, unit)| selectable.is_selected && unit.player_id == 1)
+        .filter(|(_, _, _, selectable, unit, _)| selectable.is_selected && unit.player_id == 1)
         .count();
 
     // Now do mutable iteration
     let mut index = 0;
-    for (mut movement, mut combat, selectable, unit) in units.iter_mut() {
+    for (unit_entity, mut movement, mut combat, selectable, unit, gatherer) in units.iter_mut() {
         if !selectable.is_selected || unit.player_id != 1 {
             continue;
         }
@@ -211,7 +219,19 @@ fn execute_commands_for_selected_units(
             target_point
         };
 
-        execute_unit_command(&mut movement, &mut combat, unit, target_enemy, target_resource, adjusted_target, shift_held);
+        execute_unit_command(
+            unit_entity,
+            &mut movement,
+            &mut combat,
+            gatherer,
+            unit,
+            buildings,
+            commands,
+            target_enemy,
+            target_resource,
+            adjusted_target,
+            shift_held
+        );
         index += 1;
     }
 }
@@ -233,31 +253,68 @@ fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_uni
 }
 
 fn execute_unit_command(
+    unit_entity: Entity,
     movement: &mut Movement,
     combat: &mut Combat,
+    gatherer: Option<Mut<ResourceGatherer>>,
     unit: &RTSUnit,
+    buildings: &Query<(Entity, &Transform), With<Building>>,
+    commands: &mut Commands,
     target_enemy: Option<Entity>,
-    target_resource: Option<Vec3>,
+    target_resource: Option<(Entity, &Transform)>,
     target_point: Vec3,
-    shift_held: bool,
+    _shift_held: bool,
 ) {
     if let Some(enemy_entity) = target_enemy {
+        // Attack command
         combat.target = Some(enemy_entity);
         movement.target_position = None;
         info!("🗡️ Unit {:?} attacking target {:?}!", unit.unit_id, enemy_entity);
-    } else if target_resource.is_some() {
-        movement.target_position = Some(target_point);
-        info!("⛏️ Unit {:?} moving to gather resources at {:?}!", unit.unit_id, target_point);
+    } else if let Some((resource_entity, _resource_transform)) = target_resource {
+        // Resource gathering command - only for workers with ResourceGatherer
+        if let Some(mut resource_gatherer) = gatherer {
+            // Find nearest building for drop-off
+            let nearest_building = find_nearest_building(unit.player_id, movement.current_velocity, buildings);
+
+            resource_gatherer.target_resource = Some(resource_entity);
+            resource_gatherer.drop_off_building = nearest_building;
+            movement.target_position = Some(target_point);
+            combat.target = None;
+
+            info!("⛏️ Worker {:?} assigned to gather from resource {:?}!", unit.unit_id, resource_entity);
+        } else {
+            // Not a worker, just move to location
+            movement.target_position = Some(target_point);
+            combat.target = None;
+            info!("🚶 Unit {:?} moving to resource location: {:?}", unit.unit_id, target_point);
+        }
     } else {
+        // Simple move command
         movement.target_position = Some(target_point);
         combat.target = None;
-        
-        if shift_held {
-            info!("📋 Unit {:?} queuing move command to {:?}!", unit.unit_id, target_point);
-        } else {
-            info!("🚶 Unit {:?} moving to position: {:?}", unit.unit_id, target_point);
+        info!("🚶 Unit {:?} moving to position: {:?}", unit.unit_id, target_point);
+    }
+}
+
+/// Find the nearest building for a given player
+fn find_nearest_building(
+    player_id: u8,
+    unit_pos: Vec3,
+    buildings: &Query<(Entity, &Transform), With<Building>>,
+) -> Option<Entity> {
+    let mut nearest_building = None;
+    let mut nearest_distance = f32::INFINITY;
+
+    for (building_entity, building_transform) in buildings.iter() {
+        // TODO: check if building belongs to player
+        let distance = unit_pos.distance(building_transform.translation);
+        if distance < nearest_distance {
+            nearest_distance = distance;
+            nearest_building = Some(building_entity);
         }
     }
+
+    nearest_building
 }
 
 pub fn spawn_test_units_system(

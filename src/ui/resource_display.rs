@@ -189,6 +189,7 @@ pub fn setup_ai_resource_display(mut commands: Commands, ui_icons: Res<UIIcons>)
         },
         BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.8)),
         BorderColor(Color::srgb(0.8, 0.3, 0.3)), // Red border for AI
+        ZIndex(1000), // High z-index to appear above other UI
         AIResourceDisplay,
     )).with_children(|parent| {
         // AI Player label

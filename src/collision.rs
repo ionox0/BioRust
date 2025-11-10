@@ -155,12 +155,13 @@ pub fn unit_collision_avoidance_system(
             let distance = unit_transform.translation.distance(*other_pos);
             let min_distance = unit_radius.radius + other_radius;
 
-            if distance < min_distance && distance > 0.001 {
+            // Only apply separation if units are actually overlapping or very close
+            if distance < min_distance * 0.8 && distance > 0.001 {
                 // Calculate separation direction
                 let direction = (unit_transform.translation - other_pos).normalize();
                 let force_magnitude = (min_distance - distance) / min_distance;
-                // Gentler force for unit-to-unit separation than obstacle avoidance
-                avoidance_force += direction * force_magnitude * 20.0;
+                // Much gentler force for unit-to-unit separation - don't slow down movement too much
+                avoidance_force += direction * force_magnitude * 10.0;
             }
         }
 

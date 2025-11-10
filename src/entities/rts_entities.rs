@@ -587,9 +587,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 120.0 / model_scale.max(1.2), // Very fast flying unit
-                acceleration: 220.0 / model_scale.max(1.2),  // Quick acceleration
-                turning_speed: 5.5,  // Excellent maneuverability
+                max_speed: 250.0 / model_scale.max(1.0), // Extremely fast flying scout
+                acceleration: 400.0 / model_scale.max(1.0),  // Very quick acceleration
+                turning_speed: 6.5,  // Excellent maneuverability
                 ..default()
             },
             RTSHealth {
