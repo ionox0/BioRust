@@ -163,7 +163,7 @@ pub fn unit_collision_avoidance_system(
             }
 
             let distance = unit_transform.translation.distance(*other_pos);
-            let min_distance = unit_radius.radius + other_radius + 1.5; // Larger buffer for better spacing
+            let min_distance = unit_radius.radius + other_radius + 0.8; // Moderate buffer for spacing
 
             // Apply separation whenever units are too close
             if distance < min_distance && distance > 0.001 {
@@ -171,38 +171,33 @@ pub fn unit_collision_avoidance_system(
                 let direction = (unit_transform.translation - other_pos).normalize();
                 let force_magnitude = (min_distance - distance) / min_distance;
 
-                // Use stronger force when both units are stationary (at destination)
+                // Use gentler force to prevent oscillation/jittering
                 let force_multiplier = if !is_moving && *other_stationary {
-                    35.0 // Very strong push when both stationary to prevent stacking
+                    8.0 // Gentle push when both stationary
                 } else if !is_moving || *other_stationary {
-                    25.0 // Strong push when one is stationary
+                    6.0 // Light push when one is stationary
                 } else {
-                    15.0 // Medium push when both moving
+                    4.0 // Very light push when both moving
                 };
 
                 avoidance_force += direction * force_magnitude * force_multiplier;
 
-                // If units are overlapping significantly, directly push them apart more aggressively
-                if distance < min_distance * 0.8 {
-                    let push_distance = (min_distance - distance) * 0.5; // More aggressive direct push
+                // Only push apart if very overlapping to prevent jitter
+                if distance < min_distance * 0.4 {
+                    let push_distance = (min_distance - distance) * 0.1; // Very gentle push
                     unit_transform.translation += direction * push_distance;
                 }
             }
         }
 
-        // Apply avoidance force to movement
+        // Apply avoidance force to movement with damping
         if avoidance_force.length() > 0.001 {
             // Always apply some force, even if not moving
             if is_moving {
-                movement.current_velocity += avoidance_force * dt;
+                movement.current_velocity += avoidance_force * dt * 0.5; // Apply damping
             } else {
-                // For stationary units, directly adjust position with higher speed
-                unit_transform.translation += avoidance_force.normalize() * dt * 8.0;
-            }
-
-            // If we're very close to an obstacle or unit, push directly away
-            if avoidance_force.length() > 15.0 {
-                unit_transform.translation += avoidance_force.normalize() * dt * 5.0;
+                // For stationary units, gently adjust position to prevent jitter
+                unit_transform.translation += avoidance_force.normalize() * dt * 2.0;
             }
         }
     }

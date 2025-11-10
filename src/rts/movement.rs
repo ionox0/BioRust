@@ -222,8 +222,9 @@ fn update_rotation(transform: &mut Transform, direction: Vec3, movement: &Moveme
     if direction.length() <= 0.1 {
         return;
     }
-    
-    let target_rotation = Quat::from_rotation_y(-direction.x.atan2(-direction.z));
+
+    // Calculate rotation for forward-facing models (models have been pre-rotated 180° in entity_factory)
+    let target_rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
     let turn_speed = (movement.turning_speed * delta_time).min(0.1);
     transform.rotation = transform.rotation.slerp(target_rotation, turn_speed);
 }

@@ -488,11 +488,11 @@ pub fn generate_terrain_chunk_v2(
             
             vertices.push([world_x, height, world_z]);
 
-            // Use UVs that tile properly across chunk boundaries
-            // Multiply by chunk size to create tiling effect across the terrain
-            let tile_scale = 4.0; // Number of texture repeats per chunk
-            let u = (x as f32 / resolution as f32) * tile_scale;
-            let v = (z as f32 / resolution as f32) * tile_scale;
+            // Use world coordinates for UV mapping so texture tiles at consistent world-space scale
+            // This makes textures appear at the same scale regardless of chunk size
+            let texture_tile_size = 10.0; // Texture repeats every 10 world units
+            let u = world_x / texture_tile_size;
+            let v = world_z / texture_tile_size;
             uvs.push([u, v]);
             
             // Add vertex colors for terrain variation based on height and noise
