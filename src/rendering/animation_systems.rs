@@ -634,9 +634,9 @@ pub fn add_missing_animation_controllers(
 // In Bevy 0.15, GLB animations are loaded automatically, but AnimationPlayer might be on child entities
 pub fn setup_glb_animations(
     mut glb_models: Query<(Entity, &SceneRoot, &mut UnitAnimationController), Without<AnimationPlayerSearched>>,
+    mut animation_players: Query<&mut AnimationPlayer>,
     mut commands: Commands,
     children: Query<&Children>,
-    animation_players: Query<Entity, With<AnimationPlayer>>,
 ) {
     for (entity, _scene_root, mut controller) in glb_models.iter_mut() {
         // Check if scene has children (indicating it's loaded)
@@ -648,10 +648,15 @@ pub fn setup_glb_animations(
         commands.entity(entity).insert(AnimationPlayerSearched);
 
         // Search for AnimationPlayer in the entity hierarchy
-        if let Some(player_entity) = search_for_animation_player(entity, &children, &animation_players, 0) {
+        if let Some(player_entity) = search_for_animation_player_entity(entity, &children, &animation_players) {
             // Store the AnimationPlayer entity in the controller
             controller.animation_player = Some(player_entity);
-            info!("✓ Found and assigned AnimationPlayer {:?} to controller on entity {:?}", player_entity, entity);
+
+            // Start playing animation immediately (don't wait for next frame)
+            if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                player.play(AnimationNodeIndex::new(0)).repeat();
+                info!("✓ Found AnimationPlayer {:?}, assigned to controller on entity {:?}, and started animation", player_entity, entity);
+            }
         } else {
             // Some GLB models might not have animations, that's okay
             debug!("No AnimationPlayer found for GLB model entity {:?} (model may not have animations)", entity);
@@ -663,11 +668,19 @@ pub fn setup_glb_animations(
 #[derive(Component)]
 struct AnimationPlayerSearched;
 
-// Helper function to recursively search for AnimationPlayer
-fn search_for_animation_player(
+// Helper function to recursively search for AnimationPlayer entity
+fn search_for_animation_player_entity(
     entity: Entity,
     children: &Query<&Children>,
-    animation_players: &Query<Entity, With<AnimationPlayer>>,
+    animation_players: &Query<&mut AnimationPlayer>,
+) -> Option<Entity> {
+    search_for_animation_player_recursive(entity, children, animation_players, 0)
+}
+
+fn search_for_animation_player_recursive(
+    entity: Entity,
+    children: &Query<&Children>,
+    animation_players: &Query<&mut AnimationPlayer>,
     depth: usize,
 ) -> Option<Entity> {
     if depth > 10 { return None; } // Prevent infinite recursion
@@ -680,7 +693,7 @@ fn search_for_animation_player(
     // Search children
     if let Ok(children_list) = children.get(entity) {
         for &child in children_list.iter() {
-            if let Some(player) = search_for_animation_player(child, children, animation_players, depth + 1) {
+            if let Some(player) = search_for_animation_player_recursive(child, children, animation_players, depth + 1) {
                 return Some(player);
             }
         }
