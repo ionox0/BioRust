@@ -25,10 +25,11 @@ impl Plugin for UIPlugin {
             .init_resource::<BuildingPlacement>()
             .init_resource::<UIIcons>()
             .init_resource::<HoveredUnit>()
-            .add_systems(Startup, (load_ui_icons, setup_building_ui, setup_tooltip).chain())
+            .add_systems(Startup, (load_ui_icons, setup_building_ui, setup_tooltip, setup_ai_resource_display).chain())
             .add_systems(Update, (
                 sync_player_resources,
                 update_resource_display,
+                update_ai_resource_display,
                 handle_building_panel_interactions,
                 handle_building_placement,
                 update_production_queue_display,

@@ -23,6 +23,17 @@ pub struct ResourceCounter {
 #[derive(Component)]
 pub struct PopulationCounter;
 
+#[derive(Component)]
+pub struct AIResourceDisplay;
+
+#[derive(Component)]
+pub struct AIResourceCounter {
+    pub resource_type: ResourceType,
+}
+
+#[derive(Component)]
+pub struct AIPopulationCounter;
+
 pub fn setup_resource_display(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     use crate::constants::ui::*;
     
@@ -158,5 +169,123 @@ pub fn update_resource_display(
 
     for mut text in population_query.iter_mut() {
         **text = format!("{}/{}", player_resources.population_used, player_resources.population_limit);
+    }
+}
+
+// Setup AI resources display (bottom left corner)
+pub fn setup_ai_resource_display(mut commands: Commands, ui_icons: Res<UIIcons>) {
+    use crate::constants::ui::*;
+
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(10.0),
+            left: Val::Px(10.0),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(10.0)),
+            row_gap: Val::Px(5.0),
+            border: UiRect::all(Val::Px(2.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.8)),
+        BorderColor(Color::srgb(0.8, 0.3, 0.3)), // Red border for AI
+        AIResourceDisplay,
+    )).with_children(|parent| {
+        // AI Player label
+        parent.spawn((
+            Text::new("AI Player 2"),
+            TextFont {
+                font_size: 18.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.8, 0.3, 0.3)),
+        ));
+
+        // AI Resource counters
+        for (resource, icon_handle) in [
+            (ResourceType::Nectar, ui_icons.nectar_icon.clone()),
+            (ResourceType::Chitin, ui_icons.chitin_icon.clone()),
+            (ResourceType::Minerals, ui_icons.minerals_icon.clone()),
+            (ResourceType::Pheromones, ui_icons.pheromones_icon.clone()),
+        ] {
+            parent.spawn((
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(5.0),
+                    ..default()
+                },
+            )).with_children(|parent| {
+                parent.spawn((
+                    ImageNode::new(icon_handle),
+                    Node {
+                        width: Val::Px(20.0),
+                        height: Val::Px(20.0),
+                        ..default()
+                    },
+                ));
+                parent.spawn((
+                    Text::new("0"),
+                    TextFont {
+                        font_size: 16.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                    AIResourceCounter { resource_type: resource },
+                ));
+            });
+        }
+
+        // AI Population counter
+        parent.spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(5.0),
+                ..default()
+            },
+        )).with_children(|parent| {
+            parent.spawn((
+                ImageNode::new(ui_icons.population_icon.clone()),
+                Node {
+                    width: Val::Px(20.0),
+                    height: Val::Px(20.0),
+                    ..default()
+                },
+            ));
+            parent.spawn((
+                Text::new("0/0"),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                AIPopulationCounter,
+            ));
+        });
+    });
+}
+
+// Update AI resource display
+pub fn update_ai_resource_display(
+    ai_resources: Res<crate::core::resources::AIResources>,
+    mut ai_resource_query: Query<(&AIResourceCounter, &mut Text)>,
+    mut ai_population_query: Query<&mut Text, (With<AIPopulationCounter>, Without<AIResourceCounter>)>,
+) {
+    // Get AI Player 2's resources
+    let Some(ai_player_2) = ai_resources.resources.get(&2) else { return };
+
+    for (counter, mut text) in ai_resource_query.iter_mut() {
+        let amount = match counter.resource_type {
+            ResourceType::Nectar => ai_player_2.nectar,
+            ResourceType::Chitin => ai_player_2.chitin,
+            ResourceType::Minerals => ai_player_2.minerals,
+            ResourceType::Pheromones => ai_player_2.pheromones,
+        };
+        **text = format!("{:.0}", amount);
+    }
+
+    for mut text in ai_population_query.iter_mut() {
+        **text = format!("{}/{}", ai_player_2.current_population, ai_player_2.max_population);
     }
 }
