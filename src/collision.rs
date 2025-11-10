@@ -120,16 +120,16 @@ impl CollisionUtils {
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
     obstacles: Query<(&Transform, &CollisionRadius), (With<GameEntity>, Without<RTSUnit>)>,
-    all_units: Query<(Entity, &Transform, &CollisionRadius), With<RTSUnit>>,
     time: Res<Time>,
 ) {
     let dt = time.delta_secs();
 
-    // Store unit transformations to avoid borrow checker issues
-    let unit_positions: Vec<(Entity, Vec3, f32)> = all_units.iter()
-        .map(|(e, t, r)| (e, t.translation, r.radius))
+    // Store unit transformations BEFORE mutating (immutable borrow, then release)
+    let unit_positions: Vec<(Entity, Vec3, f32)> = units.iter()
+        .map(|(e, t, _, r)| (e, t.translation, r.radius))
         .collect();
 
+    // Now do mutable iteration
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
         let mut avoidance_force = Vec3::ZERO;
 
