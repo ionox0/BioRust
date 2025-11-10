@@ -229,7 +229,7 @@ fn update_position_with_terrain(
 }
 
 fn update_rotation(transform: &mut Transform, direction: Vec3, movement: &Movement, rts_unit: &RTSUnit, delta_time: f32) {
-    use crate::core::types::UnitType;
+    use crate::core::components::UnitType;
 
     if direction.length() <= 0.1 {
         return;
