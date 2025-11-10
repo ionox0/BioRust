@@ -173,6 +173,36 @@ fn spawn_produced_unit(
                 unit_id,
             );
         },
+        UnitType::SpearMantis => {
+            RTSEntityFactory::spawn_spear_mantis(
+                commands,
+                meshes,
+                materials,
+                spawn_position,
+                player_id,
+                unit_id,
+            );
+        },
+        UnitType::ScoutAnt => {
+            RTSEntityFactory::spawn_scout_ant(
+                commands,
+                meshes,
+                materials,
+                spawn_position,
+                player_id,
+                unit_id,
+            );
+        },
+        UnitType::DragonFly => {
+            RTSEntityFactory::spawn_dragonfly(
+                commands,
+                meshes,
+                materials,
+                spawn_position,
+                player_id,
+                unit_id,
+            );
+        },
         _ => {},
     }
 }

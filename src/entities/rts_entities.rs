@@ -330,9 +330,9 @@ impl RTSEntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: 50.0 / model_scale.max(2.0), // 2x speed increase
-                acceleration: 110.0 / model_scale.max(2.0),  // 2x acceleration increase
-                turning_speed: 3.8,  // Slightly faster turning
+                max_speed: 100.0 / model_scale.max(1.5), // 4x speed increase - faster mantis
+                acceleration: 200.0 / model_scale.max(1.5),  // 4x acceleration increase
+                turning_speed: 4.5,  // Faster turning
                 ..default()
             },
             RTSHealth {
@@ -514,6 +514,108 @@ impl RTSEntityFactory {
             Selectable::default(),
             Vision::default(),
             CollisionRadius { radius: crate::constants::collision::BEETLE_KNIGHT_COLLISION_RADIUS },
+            EntityState::default(),
+            GameEntity,
+        )).id()
+    }
+
+    pub fn spawn_dragonfly(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+    ) -> Entity {
+        Self::spawn_dragonfly_with_models(commands, meshes, materials, position, player_id, unit_id, None)
+    }
+
+    pub fn spawn_dragonfly_with_models(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+        model_assets: Option<&ModelAssets>,
+    ) -> Entity {
+        // Calculate model scale factor for movement adjustment
+        let model_scale = if let Some(_models) = model_assets {
+            let model_type = get_unit_insect_model(&UnitType::DragonFly);
+            match model_type {
+                crate::rendering::model_loader::InsectModelType::Dragonfly => crate::rendering::model_loader::get_model_scale(&model_type),
+                _ => crate::rendering::model_loader::get_model_scale(&model_type),
+            }
+        } else {
+            1.0 // Primitive models use default scale
+        };
+
+        let mut entity = if let Some(models) = model_assets {
+            // Use GLB model
+            let model_type = get_unit_insect_model(&UnitType::DragonFly);
+            let model_handle = models.get_model_handle(&model_type);
+
+            commands.spawn((
+                SceneRoot(model_handle),
+                Transform::from_translation(position)
+                    .with_scale(Vec3::splat(model_scale))
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                InsectModel {
+                    model_type,
+                    scale: model_scale,
+                },
+                UseGLBModel,
+                TeamColor::new(player_id), // Add team coloring
+            ))
+        } else {
+            // Fallback to primitive shapes - elongated for dragonfly
+            commands.spawn((
+                Mesh3d(meshes.add(Capsule3d::new(0.6, 3.0))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: TeamColor::get_primitive_color(player_id),
+                    ..default()
+                })),
+                Transform::from_translation(position),
+            ))
+        };
+
+        entity.insert((
+            RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::DragonFly) },
+            TeamColor::new(player_id), // Add team coloring
+            Position {
+                translation: position,
+                rotation: Quat::IDENTITY,
+            },
+            Movement {
+                max_speed: 120.0 / model_scale.max(1.2), // Very fast flying unit
+                acceleration: 220.0 / model_scale.max(1.2),  // Quick acceleration
+                turning_speed: 5.5,  // Excellent maneuverability
+                ..default()
+            },
+            RTSHealth {
+                current: 50.0,
+                max: 50.0,
+                armor: 0.0,
+                regeneration_rate: 0.3,
+                last_damage_time: 0.0,
+            },
+            Combat {
+                attack_damage: 10.0,
+                attack_range: 12.0, // Ranged attack
+                attack_speed: 2.5,
+                last_attack_time: 0.0,
+                target: None,
+                attack_type: AttackType::Ranged,
+                attack_cooldown: 0.0,
+                is_attacking: false,
+                auto_attack: true,
+            },
+            Selectable::default(),
+            Vision {
+                sight_range: 200.0, // Excellent vision for reconnaissance
+                line_of_sight: true,
+            },
+            CollisionRadius { radius: crate::constants::collision::DEFAULT_UNIT_COLLISION_RADIUS * 0.8 },
             EntityState::default(),
             GameEntity,
         )).id()

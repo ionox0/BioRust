@@ -191,14 +191,44 @@ fn execute_commands_for_selected_units(
     target_point: Vec3,
 ) {
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
-    
+
+    // For resource gathering, distribute units in a circle around the resource
+    let selected_units: Vec<_> = units.iter()
+        .filter(|(_, _, selectable, unit)| selectable.is_selected && unit.player_id == 1)
+        .collect();
+
+    let mut index = 0;
     for (mut movement, mut combat, selectable, unit) in units.iter_mut() {
         if !selectable.is_selected || unit.player_id != 1 {
             continue;
         }
-        
-        execute_unit_command(&mut movement, &mut combat, unit, target_enemy, target_resource, target_point, shift_held);
+
+        // Calculate distributed position for resource gathering
+        let adjusted_target = if target_resource.is_some() {
+            calculate_gathering_position(target_point, index, selected_units.len())
+        } else {
+            target_point
+        };
+
+        execute_unit_command(&mut movement, &mut combat, unit, target_enemy, target_resource, adjusted_target, shift_held);
+        index += 1;
     }
+}
+
+/// Calculate a position in a circle around the resource for better distribution
+fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+    if total_units == 1 {
+        return resource_pos;
+    }
+
+    let gather_radius = 4.0 + (total_units as f32 * 0.5); // Radius increases with more units
+    let angle = (unit_index as f32 / total_units as f32) * std::f32::consts::TAU;
+
+    Vec3::new(
+        resource_pos.x + angle.cos() * gather_radius,
+        resource_pos.y,
+        resource_pos.z + angle.sin() * gather_radius,
+    )
 }
 
 fn execute_unit_command(
