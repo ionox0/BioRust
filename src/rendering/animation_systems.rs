@@ -633,12 +633,12 @@ pub fn add_missing_animation_controllers(
 // System to set up animations for GLB models
 // In Bevy 0.15, GLB animations are loaded automatically, but AnimationPlayer might be on child entities
 pub fn setup_glb_animations(
-    glb_models: Query<(Entity, &SceneRoot, &UnitAnimationController), Without<AnimationPlayerSearched>>,
+    mut glb_models: Query<(Entity, &SceneRoot, &mut UnitAnimationController), Without<AnimationPlayerSearched>>,
     mut commands: Commands,
     children: Query<&Children>,
     animation_players: Query<Entity, With<AnimationPlayer>>,
 ) {
-    for (entity, _scene_root, _controller) in glb_models.iter() {
+    for (entity, _scene_root, mut controller) in glb_models.iter_mut() {
         // Check if scene has children (indicating it's loaded)
         if children.get(entity).is_err() {
             continue;
@@ -649,7 +649,9 @@ pub fn setup_glb_animations(
 
         // Search for AnimationPlayer in the entity hierarchy
         if let Some(player_entity) = search_for_animation_player(entity, &children, &animation_players, 0) {
-            info!("✓ Found AnimationPlayer {:?} for GLB model entity {:?}", player_entity, entity);
+            // Store the AnimationPlayer entity in the controller
+            controller.animation_player = Some(player_entity);
+            info!("✓ Found and assigned AnimationPlayer {:?} to controller on entity {:?}", player_entity, entity);
         } else {
             // Some GLB models might not have animations, that's okay
             debug!("No AnimationPlayer found for GLB model entity {:?} (model may not have animations)", entity);
