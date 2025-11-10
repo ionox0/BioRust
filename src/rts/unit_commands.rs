@@ -40,8 +40,8 @@ pub fn unit_command_system(
     
     let target_enemy = find_enemy_target(ray, &units, &all_units);
     let target_resource = find_resource_target(ray, &resources);
-    let target_point = if let Some((_, resource_transform)) = target_resource {
-        resource_transform.translation
+    let target_point = if let Some((_, resource_pos)) = target_resource {
+        resource_pos
     } else {
         calculate_target_position(ray, &context)
     };
@@ -195,7 +195,7 @@ fn execute_commands_for_selected_units(
     commands: &mut Commands,
     keyboard: &Res<ButtonInput<KeyCode>>,
     target_enemy: Option<Entity>,
-    target_resource: Option<(Entity, &Transform)>,
+    target_resource: Option<(Entity, Vec3)>,
     target_point: Vec3,
 ) {
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
@@ -261,7 +261,7 @@ fn execute_unit_command(
     buildings: &Query<(Entity, &Transform), With<Building>>,
     commands: &mut Commands,
     target_enemy: Option<Entity>,
-    target_resource: Option<(Entity, &Transform)>,
+    target_resource: Option<(Entity, Vec3)>,
     target_point: Vec3,
     _shift_held: bool,
 ) {
