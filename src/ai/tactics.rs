@@ -72,7 +72,7 @@ impl Default for TacticalManager {
 pub fn tactical_decision_system(
     mut tactical_manager: ResMut<TacticalManager>,
     intelligence: Res<IntelligenceSystem>,
-    units: Query<(&RTSUnit, &Transform, &Health), With<Combat>>,
+    units: Query<(&RTSUnit, &Transform, &RTSHealth), With<Combat>>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
@@ -145,7 +145,7 @@ fn decide_tactical_stance(
 
 fn update_army_groups(
     tactics: &mut PlayerTactics,
-    units: &Query<(&RTSUnit, &Transform, &Health), With<Combat>>,
+    units: &Query<(&RTSUnit, &Transform, &RTSHealth), With<Combat>>,
     player_id: u8,
 ) {
     // Clear existing groups

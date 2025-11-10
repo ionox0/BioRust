@@ -77,7 +77,7 @@ fn make_adaptive_ai_decision(
 
         // If under high threat, prioritize defense
         if intel.threat_level == ThreatLevel::High || intel.threat_level == ThreatLevel::Critical {
-            if counts.military_count < intel.enemy_unit_composition.military_units as u32 + 2 {
+            if counts.military_count < (intel.enemy_unit_composition.military_units + 2) as i32 {
                 if counts.barracks > 0 && resources.has_population_space() {
                     // Build counter units based on enemy composition
                     if intel.enemy_unit_composition.hunter_wasps > 2 {

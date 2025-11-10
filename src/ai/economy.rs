@@ -137,7 +137,7 @@ fn calculate_resource_priority(
         (ideal_workers - current_workers) as f32 * 2.0
     } else if current_workers > ideal_workers {
         // Negative priority if we have too many workers
-        -(current_workers - ideal_workers) as f32
+        -((current_workers - ideal_workers) as f32)
     } else {
         0.0
     }

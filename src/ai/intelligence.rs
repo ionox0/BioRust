@@ -93,7 +93,7 @@ impl IntelligenceSystem {
 /// System to update intelligence based on scouting
 pub fn intelligence_update_system(
     mut intelligence: ResMut<IntelligenceSystem>,
-    units: Query<(&RTSUnit, &Transform, &Health), With<RTSUnit>>,
+    units: Query<(&RTSUnit, &Transform, &RTSHealth), With<RTSUnit>>,
     buildings: Query<(&Building, &Transform, &RTSUnit), With<Building>>,
     time: Res<Time>,
 ) {

@@ -24,8 +24,8 @@ impl Default for CombatState {
 
 pub fn ai_combat_system(
     mut commands: Commands,
-    mut ai_units: Query<(Entity, &mut Movement, &mut Combat, &Transform, &RTSUnit, &Health, Option<&mut CombatState>), With<Combat>>,
-    all_units: Query<(Entity, &Transform, &RTSUnit, &Health), With<RTSUnit>>,
+    mut ai_units: Query<(Entity, &mut Movement, &mut Combat, &Transform, &RTSUnit, &RTSHealth, Option<&mut CombatState>), With<Combat>>,
+    all_units: Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     tactical_manager: Option<Res<TacticalManager>>,
     time: Res<Time>,
 ) {
@@ -81,9 +81,9 @@ fn handle_advanced_combat_ai(
     combat: &mut Combat,
     unit_transform: &Transform,
     unit: &RTSUnit,
-    health: &Health,
+    health: &RTSHealth,
     state: &mut CombatState,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &Health), With<RTSUnit>>,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     stance: TacticalStance,
     current_time: f32,
 ) {
@@ -148,10 +148,10 @@ fn handle_advanced_combat_ai(
 
 /// Determines if unit should retreat based on health and enemy presence
 fn should_retreat(
-    health: &Health,
+    health: &RTSHealth,
     unit_transform: &Transform,
     unit: &RTSUnit,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &Health), With<RTSUnit>>,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     stance: &TacticalStance,
 ) -> bool {
     // Retreat if health is below 30%
@@ -192,7 +192,7 @@ fn should_retreat(
 fn find_best_target(
     unit_transform: &Transform,
     unit: &RTSUnit,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &Health), With<RTSUnit>>,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     current_target: Option<Entity>,
 ) -> Option<(Entity, Vec3, f32, u32)> {
     let detection_range = 120.0;
@@ -235,7 +235,7 @@ fn find_best_target(
 }
 
 /// Calculate target priority (higher = more important to attack)
-fn calculate_target_priority(target_unit: &RTSUnit, target_health: &Health) -> u32 {
+fn calculate_target_priority(target_unit: &RTSUnit, target_health: &RTSHealth) -> u32 {
     let mut priority = 5; // Base priority
 
     // Prioritize by unit type

@@ -119,7 +119,7 @@ fn estimate_home_base_location(player_id: u8) -> Vec3 {
 
 /// System to handle scout survival - retreat if under attack
 pub fn scout_survival_system(
-    mut scouts: Query<(&mut Movement, &mut ScoutUnit, &Transform, &Health, &RTSUnit)>,
+    mut scouts: Query<(&mut Movement, &mut ScoutUnit, &Transform, &RTSHealth, &RTSUnit)>,
     enemy_units: Query<(&Transform, &RTSUnit, &Combat), (With<Combat>, Without<ScoutUnit>)>,
 ) {
     for (mut movement, mut scout, transform, health, unit) in scouts.iter_mut() {

@@ -183,7 +183,7 @@ pub struct ResourceGatherer {
     pub drop_off_building: Option<Entity>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ResourceType {
     Nectar,
     Chitin,
