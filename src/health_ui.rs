@@ -203,6 +203,7 @@ pub fn health_status_indicator_system(
     existing_indicators: Query<(Entity, &HealthStatusIndicator)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut warned_critical: Local<std::collections::HashSet<Entity>>,
 ) {
     for (entity, transform, _health, status, _selectable) in units_query.iter() {
         // Remove existing status indicator if any
@@ -240,13 +241,19 @@ pub fn health_status_indicator_system(
                     },
                 )).id();
                 
-                // Reduced critical condition logging (only on status change)
-                if matches!(status, HealthStatus::Critical) {
+                // Only log critical condition once per unit
+                if matches!(status, HealthStatus::Critical) && !warned_critical.contains(&entity) {
                     warn!("⚠️ Unit {:?} is now in critical condition!", entity);
+                    warned_critical.insert(entity);
                 }
+            }
+            HealthStatus::Injured => {
+                // If unit recovers from critical, allow warning again if it becomes critical later
+                warned_critical.remove(&entity);
             }
             HealthStatus::Healthy => {
                 // No indicator needed for healthy units
+                warned_critical.remove(&entity);
             }
         }
     }

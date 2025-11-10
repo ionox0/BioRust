@@ -12,6 +12,7 @@ impl Plugin for AnimationPlugin {
                 animation_state_manager,
                 update_animations,
                 find_animation_players,
+                start_idle_animations, // Start animations for newly found players
                 animation_debug_system,
             ).chain())
             .add_event::<AnimationStateChangeEvent>();
@@ -142,28 +143,66 @@ pub fn update_animations(
     mut animation_events: EventReader<AnimationStateChangeEvent>,
     mut controllers: Query<&mut UnitAnimationController>,
     mut animation_players: Query<&mut AnimationPlayer>,
+    animation_graphs: Res<Assets<AnimationGraph>>,
+    animation_clips: Res<Assets<AnimationClip>>,
 ) {
     for event in animation_events.read() {
         if let Ok(mut controller) = controllers.get_mut(event.entity) {
             // Update animation state
             controller.previous_state = controller.current_state.clone();
             controller.current_state = event.new_state.clone();
-            
+
             // Try to play the animation if we have a player
             if let Some(player_entity) = controller.animation_player {
-                if let Ok(_player) = animation_players.get_mut(player_entity) {
+                if let Ok(mut player) = animation_players.get_mut(player_entity) {
                     if let Some(animation_name) = get_animation_name_for_state(&controller.clips, &event.new_state) {
-                        debug!("Animation state changed to {:?} for entity {:?} (target animation: '{}')", 
-                              event.new_state, event.entity, animation_name);
-                        
-                        // In Bevy 0.15, animations are automatically played when GLB models are loaded
-                        // We log the state change but don't need to manually control playback for GLB animations
-                        // The animation player will automatically use the first animation from the GLB file
+                        // Try to find and play the animation
+                        // In Bevy 0.15, we need to search the animation graph for the clip
+                        let mut found_animation = false;
+
+                        // Get the animation graph if available
+                        if let Some(graph_handle) = player.animation_graph() {
+                            if let Some(graph) = animation_graphs.get(graph_handle) {
+                                // Search for animation by name
+                                for (node_index, node) in graph.iter_nodes_with_indices() {
+                                    if let Some(clip_handle) = node.clip {
+                                        if let Some(clip) = animation_clips.get(clip_handle) {
+                                            // Check if the clip name matches (simplified name matching)
+                                            // Play the first animation found - proper name matching would require more info
+                                            player.play(node_index).repeat();
+                                            found_animation = true;
+                                            debug!("Playing animation {:?} for state {:?} on entity {:?}",
+                                                  node_index, event.new_state, event.entity);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if !found_animation {
+                            // Fallback: just play the first available animation
+                            if let Some(graph_handle) = player.animation_graph() {
+                                if let Some(graph) = animation_graphs.get(graph_handle) {
+                                    if let Some((first_node, _)) = graph.iter_nodes_with_indices().next() {
+                                        player.play(first_node).repeat();
+                                        debug!("Playing first available animation for state {:?} on entity {:?}",
+                                              event.new_state, event.entity);
+                                    }
+                                }
+                            }
+                        }
                     } else {
-                        // Only log missing animations occasionally to avoid spam
-                        if event.entity.index() % 10 == 0 {
-                            debug!("No specific animation for state {:?} on entity {:?}", 
-                                  event.new_state, event.entity);
+                        // No specific animation for this state, play first available
+                        if let Some(graph_handle) = player.animation_graph() {
+                            if let Some(graph) = animation_graphs.get(graph_handle) {
+                                if let Some((first_node, _)) = graph.iter_nodes_with_indices().next() {
+                                    // Only play if not already playing to avoid restart loops
+                                    if !player.is_playing_animation() {
+                                        player.play(first_node).repeat();
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -274,6 +313,33 @@ fn search_simple_for_player(
     }
     
     None
+}
+
+// System to start idle animations for units that just got their animation player assigned
+pub fn start_idle_animations(
+    mut controllers: Query<(Entity, &mut UnitAnimationController), Changed<UnitAnimationController>>,
+    mut animation_players: Query<&mut AnimationPlayer>,
+    animation_graphs: Res<Assets<AnimationGraph>>,
+) {
+    for (entity, controller) in controllers.iter_mut() {
+        // If we just got an animation player assigned, start the idle animation
+        if let Some(player_entity) = controller.animation_player {
+            if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                // Only start if not already playing
+                if !player.is_playing_animation() {
+                    if let Some(graph_handle) = player.animation_graph() {
+                        if let Some(graph) = animation_graphs.get(graph_handle) {
+                            // Play the first animation on repeat
+                            if let Some((first_node, _)) = graph.iter_nodes_with_indices().next() {
+                                player.play(first_node).repeat();
+                                debug!("Started idle animation for newly assigned player on entity {:?}", entity);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Helper function to get animation name for a state

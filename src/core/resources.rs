@@ -184,13 +184,13 @@ pub struct AIResources {
 impl Default for AIResources {
     fn default() -> Self {
         let mut resources = std::collections::HashMap::new();
-        // Add AI player 2
+        // Add AI player 2 with better starting resources
         resources.insert(2, PlayerResources {
-            nectar: 500.0,
-            chitin: 500.0, 
-            minerals: 300.0,
-            pheromones: 300.0,
-            max_population: 10,
+            nectar: 800.0,  // More food for unit production
+            chitin: 800.0,  // More building materials
+            minerals: 500.0, // More minerals
+            pheromones: 500.0, // More pheromones for special units
+            max_population: 20, // Higher pop cap to support more units
             current_population: 0,
             idle_workers: 0,
         });

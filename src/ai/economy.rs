@@ -51,6 +51,7 @@ pub fn economy_optimization_system(
     ai_resources: Res<AIResources>,
     mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    buildings: Query<(Entity, &Transform), With<Building>>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
@@ -99,6 +100,7 @@ pub fn economy_optimization_system(
             &allocations,
             &mut workers,
             &resource_sources,
+            &buildings,
         );
     }
 }
@@ -149,6 +151,7 @@ fn reassign_workers(
     allocations: &[ResourceAllocation],
     workers: &mut Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    buildings: &Query<(Entity, &Transform), With<Building>>,
 ) {
     // Find workers that need reassignment (on low priority resources)
     let mut workers_to_reassign = Vec::new();
@@ -196,11 +199,23 @@ fn reassign_workers(
                     });
 
                     if let Some((source_entity, _)) = sources.first() {
-                        if let Ok((_, mut gatherer, _, _)) = workers.get_mut(worker_entity) {
+                        if let Ok((_, mut gatherer, unit, worker_transform)) = workers.get_mut(worker_entity) {
+                            // Find nearest building for drop-off
+                            let nearest_building = buildings
+                                .iter()
+                                .filter(|(_, _)| unit.player_id == player_id) // Only player's own buildings
+                                .min_by(|a, b| {
+                                    let dist_a = worker_transform.translation.distance(a.1.translation);
+                                    let dist_b = worker_transform.translation.distance(b.1.translation);
+                                    dist_a.partial_cmp(&dist_b).unwrap()
+                                })
+                                .map(|(entity, _)| entity);
+
                             gatherer.target_resource = Some(*source_entity);
                             gatherer.resource_type = Some(allocation.resource_type.clone());
                             gatherer.carried_amount = 0.0;
-                            info!("Reassigning worker to {:?}", allocation.resource_type);
+                            gatherer.drop_off_building = nearest_building;
+                            info!("Reassigning AI worker to {:?} with dropoff: {:?}", allocation.resource_type, nearest_building);
                         }
                     }
                 }
@@ -214,6 +229,7 @@ pub fn worker_idle_detection_system(
     economy_manager: Res<EconomyManager>,
     mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    buildings: Query<(Entity, &Transform), With<Building>>,
 ) {
     for (player_id, economy) in &economy_manager.player_economy {
         // Get highest priority resource
@@ -233,8 +249,20 @@ pub fn worker_idle_detection_system(
                             dist_a.partial_cmp(&dist_b).unwrap()
                         })
                     {
+                        // Find nearest building for drop-off
+                        let nearest_building = buildings
+                            .iter()
+                            .filter(|(_, _)| unit.player_id == *player_id) // Only player's own buildings
+                            .min_by(|a, b| {
+                                let dist_a = worker_transform.translation.distance(a.1.translation);
+                                let dist_b = worker_transform.translation.distance(b.1.translation);
+                                dist_a.partial_cmp(&dist_b).unwrap()
+                            })
+                            .map(|(entity, _)| entity);
+
                         gatherer.target_resource = Some(source_entity);
                         gatherer.resource_type = Some(highest_priority.resource_type.clone());
+                        gatherer.drop_off_building = nearest_building;
                     }
                 }
             }

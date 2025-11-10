@@ -218,19 +218,22 @@ pub fn spawn_rts_elements(
         model_assets.as_deref(),
     );
     
-    // Enemy units - same types but different positions using new EntityFactory
-    let enemy_worker_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::WorkerAnt),
-        get_terrain_position(player2_base.x, player2_base.z - 30.0, 2.0),
-        2,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        enemy_worker_config,
-        model_assets.as_deref(),
-    );
+    // Enemy units - spawn multiple workers for better economy
+    for i in 0..5 {
+        let worker_offset_x = (i as f32 - 2.0) * 8.0;
+        let enemy_worker_config = SpawnConfig::unit(
+            EntityType::from_unit(crate::core::components::UnitType::WorkerAnt),
+            get_terrain_position(player2_base.x + worker_offset_x, player2_base.z - 30.0, 2.0),
+            2,
+        );
+        EntityFactory::spawn(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            enemy_worker_config,
+            model_assets.as_deref(),
+        );
+    }
     
     let enemy_soldier_config = SpawnConfig::unit(
         EntityType::from_unit(crate::core::components::UnitType::SoldierAnt),

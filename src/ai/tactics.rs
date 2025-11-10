@@ -74,6 +74,8 @@ pub fn tactical_decision_system(
     intelligence: Res<IntelligenceSystem>,
     units: Query<(&RTSUnit, &Transform, &RTSHealth), With<Combat>>,
     time: Res<Time>,
+    mut last_log_time: Local<f32>,
+    mut last_stance: Local<std::collections::HashMap<u8, TacticalStance>>,
 ) {
     let current_time = time.elapsed_secs();
 
@@ -86,6 +88,9 @@ pub fn tactical_decision_system(
             .filter(|(unit, _, _)| unit.player_id == *player_id)
             .count();
 
+        // Store previous stance
+        let prev_stance = tactics.current_stance.clone();
+
         // Decide tactical stance based on intelligence and army size
         tactics.current_stance = decide_tactical_stance(
             our_military_count,
@@ -97,8 +102,16 @@ pub fn tactical_decision_system(
         // Update army grouping based on stance
         update_army_groups(tactics, &units, *player_id);
 
-        info!("AI Player {} - Stance: {:?}, Military: {}, Attacking: {}",
-              player_id, tactics.current_stance, our_military_count, tactics.is_attacking);
+        // Only log when stance changes or every 5 seconds
+        let stance_changed = last_stance.get(player_id) != Some(&tactics.current_stance);
+        let should_log = stance_changed || (current_time - *last_log_time > 5.0);
+
+        if should_log {
+            info!("AI Player {} - Stance: {:?}, Military: {}, Attacking: {}",
+                  player_id, tactics.current_stance, our_military_count, tactics.is_attacking);
+            *last_log_time = current_time;
+            last_stance.insert(*player_id, tactics.current_stance.clone());
+        }
     }
 }
 

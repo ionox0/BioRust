@@ -125,52 +125,83 @@ pub fn unit_collision_avoidance_system(
     let dt = time.delta_secs();
 
     // Store unit transformations BEFORE mutating (immutable borrow, then release)
-    let unit_positions: Vec<(Entity, Vec3, f32)> = units.iter()
-        .map(|(e, t, _, r)| (e, t.translation, r.radius))
+    let unit_positions: Vec<(Entity, Vec3, f32, bool)> = units.iter()
+        .map(|(e, t, m, r)| {
+            // Track if unit is stationary (at destination or not moving)
+            let is_stationary = m.target_position.is_none() || m.current_velocity.length() < 0.1;
+            (e, t.translation, r.radius, is_stationary)
+        })
         .collect();
 
     // Now do mutable iteration
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
         let mut avoidance_force = Vec3::ZERO;
+        let is_moving = movement.target_position.is_some() && movement.current_velocity.length() > 0.1;
 
         // Check collision with all static obstacles (buildings, environment objects)
         for (obstacle_transform, obstacle_radius) in obstacles.iter() {
             let distance = unit_transform.translation.distance(obstacle_transform.translation);
-            let min_distance = unit_radius.radius + obstacle_radius.radius;
+            let min_distance = unit_radius.radius + obstacle_radius.radius + 1.0; // Add buffer
 
             if distance < min_distance && distance > 0.001 {
                 // Calculate avoidance direction
                 let direction = (unit_transform.translation - obstacle_transform.translation).normalize();
                 let force_magnitude = (min_distance - distance) / min_distance;
                 avoidance_force += direction * force_magnitude * 50.0; // Strong avoidance force
+
+                // If overlapping, push directly away immediately
+                if distance < min_distance * 0.9 {
+                    unit_transform.translation += direction * (min_distance - distance) * 0.5;
+                }
             }
         }
 
         // Check collision with other units for separation
-        for (other_entity, other_pos, other_radius) in &unit_positions {
+        for (other_entity, other_pos, other_radius, other_stationary) in &unit_positions {
             if unit_entity == *other_entity {
                 continue;
             }
 
             let distance = unit_transform.translation.distance(*other_pos);
-            let min_distance = unit_radius.radius + other_radius;
+            let min_distance = unit_radius.radius + other_radius + 0.5; // Always maintain minimum spacing
 
-            // Only apply separation if units are actually overlapping or very close
-            if distance < min_distance * 0.8 && distance > 0.001 {
+            // Apply separation whenever units are too close
+            if distance < min_distance && distance > 0.001 {
                 // Calculate separation direction
                 let direction = (unit_transform.translation - other_pos).normalize();
                 let force_magnitude = (min_distance - distance) / min_distance;
-                // Much gentler force for unit-to-unit separation - don't slow down movement too much
-                avoidance_force += direction * force_magnitude * 10.0;
+
+                // Use stronger force when both units are stationary (at destination)
+                let force_multiplier = if !is_moving && *other_stationary {
+                    20.0 // Strong push when both stationary
+                } else if !is_moving || *other_stationary {
+                    15.0 // Medium push when one is stationary
+                } else {
+                    10.0 // Gentle push when both moving
+                };
+
+                avoidance_force += direction * force_magnitude * force_multiplier;
+
+                // If units are overlapping significantly, directly push them apart
+                if distance < min_distance * 0.7 {
+                    let push_distance = (min_distance - distance) * 0.3;
+                    unit_transform.translation += direction * push_distance;
+                }
             }
         }
 
         // Apply avoidance force to movement
         if avoidance_force.length() > 0.001 {
-            movement.current_velocity += avoidance_force * dt;
+            // Always apply some force, even if not moving
+            if is_moving {
+                movement.current_velocity += avoidance_force * dt;
+            } else {
+                // For stationary units, directly adjust position
+                unit_transform.translation += avoidance_force.normalize() * dt * 3.0;
+            }
 
             // If we're very close to an obstacle or unit, push directly away
-            if avoidance_force.length() > 10.0 {
+            if avoidance_force.length() > 15.0 {
                 unit_transform.translation += avoidance_force.normalize() * dt * 5.0;
             }
         }
