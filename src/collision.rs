@@ -116,22 +116,28 @@ impl CollisionUtils {
     }
 }
 
-/// System to prevent units from overlapping with buildings and environment objects
+/// System to prevent units from overlapping with buildings, environment objects, and other units
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
     obstacles: Query<(&Transform, &CollisionRadius), (With<GameEntity>, Without<RTSUnit>)>,
+    all_units: Query<(Entity, &Transform, &CollisionRadius), With<RTSUnit>>,
     time: Res<Time>,
 ) {
     let dt = time.delta_secs();
-    
+
+    // Store unit transformations to avoid borrow checker issues
+    let unit_positions: Vec<(Entity, Vec3, f32)> = all_units.iter()
+        .map(|(e, t, r)| (e, t.translation, r.radius))
+        .collect();
+
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
         let mut avoidance_force = Vec3::ZERO;
-        
+
         // Check collision with all static obstacles (buildings, environment objects)
         for (obstacle_transform, obstacle_radius) in obstacles.iter() {
             let distance = unit_transform.translation.distance(obstacle_transform.translation);
             let min_distance = unit_radius.radius + obstacle_radius.radius;
-            
+
             if distance < min_distance && distance > 0.001 {
                 // Calculate avoidance direction
                 let direction = (unit_transform.translation - obstacle_transform.translation).normalize();
@@ -139,12 +145,30 @@ pub fn unit_collision_avoidance_system(
                 avoidance_force += direction * force_magnitude * 50.0; // Strong avoidance force
             }
         }
-        
+
+        // Check collision with other units for separation
+        for (other_entity, other_pos, other_radius) in &unit_positions {
+            if unit_entity == *other_entity {
+                continue;
+            }
+
+            let distance = unit_transform.translation.distance(*other_pos);
+            let min_distance = unit_radius.radius + other_radius;
+
+            if distance < min_distance && distance > 0.001 {
+                // Calculate separation direction
+                let direction = (unit_transform.translation - other_pos).normalize();
+                let force_magnitude = (min_distance - distance) / min_distance;
+                // Gentler force for unit-to-unit separation than obstacle avoidance
+                avoidance_force += direction * force_magnitude * 20.0;
+            }
+        }
+
         // Apply avoidance force to movement
         if avoidance_force.length() > 0.001 {
             movement.current_velocity += avoidance_force * dt;
-            
-            // If we're very close to an obstacle, push directly away
+
+            // If we're very close to an obstacle or unit, push directly away
             if avoidance_force.length() > 10.0 {
                 unit_transform.translation += avoidance_force.normalize() * dt * 5.0;
             }
