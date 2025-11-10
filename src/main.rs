@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::pbr::wireframe::{Wireframe, WireframePlugin};
+use bevy_svg::prelude::*;
 
 mod game;
 mod systems;
@@ -21,6 +22,7 @@ mod constants;
 mod animation_systems;
 mod entity_state_systems;
 mod model_showcase;
+mod entity_factory;
 
 use game::*;
 use terrain_v2::TerrainPluginV2;
@@ -47,6 +49,7 @@ fn main() {
                 ..default()
             }),
             WireframePlugin,
+            SvgPlugin,
             GamePlugin,
             TerrainPluginV2,
             RTSSystemsPlugin,

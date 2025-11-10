@@ -14,9 +14,9 @@ const LIGHT_ROTATION_Y: f32 = -0.3;
 // === SPAWNING CONSTANTS ===
 const PLAYER_1_BASE_POS: Vec3 = Vec3::new(-80.0, 10.0, -80.0);
 const PLAYER_2_BASE_POS: Vec3 = Vec3::new(80.0, 10.0, 80.0);
-const VILLAGER_COUNT_PER_PLAYER: usize = 8;
-const VILLAGER_SPAWN_RADIUS_BASE: f32 = 30.0;
-const VILLAGER_SPAWN_RADIUS_INCREMENT: f32 = 5.0;
+const WORKER_ANT_COUNT_PER_PLAYER: usize = 8;
+const WORKER_ANT_SPAWN_RADIUS_BASE: f32 = 30.0;
+const WORKER_ANT_SPAWN_RADIUS_INCREMENT: f32 = 5.0;
 const BUILDING_SPAWN_HEIGHT: f32 = 10.0;
 #[allow(dead_code)]
 const RESOURCE_SPAWN_AREAS: usize = 6;
@@ -103,180 +103,433 @@ pub fn spawn_rts_elements(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    terrain_manager: Res<crate::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::terrain_v2::TerrainSettings>,
+    model_assets: Option<Res<crate::model_loader::ModelAssets>>,
 ) {
-    // Spawn RTS units and buildings
+    info!("=== SPAWNING RTS ELEMENTS ===");
+    // Spawn RTS units and buildings - one of each type for testing
+    use crate::entity_factory::{EntityFactory, SpawnConfig, EntityType};
     use crate::rts_entities::RTSEntityFactory;
     
-    // PLAYER 1 BASE (Blue - Left side)
-    RTSEntityFactory::spawn_town_center(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        PLAYER_1_BASE_POS,
-        1,
-    );
-    
-    // Player 1 villagers scattered around base
-    for i in 0..VILLAGER_COUNT_PER_PLAYER {
-        let angle = (i as f32 / VILLAGER_COUNT_PER_PLAYER as f32) * std::f32::consts::TAU;
-        let radius = VILLAGER_SPAWN_RADIUS_BASE + (i as f32 * VILLAGER_SPAWN_RADIUS_INCREMENT);
-        RTSEntityFactory::spawn_villager(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            Vec3::new(PLAYER_1_BASE_POS.x + angle.cos() * radius, BUILDING_SPAWN_HEIGHT / 2.0, PLAYER_1_BASE_POS.z + angle.sin() * radius),
-            1,
-            (i + 1) as u32,
+    // Helper function to get terrain-aware position
+    let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
+        let terrain_height = crate::terrain_v2::sample_terrain_height(
+            x, z, &terrain_manager.noise_generator, &terrain_settings
         );
-    }
+        Vec3::new(x, terrain_height + height_offset, z)
+    };
     
-    // Player 1 military units in formation
-    for i in 0..MILITARY_UNIT_COUNT {
-        RTSEntityFactory::spawn_militia(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            Vec3::new(-50.0 + (i % 3) as f32 * 8.0, BUILDING_SPAWN_HEIGHT / 2.0, -60.0 + (i / 3) as f32 * 8.0),
-            1,
-            (i + 20) as u32,
-        );
-    }
+    // === PLAYER 1 (Human) - Left side of map ===
+    let player1_base_2d = Vec3::new(-200.0, 0.0, 0.0);
+    let player1_base = get_terrain_position(player1_base_2d.x, player1_base_2d.z, 0.0);
     
-    for i in 0..ARCHER_COUNT {
-        RTSEntityFactory::spawn_archer(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            Vec3::new(-70.0 + i as f32 * 8.0, BUILDING_SPAWN_HEIGHT / 2.0, -40.0),
-            1,
-            (i + 30) as u32,
-        );
-    }
-    
-    // Player 1 buildings
-    RTSEntityFactory::spawn_house(
+    // Spawn Queen Chamber (main building)
+    RTSEntityFactory::spawn_queen_chamber(
         &mut commands,
         &mut meshes,
         &mut materials,
-        Vec3::new(-120.0, BUILDING_SPAWN_HEIGHT / 2.0, -100.0),
+        player1_base,
         1,
     );
     
-    RTSEntityFactory::spawn_house(
+    // Spawn one of each unit type in a grid formation
+    let unit_spacing = 15.0;
+    let _units_per_row = 4;
+    
+    // Worker units using new EntityFactory with animations
+    let worker_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::WorkerAnt),
+        get_terrain_position(player1_base.x, player1_base.z + 30.0, 2.0),
+        1,
+    );
+    EntityFactory::spawn(
         &mut commands,
         &mut meshes,
         &mut materials,
-        Vec3::new(-120.0, BUILDING_SPAWN_HEIGHT / 2.0, -60.0),
+        worker_config,
+        model_assets.as_deref(),
+    );
+    
+    // Combat units using new EntityFactory with animations
+    let soldier_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::SoldierAnt),
+        get_terrain_position(player1_base.x + unit_spacing, player1_base.z + 30.0, 2.0),
+        1,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        soldier_config,
+        model_assets.as_deref(),
+    );
+    
+    let wasp_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::HunterWasp),
+        get_terrain_position(player1_base.x + unit_spacing * 2.0, player1_base.z + 30.0, 2.0),
+        1,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        wasp_config,
+        model_assets.as_deref(),
+    );
+    
+    let beetle_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::BeetleKnight),
+        get_terrain_position(player1_base.x + unit_spacing * 3.0, player1_base.z + 30.0, 2.0),
+        1,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        beetle_config,
+        model_assets.as_deref(),
+    );
+    
+    // Note: Additional unit types (SpearMantis, ScoutAnt, etc.) would need spawn functions created
+    // For now we have the 4 main unit types that have spawn functions
+    
+    // Spawn one of each building type
+    let building_spacing = 30.0;
+    
+    // Nursery (house equivalent)
+    RTSEntityFactory::spawn_nursery(
+        &mut commands, &mut meshes, &mut materials,
+        get_terrain_position(player1_base.x - building_spacing, player1_base.z - building_spacing, 0.0),
         1,
     );
     
-    RTSEntityFactory::spawn_barracks(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        Vec3::new(-40.0, BUILDING_SPAWN_HEIGHT / 2.0, -120.0),
+    // Warrior Chamber (barracks equivalent)
+    RTSEntityFactory::spawn_warrior_chamber(
+        &mut commands, &mut meshes, &mut materials,
+        get_terrain_position(player1_base.x + building_spacing, player1_base.z - building_spacing, 0.0),
         1,
     );
     
-    // PLAYER 2 BASE (Red - Right side) - AI Player
-    crate::ai::spawn_ai_player(
+    // Note: Additional building types would need spawn functions created
+    
+    // === PLAYER 2 (Enemy) - Right side of map ===
+    let player2_base_2d = Vec3::new(200.0, 0.0, 0.0);
+    let player2_base = get_terrain_position(player2_base_2d.x, player2_base_2d.z, 0.0);
+    
+    // Spawn Queen Chamber for enemy
+    RTSEntityFactory::spawn_queen_chamber(
         &mut commands,
         &mut meshes,
         &mut materials,
+        player2_base,
         2,
-        crate::ai::AIType::Aggressive,
-        PLAYER_2_BASE_POS,
     );
     
-    // NEUTRAL AREAS AND RESOURCES
-    
-    // Forest areas (wood resources)
-    for i in 0..WOOD_RESOURCE_COUNT {
-        let x = -150.0 + (i % 4) as f32 * 25.0;
-        let z = -20.0 + (i / 4) as f32 * 15.0;
-        RTSEntityFactory::spawn_wood_resource(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            Vec3::new(x, BUILDING_SPAWN_HEIGHT / 2.0, z),
-        );
-    }
-    
-    for i in 0..STONE_RESOURCE_COUNT {
-        let x = 20.0 + (i % 4) as f32 * 20.0;
-        let z = 120.0 + (i / 4) as f32 * 15.0;
-        RTSEntityFactory::spawn_wood_resource(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            Vec3::new(x, BUILDING_SPAWN_HEIGHT / 2.0, z),
-        );
-    }
-    
-    // Stone quarries
-    for i in 0..4 {
-        RTSEntityFactory::spawn_stone_resource(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            Vec3::new(100.0 + i as f32 * 30.0, BUILDING_SPAWN_HEIGHT / 2.0, -100.0 + i as f32 * 20.0),
-        );
-    }
-    
-    RTSEntityFactory::spawn_stone_resource(
+    // Enemy units - same types but different positions using new EntityFactory
+    let enemy_worker_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::WorkerAnt),
+        get_terrain_position(player2_base.x, player2_base.z - 30.0, 2.0),
+        2,
+    );
+    EntityFactory::spawn(
         &mut commands,
         &mut meshes,
         &mut materials,
-        Vec3::new(-120.0, BUILDING_SPAWN_HEIGHT / 2.0, 120.0),
+        enemy_worker_config,
+        model_assets.as_deref(),
     );
     
-    // Gold mines (valuable but limited)
-    for i in 0..GOLD_RESOURCE_COUNT {
-        RTSEntityFactory::spawn_gold_resource(
+    let enemy_soldier_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::SoldierAnt),
+        get_terrain_position(player2_base.x - unit_spacing, player2_base.z - 30.0, 2.0),
+        2,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        enemy_soldier_config,
+        model_assets.as_deref(),
+    );
+    
+    let enemy_wasp_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::HunterWasp),
+        get_terrain_position(player2_base.x - unit_spacing * 2.0, player2_base.z - 30.0, 2.0),
+        2,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        enemy_wasp_config,
+        model_assets.as_deref(),
+    );
+    
+    let enemy_beetle_config = SpawnConfig::unit(
+        EntityType::from_unit(crate::components::UnitType::BeetleKnight),
+        get_terrain_position(player2_base.x - unit_spacing * 3.0, player2_base.z - 30.0, 2.0),
+        2,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        enemy_beetle_config,
+        model_assets.as_deref(),
+    );
+    
+    // Enemy buildings
+    RTSEntityFactory::spawn_nursery(
+        &mut commands, &mut meshes, &mut materials,
+        get_terrain_position(player2_base.x + building_spacing, player2_base.z + building_spacing, 0.0),
+        2,
+    );
+    
+    RTSEntityFactory::spawn_warrior_chamber(
+        &mut commands, &mut meshes, &mut materials,
+        get_terrain_position(player2_base.x - building_spacing, player2_base.z + building_spacing, 0.0),
+        2,
+    );
+    
+    // === NEUTRAL RESOURCES ===
+    // Organized resource spawning for better map layout
+    
+    // Chitin sources (north forest area)
+    let chitin_positions_2d = [
+        (-100.0, 100.0),
+        (-60.0, 120.0),
+        (-140.0, 80.0),
+        (100.0, 100.0),
+        (60.0, 120.0),
+        (140.0, 80.0),
+    ];
+    
+    for (x, z) in chitin_positions_2d.iter() {
+        RTSEntityFactory::spawn_chitin_source(
             &mut commands,
             &mut meshes,
             &mut materials,
-            Vec3::new(i as f32 * 40.0 - 100.0, BUILDING_SPAWN_HEIGHT / 2.0, i as f32 * 30.0 - 60.0),
+            get_terrain_position(*x, *z, 1.0),
         );
     }
     
-    // SCATTERED NEUTRAL UNITS FOR EXPLORATION
-    // Some neutral villagers that could be recruited
-    for i in 0..3 {
-        RTSEntityFactory::spawn_villager(
+    // Mineral deposits (center area)
+    let mineral_positions_2d = [
+        (0.0, 150.0),
+        (-50.0, -150.0),
+        (50.0, -150.0),
+        (0.0, -100.0),
+    ];
+    
+    for (x, z) in mineral_positions_2d.iter() {
+        RTSEntityFactory::spawn_mineral_deposit(
             &mut commands,
             &mut meshes,
             &mut materials,
-            Vec3::new(-20.0 + i as f32 * 40.0, 5.0, -20.0 + i as f32 * 40.0),
-            0, // Neutral player
-            200 + i,
+            get_terrain_position(*x, *z, 0.5),
         );
     }
     
-    // Add some clouds for atmosphere
-    for i in 0..5 {
-        let x = (i as f32 - 2.0) * 100.0;
-        let z = (i as f32 - 2.0) * 80.0;
-        
-        commands.spawn((
-            Mesh3d(meshes.add(Sphere::new(8.0))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(1.0, 1.0, 1.0, 0.7),
-                alpha_mode: AlphaMode::Blend,
-                ..default()
-            })),
-            Transform::from_translation(Vec3::new(x, 40.0, z)),
-            // Cloud marker removed
-        ));
+    // Pheromone caches (rare, scattered)
+    let pheromone_positions_2d = [
+        (0.0, 0.0),   // Center of map
+        (-150.0, -50.0),
+        (150.0, 50.0),
+    ];
+    
+    for (x, z) in pheromone_positions_2d.iter() {
+        RTSEntityFactory::spawn_pheromone_cache(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            get_terrain_position(*x, *z, 1.5),
+        );
     }
+    
+    // === ENVIRONMENT OBJECTS ===
+    spawn_environment_objects(&mut commands, &mut meshes, &mut materials, &terrain_manager, &terrain_settings, model_assets.as_ref().map(|v| &**v));
     
     info!("RTS elements spawned");
+}
+
+/// Spawn environment objects randomly throughout the scene
+fn spawn_environment_objects(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    terrain_manager: &Res<crate::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::terrain_v2::TerrainSettings>,
+    model_assets: Option<&crate::model_loader::ModelAssets>,
+) {
+    use crate::model_loader::*;
+    use crate::components::*;
+    use rand::{Rng, thread_rng};
+    
+    // Helper function to get terrain-aware position
+    let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
+        let terrain_height = crate::terrain_v2::sample_terrain_height(
+            x, z, &terrain_manager.noise_generator, &terrain_settings
+        );
+        Vec3::new(x, terrain_height + height_offset, z)
+    };
+    
+    let mut rng = thread_rng();
+    
+    // Define spawn zones to avoid player bases and resources
+    let spawn_zones = [
+        // Northwestern area
+        (-600.0, -500.0, 500.0, 600.0),   // (min_x, max_x, min_z, max_z)
+        // Northeastern area  
+        (500.0, 600.0, 500.0, 600.0),
+        // Southwestern area
+        (-600.0, -500.0, -600.0, -500.0),
+        // Southeastern area
+        (500.0, 600.0, -600.0, -500.0),
+        // Central northern area
+        (-100.0, 100.0, 400.0, 600.0),
+        // Central southern area
+        (-100.0, 100.0, -600.0, -400.0),
+    ];
+    
+    // Spawn objects if models are available
+    if let Some(models) = model_assets {
+        if models.models_loaded {
+            info!("Spawning environment objects with GLB models (models_loaded = true)");
+            
+            // Spawn diverse environment objects throughout the map
+            for &(min_x, max_x, min_z, max_z) in &spawn_zones {
+                let objects_per_zone = rng.gen_range(2..5); // 2-4 objects per zone for more variety
+                
+                for _ in 0..objects_per_zone {
+                    let x = rng.gen_range(min_x..max_x);
+                    let z = rng.gen_range(min_z..max_z);
+                    let position = get_terrain_position(x, z, 1.0); // Lift objects slightly above terrain
+                    
+                    // Random rotation for natural look
+                    let rotation = Quat::from_rotation_y(rng.gen_range(0.0..std::f32::consts::TAU));
+                    
+                    // Choose random object type with weighted distribution
+                    let object_type = match rng.gen_range(0..100) {
+                        // Original objects (60% total)
+                        0..=15 => (InsectModelType::Mushrooms, EnvironmentObjectType::Mushrooms, &models.mushrooms, "Mushroom Cluster"),
+                        16..=25 => (InsectModelType::Grass, EnvironmentObjectType::Grass, &models.grass, "Grass Patch"),
+                        26..=35 => (InsectModelType::Grass2, EnvironmentObjectType::Grass, &models.grass_2, "Grass Variant"),
+                        // 36..=50 => (InsectModelType::StickShelter, EnvironmentObjectType::StickShelter, &models.stick_shelter, "Stick Shelter"),
+                        51..=60 => (InsectModelType::SimpleGrassChunks, EnvironmentObjectType::Grass, &models.simple_grass_chunks, "Grass Chunks"),
+                        
+                        // New objects (40% total)
+                        // 61..=65 => (InsectModelType::CherryBlossomTree, EnvironmentObjectType::Trees, &models.cherry_blossom_tree, "Cherry Blossom Tree"),
+                        // 66..=70 => (InsectModelType::TreesPack, EnvironmentObjectType::Trees, &models.trees_pack, "Realistic Tree"),
+                        71..=75 => (InsectModelType::BeechFern, EnvironmentObjectType::Plants, &models.beech_fern, "Beech Fern"),
+                        76..=80 => (InsectModelType::PlantsAssetSet, EnvironmentObjectType::Plants, &models.plants_asset_set, "Plant Collection"),
+                        81..=85 => (InsectModelType::RiverRock, EnvironmentObjectType::Rocks, &models.river_rock, "River Rock"),
+                        86..=90 => (InsectModelType::SmallRocks, EnvironmentObjectType::Rocks, &models.small_rocks, "Small Rocks"),
+                        91..=95 => (InsectModelType::PineCone, EnvironmentObjectType::ForestDebris, &models.pine_cone, "Pine Cone"),
+                        96..=99 => (InsectModelType::WoodStick, EnvironmentObjectType::WoodStick, &models.wood_stick, "Wood Stick"),
+                        
+                        _ => (InsectModelType::Mushrooms, EnvironmentObjectType::Mushrooms, &models.mushrooms, "Mushroom Cluster"),
+                    };
+                    
+                    // Check if the model handle is valid before using it
+                    if object_type.2 == &Handle::default() {
+                        warn!("Invalid model handle for {:?}, skipping spawn", object_type.0);
+                        continue;
+                    }
+                    
+                    // Store values before they're moved
+                    let (insect_model_type, env_obj_type, model_handle, object_name) = object_type;
+                    
+                    // Get scale for this object type
+                    let base_scale = crate::model_loader::get_model_scale(&insect_model_type);
+                    let scale_variation = rng.gen_range(0.8..1.3);
+                    let final_scale = base_scale * scale_variation;
+                    
+                    let _entity = commands.spawn((
+                        SceneRoot(model_handle.clone()),
+                        Transform::from_translation(position)
+                            .with_rotation(rotation)
+                            .with_scale(Vec3::splat(final_scale)),
+                        InsectModel {
+                            model_type: insect_model_type.clone(),
+                            scale: final_scale,
+                        },
+                        UseGLBModel,
+                        EnvironmentObject {
+                            object_type: env_obj_type,
+                        },
+                        CollisionRadius { 
+                            radius: final_scale * 1.2 // Smaller collision for navigation
+                        },
+                        Position {
+                            translation: position,
+                            rotation,
+                        },
+                        GameEntity,
+                        Name::new(object_name),
+                    )).id();
+                    
+                    info!("Spawned {} at {:?} (scale: {:.1}, model_type: {:?})", object_name.to_lowercase(), position, final_scale, insect_model_type);
+                }
+            }
+        } else {
+            info!("Models not yet loaded, skipping environment objects (models_loaded = false)");
+        }
+    } else {
+        info!("No model assets available, spawning basic environment objects");
+        
+        // Fallback: spawn at least some primitive environment objects to test spawning logic
+        
+        // Fallback: spawn simple primitive shapes as placeholders
+        for &(min_x, max_x, min_z, max_z) in &spawn_zones {
+            let objects_per_zone = rng.gen_range(5..10); // Fewer fallback objects
+            
+            for _ in 0..objects_per_zone {
+                let x = rng.gen_range(min_x..max_x);
+                let z = rng.gen_range(min_z..max_z);
+                let position = get_terrain_position(x, z, 0.5);
+                
+                // Create a simple mushroom-like shape with cylinder + sphere
+                let _stem_entity = commands.spawn((
+                    Mesh3d(meshes.add(Cylinder::new(0.5, 2.0))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.8, 0.7, 0.6), // Light brown stem
+                        ..default()
+                    })),
+                    Transform::from_translation(position),
+                    EnvironmentObject {
+                        object_type: EnvironmentObjectType::Mushrooms,
+                    },
+                    GameEntity,
+                    Name::new("Mushroom Stem (Primitive)"),
+                )).id();
+                
+                let _cap_entity = commands.spawn((
+                    Mesh3d(meshes.add(Sphere::new(1.5))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.7, 0.4, 0.3), // Reddish brown cap
+                        ..default()
+                    })),
+                    Transform::from_translation(position + Vec3::new(0.0, 1.5, 0.0)),
+                    EnvironmentObject {
+                        object_type: EnvironmentObjectType::Mushrooms,
+                    },
+                    GameEntity,
+                    Name::new("Mushroom Cap (Primitive)"),
+                )).id();
+                
+                info!("Spawned primitive mushroom at {:?}", position);
+            }
+        }
+    }
+    
+    info!("Environment objects spawning complete");
 }
 
 /// Enhanced RTS camera system with terrain-aware scroll wheel zoom
 /// 
 /// Controls:
-/// - WASD: Move camera relative to view direction
+/// - WASD: Pan camera over terrain (W=North, S=South, A=West, D=East)
 /// - Mouse wheel: Zoom in/out (constrained to terrain height)
 /// - Right mouse + drag: Look around
 /// - Shift + controls: Fast mode (10x speed)
@@ -302,23 +555,20 @@ pub fn handle_rts_camera_input(
         // Enhanced terrain following system (always on, Press G to disable)
         let terrain_following = !keyboard.pressed(KeyCode::KeyG);
         
-        // Get camera's forward and right vectors
-        let forward = camera_transform.forward();
-        let right = camera_transform.right();
-        let up = Vec3::Y;
+        // RTS-style movement: use world space directions for proper panning
+        // W/S moves north/south (Z axis), A/D moves west/east (X axis)
         
-        // WASD movement relative to camera direction
         if keyboard.pressed(KeyCode::KeyW) {
-            movement += *forward;
+            movement += Vec3::new(0.0, 0.0, 1.0);  // North (positive Z)
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            movement -= *forward;
+            movement += Vec3::new(0.0, 0.0, -1.0); // South (negative Z)
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            movement -= *right;
+            movement += Vec3::new(-1.0, 0.0, 0.0); // West (negative X)
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            movement += *right;
+            movement += Vec3::new(1.0, 0.0, 0.0);  // East (positive X)
         }
         
         // Apply movement with multiple speed modes
@@ -402,11 +652,6 @@ pub fn handle_rts_camera_input(
             // Only apply zoom if there was actually a change
             if (constrained_height - current_position.y).abs() > 0.1 {
                 camera_transform.translation.y = constrained_height;
-                
-                // Helpful logging for zoom behavior
-                info!("Zoom: {:.1} -> {:.1} (Terrain: {:.1}, Limits: {:.1}-{:.1})", 
-                      current_position.y, constrained_height, terrain_height, 
-                      absolute_min_height, absolute_max_height);
             }
         }
     }

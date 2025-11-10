@@ -66,13 +66,17 @@ fn process_unit_movement(
             return;
         }
         
-        if distance > DECELERATION_FACTOR {
+        if distance > ARRIVAL_THRESHOLD {
             let new_position = calculate_new_position(current_pos, target, movement, context);
             apply_collision_avoidance(entity, new_position, movement, collision_radius, context);
             update_position_with_terrain(transform, new_position, terrain_manager, terrain_settings);
             update_rotation(transform, direction, movement, context.delta_time);
         } else {
-            stop_unit_movement(movement);
+            // Apply collision avoidance even when stopped to prevent overlap at destination
+            apply_collision_avoidance(entity, current_pos, movement, collision_radius, context);
+            if movement.current_velocity.length() < 0.1 {
+                stop_unit_movement(movement);
+            }
         }
     } else {
         apply_movement_dampening(movement);

@@ -531,7 +531,7 @@ pub fn production_system(
                     
                     match unit_type {
                         UnitType::WorkerAnt => {
-                            crate::rts_entities::RTSEntityFactory::spawn_villager(
+                            crate::rts_entities::RTSEntityFactory::spawn_worker_ant(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -541,7 +541,7 @@ pub fn production_system(
                             );
                         },
                         UnitType::SoldierAnt => {
-                            crate::rts_entities::RTSEntityFactory::spawn_militia(
+                            crate::rts_entities::RTSEntityFactory::spawn_soldier_ant(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -551,7 +551,7 @@ pub fn production_system(
                             );
                         },
                         UnitType::HunterWasp => {
-                            crate::rts_entities::RTSEntityFactory::spawn_archer(
+                            crate::rts_entities::RTSEntityFactory::spawn_hunter_wasp(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -561,7 +561,7 @@ pub fn production_system(
                             );
                         },
                         UnitType::BeetleKnight => {
-                            crate::rts_entities::RTSEntityFactory::spawn_knight(
+                            crate::rts_entities::RTSEntityFactory::spawn_beetle_knight(
                                 &mut commands,
                                 &mut meshes,
                                 &mut materials,
@@ -817,7 +817,7 @@ pub fn unit_command_system(
                         } else if let Some(_resource_pos) = target_resource {
                             // Gather command (for villagers) - simplified for demo
                             movement.target_position = Some(target_point);
-                            info!("⛏️ Unit {:?} moving to gather resources at {:?}!", unit.unit_id, target_point);
+                            // Reduced resource gathering movement logging
                         } else {
                             // Validate target point before setting
                             if target_point.x.is_finite() && target_point.z.is_finite() &&
@@ -825,11 +825,7 @@ pub fn unit_command_system(
                                 // Move command
                                 movement.target_position = Some(target_point);
                                 combat.target = None; // Cancel any attack
-                                if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
-                                    info!("📋 Unit {:?} queuing move command to {:?}!", unit.unit_id, target_point);
-                                } else {
-                                    info!("🚶 Unit {:?} moving to position: {:?} (clicked at cursor: {:?})", unit.unit_id, target_point, cursor_position);
-                                }
+                                // Reduced movement command logging
                             } else {
                                 warn!("Invalid target point {:?}, ignoring move command", target_point);
                             }
@@ -946,7 +942,7 @@ pub fn spawn_test_units_system(
                 count += 1;
             }
             
-            info!("Commanded {} units to move to {:?}", count, target_pos);
+            // Reduced group movement logging
         }
     }
 }

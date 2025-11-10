@@ -92,6 +92,7 @@ fn handle_active_placement(
             update_placement_preview(placement, commands, meshes, materials, building_type.clone(), placement_pos, preview_transforms);
             
             if mouse_button.just_pressed(MouseButton::Left) {
+                info!("Attempting to place building at: {:?}", placement_pos);
                 attempt_building_placement(placement, commands, meshes, materials, player_resources, main_resources, building_type, placement_pos);
             }
         }
@@ -103,21 +104,34 @@ fn calculate_placement_position(
     terrain_manager: &crate::terrain_v2::TerrainChunkManager,
     terrain_settings: &crate::terrain_v2::TerrainSettings,
 ) -> Vec3 {
-    let ground_y = 0.0;
-    let t = (ground_y - ray.origin.y) / ray.direction.y.max(0.001);
-    
-    if t > 0.0 {
-        let intersection = ray.origin + ray.direction * t;
-        let terrain_height = crate::terrain_v2::sample_terrain_height(
-            intersection.x,
-            intersection.z,
-            &terrain_manager.noise_generator,
-            terrain_settings,
-        );
-        Vec3::new(intersection.x, terrain_height, intersection.z)
-    } else {
-        Vec3::ZERO
+    // Method 1: Try ray-plane intersection with y=0 plane first (most common case)
+    if ray.direction.y.abs() > 0.001 {
+        let t = -ray.origin.y / ray.direction.y;
+        if t > 0.0 {
+            let intersection = ray.origin + ray.direction * t;
+            let terrain_height = crate::terrain_v2::sample_terrain_height(
+                intersection.x,
+                intersection.z,
+                &terrain_manager.noise_generator,
+                terrain_settings,
+            );
+            return Vec3::new(intersection.x, terrain_height, intersection.z);
+        }
     }
+    
+    // Method 2: If looking too horizontal, project forward and down to terrain
+    let forward_distance = 100.0;
+    let projected_point = ray.origin + ray.direction * forward_distance;
+    
+    // Sample terrain at the projected point
+    let terrain_height = crate::terrain_v2::sample_terrain_height(
+        projected_point.x,
+        projected_point.z,
+        &terrain_manager.noise_generator,
+        terrain_settings,
+    );
+    
+    Vec3::new(projected_point.x, terrain_height, projected_point.z)
 }
 
 fn update_placement_preview(
@@ -235,9 +249,9 @@ fn place_building(
     use crate::rts_entities::RTSEntityFactory;
     
     let _building_entity = match building_type {
-        BuildingType::Queen => RTSEntityFactory::spawn_town_center(commands, meshes, materials, position, 1),
-        BuildingType::Nursery => RTSEntityFactory::spawn_house(commands, meshes, materials, position, 1),
-        BuildingType::WarriorChamber => RTSEntityFactory::spawn_barracks(commands, meshes, materials, position, 1),
+        BuildingType::Queen => RTSEntityFactory::spawn_queen_chamber(commands, meshes, materials, position, 1),
+        BuildingType::Nursery => RTSEntityFactory::spawn_nursery(commands, meshes, materials, position, 1),
+        BuildingType::WarriorChamber => RTSEntityFactory::spawn_warrior_chamber(commands, meshes, materials, position, 1),
         _ => create_fallback_building(commands, meshes, materials, building_type, position),
     };
 }

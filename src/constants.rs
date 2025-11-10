@@ -37,9 +37,9 @@ pub mod camera {
     pub const CAMERA_MOVE_SPEED: f32 = 500.0;         // Base camera movement speed
     
     // Scroll wheel zoom settings
-    pub const SCROLL_ZOOM_SENSITIVITY: f32 = 5.0;     // Units of movement per scroll wheel click
-    pub const ZOOM_SPEED_FAST_MULTIPLIER: f32 = 10.0;  // Shift key multiplier
-    pub const ZOOM_SPEED_HYPER_MULTIPLIER: f32 = 50.0; // Alt key multiplier
+    pub const SCROLL_ZOOM_SENSITIVITY: f32 = 2.0;     // Units of movement per scroll wheel click (reduced for better control)
+    pub const ZOOM_SPEED_FAST_MULTIPLIER: f32 = 5.0;  // Shift key multiplier (reduced)
+    pub const ZOOM_SPEED_HYPER_MULTIPLIER: f32 = 15.0; // Alt key multiplier (reduced)
     
     // Camera look sensitivity
     pub const LOOK_SENSITIVITY: f32 = 0.02;
@@ -110,6 +110,25 @@ pub mod ui {
     pub const TEXT_COLOR: Color = Color::WHITE;
 }
 
+// === TEAM COLORS ===
+pub mod team_colors {
+    use bevy::prelude::*;
+    
+    // Team color tints for GLB models and materials (extremely strong for visibility)
+    pub const PLAYER_1_TINT: Color = Color::srgba(0.0, 0.0, 1.0, 1.0);   // Pure Blue
+    pub const PLAYER_2_TINT: Color = Color::srgba(1.0, 0.0, 0.0, 1.0);   // Pure Red
+    pub const PLAYER_3_TINT: Color = Color::srgba(0.0, 1.0, 0.0, 1.0);   // Pure Green
+    pub const PLAYER_4_TINT: Color = Color::srgba(1.0, 1.0, 0.0, 1.0);   // Pure Yellow
+    pub const UNKNOWN_PLAYER_TINT: Color = Color::srgba(0.5, 0.5, 0.5, 1.0); // Dark Gray
+    
+    // Team colors for primitive models (dramatically different for testing)
+    pub const PLAYER_1_PRIMITIVE: Color = Color::srgb(0.0, 0.0, 1.0);    // Pure bright blue
+    pub const PLAYER_2_PRIMITIVE: Color = Color::srgb(1.0, 0.0, 0.0);    // Pure bright red
+    pub const PLAYER_3_PRIMITIVE: Color = Color::srgb(0.3, 0.8, 0.3);    // Bright green
+    pub const PLAYER_4_PRIMITIVE: Color = Color::srgb(0.8, 0.8, 0.2);    // Bright yellow
+    pub const UNKNOWN_PLAYER_PRIMITIVE: Color = Color::srgb(0.6, 0.6, 0.6); // Light gray
+}
+
 // === BUILDING SYSTEM ===
 pub mod buildings {
     use bevy::prelude::*;
@@ -157,33 +176,50 @@ pub mod models {
     pub const SCORPION_SCALE: f32 = 5.5;           // Increased for better visibility
     pub const BEE_SCALE: f32 = 0.5;                // Increased for better visibility
     pub const SPIDER_SCALE: f32 = 2.5;             // Increased for better visibility
-    pub const MANTIS_SCALE: f32 = 2.5;             // Increased for better visibility
+    pub const MANTIS_SCALE: f32 = 3.5;             // Increased for better visibility
     pub const APIS_MELLIFERA_SCALE: f32 = 2.5;     // Increased for better visibility
     pub const BEETLE_SCALE: f32 = 2.5;             // Increased for better visibility
     pub const LADYBUG_SCALE: f32 = 2.5;            // Increased for better visibility
     
     // New models - all increased for better visibility
-    pub const MEGANEURA_SCALE: f32 = 2.5;          // Increased for better visibility (dragonfly)
+    pub const MEGANEURA_SCALE: f32 = 25.0;         // Massively increased - 10x bigger (dragonfly)
     pub const ANIMATED_SPIDER_SCALE: f32 = 2.5;    // Increased for better visibility
     pub const RHINO_BEETLE_SCALE: f32 = 2.5;       // Increased for better visibility
-    pub const HORNET_SCALE: f32 = 0.2;             // Increased for better visibility
+    pub const HORNET_SCALE: f32 = 5.0;             // Massively increased for better visibility
     pub const FOURMI_SCALE: f32 = 2.5;             // Increased for better visibility
-    pub const CAIRNS_BIRDWING_SCALE: f32 = 2.5;    // Increased for better visibility
+    pub const CAIRNS_BIRDWING_SCALE: f32 = 8.0;    // Increased much more for better visibility
     pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;    // Increased for better visibility
     pub const ROLY_POLY_SCALE: f32 = 0.1;          // Increased for better visibility
-    pub const MYSTERY_MODEL_SCALE: f32 = 2.5;      // Increased for better visibility
+    pub const MYSTERY_MODEL_SCALE: f32 = 50.0;     // Massively increased - 10x bigger
     pub const WOLF_SPIDER_SCALE: f32 = 2.5;        // Increased for better visibility
-    pub const QUEEN_FACED_BUG_SCALE: f32 = 2.5;    // Increased for better visibility
-    pub const MUSHROOMS_SCALE: f32 = 2.5;          // Larger scale for environment objects
+    pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0;    // Increased much more for better visibility
+    
+    // Environment object scales
+    pub const MUSHROOMS_SCALE: f32 = 20.5;          // Larger scale for environment objects
+    pub const GRASS_SCALE: f32 = 50.0;              // Natural grass scale
+    pub const GRASS_2_SCALE: f32 = 10.2;            // Slightly larger grass variant
+    pub const HIVE_SCALE: f32 = 0.02;               // Moderate hive structure (adjusted for visibility)
+    pub const STICK_SHELTER_SCALE: f32 = 2.0;      // Medium shelter scale
+    pub const WOOD_STICK_SCALE: f32 = 1.5;         // Small debris scale
+    pub const SIMPLE_GRASS_CHUNKS_SCALE: f32 = 1.2; // Compact grass chunks (increased for visibility)
+    
+    // New environment object scales (increased for visibility)
+    pub const CHERRY_BLOSSOM_TREE_SCALE: f32 = 2.0; // Beautiful tree landmark (increased for visibility)
+    pub const PINE_CONE_SCALE: f32 = 1.0;          // Natural pine cone size (increased for visibility)
+    pub const PLANTS_ASSET_SET_SCALE: f32 = 1.5;   // Moderate plant collection scale (increased for visibility)
+    pub const BEECH_FERN_SCALE: f32 = 1.5;         // Medium fern undergrowth (increased for visibility)
+    pub const TREES_PACK_SCALE: f32 = 2.5;         // Tree landmarks (increased for visibility)
+    pub const RIVER_ROCK_SCALE: f32 = 10.5;         // Rock formations (increased for visibility)
+    pub const SMALL_ROCKS_SCALE: f32 = 1.0;        // Small scattered stones (increased for visibility)
 }
 
 // === RESOURCE SYSTEM ===
 pub mod resources {
     // Starting resources (using ant/insect theme)
-    pub const STARTING_NECTAR: f32 = 1000.0;
-    pub const STARTING_CHITIN: f32 = 1000.0;
-    pub const STARTING_MINERALS: f32 = 500.0;
-    pub const STARTING_PHEROMONES: f32 = 500.0;
+    pub const STARTING_NECTAR: f32 = 5000.0;
+    pub const STARTING_CHITIN: f32 = 5000.0;
+    pub const STARTING_MINERALS: f32 = 2500.0;
+    pub const STARTING_PHEROMONES: f32 = 2500.0;
     pub const STARTING_POPULATION_LIMIT: u32 = 200;
     
     // Resource costs for buildings (using new theme)
@@ -296,14 +332,14 @@ pub mod combat {
     pub const UNIT_SPAWN_OFFSET: f32 = 5.0;
     
     // Combat ranges and timing
-    pub const DEFAULT_ATTACK_RANGE: f32 = 5.0;
+    pub const DEFAULT_ATTACK_RANGE: f32 = 8.0;
     pub const ATTACK_COOLDOWN: f32 = 2.0;
     
     // Unit health and damage - using proper insect unit names
-    pub const WORKER_ANT_HEALTH: f32 = 50.0;
-    pub const SOLDIER_ANT_HEALTH: f32 = 100.0;
-    pub const HUNTER_WASP_HEALTH: f32 = 80.0;
-    pub const BEETLE_KNIGHT_HEALTH: f32 = 150.0;
+    pub const WORKER_ANT_HEALTH: f32 = 75.0;
+    pub const SOLDIER_ANT_HEALTH: f32 = 120.0;
+    pub const HUNTER_WASP_HEALTH: f32 = 90.0;
+    pub const BEETLE_KNIGHT_HEALTH: f32 = 200.0;
     pub const DEFAULT_UNIT_HEALTH: f32 = 100.0;
     
     pub const WORKER_ANT_DAMAGE: f32 = 10.0;

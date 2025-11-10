@@ -58,9 +58,11 @@ pub fn create_seamless_terrain_texture(images: &mut ResMut<Assets<Image>>) -> Ha
             // Add subtle variation
             let detail = ((value * 16.0).fract() - 0.5) as f32 * 0.1;
             
-            texture_data.push(((r + detail) * 255.0).clamp(0.0, 255.0) as u8);
-            texture_data.push(((g + detail) * 255.0).clamp(0.0, 100.0) as u8);
-            texture_data.push(((b + detail) * 255.0).clamp(0.0, 255.0) as u8);
+            texture_data.push(((r + detail) * 255.0).clamp(50.0, 50.0) as u8);
+            texture_data.push(((r + detail) * 255.0).clamp(50.0, 50.0) as u8);
+            texture_data.push(((r + detail) * 255.0).clamp(50.0, 50.0) as u8);
+            // texture_data.push(((g + detail) * 255.0).clamp(0.0, 255.0) as u8);
+            // texture_data.push(((b + detail) * 255.0).clamp(0.0, 180.0) as u8);
             texture_data.push(255); // Alpha
         }
     }

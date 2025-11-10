@@ -242,9 +242,9 @@ pub fn health_status_indicator_system(
                     },
                 )).id();
                 
-                // Make critical status indicators pulse
+                // Reduced critical condition logging (only on status change)
                 if matches!(status, HealthStatus::Critical) {
-                    info!("⚠️ Unit {:?} is in critical condition!", entity);
+                    warn!("⚠️ Unit {:?} is now in critical condition!", entity);
                 }
             }
             HealthStatus::Healthy => {

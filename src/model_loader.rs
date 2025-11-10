@@ -38,7 +38,8 @@ impl Plugin for ModelLoaderPlugin {
            .add_systems(Update, (
                upgrade_to_glb_models,
                setup_animation_controllers,
-               smooth_glb_model_updates
+               smooth_glb_model_updates,
+               apply_team_colors_to_glb_models.after(upgrade_to_glb_models)
            ));
     }
 }
@@ -74,7 +75,24 @@ pub struct ModelAssets {
     pub ladybug_lowpoly: Handle<Scene>, // Low-poly ladybug variant
     pub roly_poly: Handle<Scene>,       // Pill bug (isopod)
     pub mystery_model: Handle<Scene>,   // Unknown/special model
+    
+    // Environment objects
     pub mushrooms: Handle<Scene>,       // Mushroom environment objects
+    pub grass: Handle<Scene>,           // Grass patches
+    pub grass_2: Handle<Scene>,         // Grass variant 2
+    pub hive: Handle<Scene>,            // Hive structure
+    pub stick_shelter: Handle<Scene>,   // Stick shelter
+    pub wood_stick: Handle<Scene>,      // Wood stick debris
+    pub simple_grass_chunks: Handle<Scene>, // Simple grass chunks
+    
+    // New environment objects
+    pub cherry_blossom_tree: Handle<Scene>, // Emissive energy cherry blossom tree
+    pub pine_cone: Handle<Scene>,       // Pine cone natural debris
+    pub plants_asset_set: Handle<Scene>, // Various plants collection
+    pub beech_fern: Handle<Scene>,      // Realistic beech fern plant
+    pub trees_pack: Handle<Scene>,      // Realistic trees pack
+    pub river_rock: Handle<Scene>,      // River rock formations
+    pub small_rocks: Handle<Scene>,     // Small rock debris
     
     /// Flag indicating whether all models have been queued for loading.
     /// Does not guarantee models are fully loaded in memory yet.
@@ -103,7 +121,24 @@ impl Default for ModelAssets {
             ladybug_lowpoly: Handle::default(),
             roly_poly: Handle::default(),
             mystery_model: Handle::default(),
+            
+            // Environment objects
             mushrooms: Handle::default(),
+            grass: Handle::default(),
+            grass_2: Handle::default(),
+            hive: Handle::default(),
+            stick_shelter: Handle::default(),
+            wood_stick: Handle::default(),
+            simple_grass_chunks: Handle::default(),
+            
+            // New environment objects
+            cherry_blossom_tree: Handle::default(),
+            pine_cone: Handle::default(),
+            plants_asset_set: Handle::default(),
+            beech_fern: Handle::default(),
+            trees_pack: Handle::default(),
+            river_rock: Handle::default(),
+            small_rocks: Handle::default(),
             
             models_loaded: false,
         }
@@ -151,7 +186,36 @@ pub enum InsectModelType {
     LadybugLowpoly,   // Low-poly ladybug variant - alternative style
     RolyPoly,         // Pill bug (isopod) - defensive units
     MysteryModel,     // Unknown special model - unique units
+    
+    // Environment objects - decorative non-interactive models
     Mushrooms,        // Mushroom cluster - environment decoration
+    Grass,            // Grass patches - ground coverage
+    Grass2,           // Grass variant 2 - ground coverage
+    Hive,             // Hive structure - insect habitat
+    StickShelter,     // Stick shelter - natural cover
+    WoodStick,        // Wood stick debris - natural clutter
+    SimpleGrassChunks, // Simple grass chunks - ground decoration
+    
+    // New environment objects - natural scenery
+    CherryBlossomTree, // Emissive energy cherry blossom tree - beautiful landmark
+    PineCone,         // Pine cone - forest floor debris
+    PlantsAssetSet,   // Various plants collection - diverse vegetation
+    BeechFern,        // Realistic beech fern plant - forest undergrowth
+    TreesPack,        // Realistic trees pack - major landmarks
+    RiverRock,        // River rock formations - geological features
+    SmallRocks,       // Small rock debris - scattered stones
+}
+
+// Environment objects
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SceneryModelType {
+    Mushrooms,  
+    Grass,
+    Grass2,
+    Hive,
+    StickShelter,
+    Stick,
 }
 
 /// Configuration for loading a single model from the asset directory.
@@ -199,7 +263,7 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("scorpion", "models/insects/scorpion.glb#Scene0", "Scorpion model"),
     ModelConfig::new("wolf_spider", "models/insects/wolf_spider.glb#Scene0", "Wolf spider"),
     ModelConfig::new("queen_faced_bug", "models/insects/mantis.glb#Scene0", "Mantis (Queen faced bug)"),
-    ModelConfig::new("apis_mellifera", "models/insects/apis_mellifera.glb#Scene0", "High-quality honey bee"),
+    // ModelConfig::new("apis_mellifera", "models/insects/apis_mellifera.glb#Scene0", "High-quality honey bee"), // Temporarily disabled due to unsupported extension
     
     // New high-quality models - enhanced visuals
     ModelConfig::new("meganeura", "models/insects/meganeura_dinoraul.glb#Scene0", "Ancient dragonfly"),
@@ -211,7 +275,24 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("ladybug_lowpoly", "models/insects/ladybug_simple.glb#Scene0", "Low-poly ladybug"),
     ModelConfig::new("roly_poly", "models/insects/roly_poly.glb#Scene0", "Pill bug"),
     ModelConfig::new("mystery_model", "models/insects/unknown.glb#Scene0", "Mystery model"),
+    
+    // Environment objects
     ModelConfig::new("mushrooms", "models/objects/mushrooms.glb#Scene0", "Mushroom environment objects"),
+    ModelConfig::new("grass", "models/objects/grass.glb#Scene0", "Grass patches"),
+    ModelConfig::new("grass_2", "models/objects/grass_2.glb#Scene0", "Grass variant 2"),
+    ModelConfig::new("hive", "models/objects/hive.glb#Scene0", "Hive structure"),
+    ModelConfig::new("stick_shelter", "models/objects/stick_shelter.glb#Scene0", "Stick shelter"),
+    ModelConfig::new("wood_stick", "models/objects/wood_stick_03.glb#Scene0", "Wood stick debris"),
+    ModelConfig::new("simple_grass_chunks", "models/objects/simple_grass_chunks.glb#Scene0", "Simple grass chunks"),
+    
+    // New environment objects
+    ModelConfig::new("cherry_blossom_tree", "models/objects/emissive_energy_cherry_blossom_tree.glb#Scene0", "Emissive energy cherry blossom tree"),
+    ModelConfig::new("pine_cone", "models/objects/pine_cone.glb#Scene0", "Pine cone natural debris"),
+    ModelConfig::new("plants_asset_set", "models/objects/plants_asset_set.glb#Scene0", "Various plants collection"),
+    ModelConfig::new("beech_fern", "models/objects/realistic_beech_fern_plant__games__film.glb#Scene0", "Realistic beech fern plant"),
+    ModelConfig::new("trees_pack", "models/objects/realistic_trees_pack_of_2_free.glb#Scene0", "Realistic trees pack"),
+    ModelConfig::new("river_rock", "models/objects/river_rock.glb#Scene0", "River rock formations"),
+    ModelConfig::new("small_rocks", "models/objects/smallrocks1.glb#Scene0", "Small rock debris"),
 ];
 
 /// Startup system that loads all GLB model assets.
@@ -245,7 +326,7 @@ pub fn load_models(
     load_model_handle(&mut model_assets.scorpion, &asset_server, "scorpion");
     load_model_handle(&mut model_assets.wolf_spider, &asset_server, "wolf_spider");
     load_model_handle(&mut model_assets.queen_faced_bug, &asset_server, "queen_faced_bug");
-    load_model_handle(&mut model_assets.apis_mellifera, &asset_server, "apis_mellifera");
+    // load_model_handle(&mut model_assets.apis_mellifera, &asset_server, "apis_mellifera"); // Temporarily disabled
     
     // Load new high-quality models
     load_model_handle(&mut model_assets.meganeura, &asset_server, "meganeura");
@@ -257,7 +338,24 @@ pub fn load_models(
     load_model_handle(&mut model_assets.ladybug_lowpoly, &asset_server, "ladybug_lowpoly");
     load_model_handle(&mut model_assets.roly_poly, &asset_server, "roly_poly");
     load_model_handle(&mut model_assets.mystery_model, &asset_server, "mystery_model");
+    
+    // Load environment objects
     load_model_handle(&mut model_assets.mushrooms, &asset_server, "mushrooms");
+    load_model_handle(&mut model_assets.grass, &asset_server, "grass");
+    load_model_handle(&mut model_assets.grass_2, &asset_server, "grass_2");
+    load_model_handle(&mut model_assets.hive, &asset_server, "hive");
+    load_model_handle(&mut model_assets.stick_shelter, &asset_server, "stick_shelter");
+    load_model_handle(&mut model_assets.wood_stick, &asset_server, "wood_stick");
+    load_model_handle(&mut model_assets.simple_grass_chunks, &asset_server, "simple_grass_chunks");
+    
+    // Load new environment objects
+    load_model_handle(&mut model_assets.cherry_blossom_tree, &asset_server, "cherry_blossom_tree");
+    load_model_handle(&mut model_assets.pine_cone, &asset_server, "pine_cone");
+    load_model_handle(&mut model_assets.plants_asset_set, &asset_server, "plants_asset_set");
+    load_model_handle(&mut model_assets.beech_fern, &asset_server, "beech_fern");
+    load_model_handle(&mut model_assets.trees_pack, &asset_server, "trees_pack");
+    load_model_handle(&mut model_assets.river_rock, &asset_server, "river_rock");
+    load_model_handle(&mut model_assets.small_rocks, &asset_server, "small_rocks");
     
     model_assets.models_loaded = true;
     info!("All GLB models queued for loading via factory pattern");
@@ -384,6 +482,7 @@ fn upgrade_units_to_glb<'a>(
                 scale: model_scale,
             },
             UseGLBModel,
+            TeamColor::new(unit.player_id), // Add team coloring
         ));
         
         // Update transform for proper model display
@@ -404,7 +503,7 @@ fn upgrade_units_to_glb<'a>(
 fn calculate_model_scale(model_type: &InsectModelType) -> f32 {
     match model_type {
         InsectModelType::QueenFacedBug => crate::constants::models::MANTIS_SCALE,
-        InsectModelType::ApisMellifera => crate::constants::models::APIS_MELLIFERA_SCALE,
+        InsectModelType::ApisMellifera => crate::constants::models::BEE_SCALE, // Use bee scale as fallback
         _ => get_model_scale(model_type),
     }
 }
@@ -431,14 +530,25 @@ fn apply_model_transform(transform: &mut Transform, model_scale: f32) {
 /// Since GLB models are scaled up for better visibility, we scale down
 /// movement speeds proportionally to maintain the same perceived speed.
 /// This prevents units from appearing to slide or move unrealistically fast.
+/// 
+/// Special case: Hunter Wasps use reduced penalty to maintain their speed advantage.
 fn adjust_movement_for_scale(movement: &mut Movement, scale_factor: f32) {
-    movement.max_speed /= scale_factor;
-    movement.acceleration /= scale_factor;
-    movement.current_velocity /= scale_factor;
+    // Hunter Wasps are flying units and should maintain higher speeds
+    // Use a reduced scale penalty for better gameplay
+    let effective_scale = if scale_factor >= 5.0 {
+        // For very large models (like 5.0 scale Hunter Wasp), use reduced penalty
+        2.0  // Only reduce speed by half instead of dividing by 5
+    } else {
+        scale_factor
+    };
+    
+    movement.max_speed /= effective_scale;
+    movement.acceleration /= effective_scale;
+    movement.current_velocity /= effective_scale;
     
     info!(
-        "Adjusted movement speed for GLB model scale {:.1}x: max_speed={:.1}, acceleration={:.1}",
-        scale_factor, movement.max_speed, movement.acceleration
+        "Adjusted movement speed for GLB model scale {:.1}x (effective {:.1}x): max_speed={:.1}, acceleration={:.1}",
+        scale_factor, effective_scale, movement.max_speed, movement.acceleration
     );
 }
 
@@ -479,7 +589,7 @@ impl ModelAssets {
             InsectModelType::Scorpion => self.scorpion.clone(),
             InsectModelType::WolfSpider => self.wolf_spider.clone(),
             InsectModelType::QueenFacedBug => self.queen_faced_bug.clone(),
-            InsectModelType::ApisMellifera => self.apis_mellifera.clone(),
+            InsectModelType::ApisMellifera => self.bee.clone(), // Fallback to regular bee model
             
             // New high-quality models
             InsectModelType::Meganeura => self.meganeura.clone(),
@@ -491,7 +601,31 @@ impl ModelAssets {
             InsectModelType::LadybugLowpoly => self.ladybug_lowpoly.clone(),
             InsectModelType::RolyPoly => self.roly_poly.clone(),
             InsectModelType::MysteryModel => self.mystery_model.clone(),
+            
+            // Environment objects
             InsectModelType::Mushrooms => self.mushrooms.clone(),
+            InsectModelType::Grass => self.grass.clone(),
+            InsectModelType::Grass2 => self.grass_2.clone(),
+            InsectModelType::Hive => self.hive.clone(),
+            InsectModelType::StickShelter => self.stick_shelter.clone(),
+            InsectModelType::WoodStick => self.wood_stick.clone(),
+            InsectModelType::SimpleGrassChunks => self.simple_grass_chunks.clone(),
+            
+            // New environment objects
+            InsectModelType::CherryBlossomTree => self.cherry_blossom_tree.clone(),
+            InsectModelType::PineCone => self.pine_cone.clone(),
+            InsectModelType::PlantsAssetSet => self.plants_asset_set.clone(),
+            InsectModelType::BeechFern => self.beech_fern.clone(),
+            InsectModelType::TreesPack => self.trees_pack.clone(),
+            InsectModelType::RiverRock => self.river_rock.clone(),
+            InsectModelType::SmallRocks => self.small_rocks.clone(),
+            
+            // Defensive catch-all: fallback to a basic model for any new types
+            #[allow(unreachable_patterns)] // This is intentional for defensive programming
+            _ => {
+                warn!("Model handle not found for type: {:?}. Using bee model as fallback.", model_type);
+                self.bee.clone() // Safe fallback to a basic model that should always exist
+            }
         }
     }
 }
@@ -576,6 +710,7 @@ pub fn get_unit_insect_model(unit_type: &crate::components::UnitType) -> InsectM
         // Combat units - aggressive insects
         crate::components::UnitType::SoldierAnt => InsectModelType::Fourmi, // Soldier ant variant
         crate::components::UnitType::BeetleKnight => InsectModelType::RhinoBeetle, // Heavy armored unit
+        crate::components::UnitType::BatteringBeetle => InsectModelType::Beetle, // Uses black_ox_beetle_small.glb
         
         // Flying units - winged models
         crate::components::UnitType::HunterWasp => InsectModelType::Hornet, // Aggressive flyer
@@ -661,7 +796,7 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         // Classic models - all standardized to 1.5 for uniform gameplay
         InsectModelType::Scorpion => SCORPION_SCALE,           // 1.5
         InsectModelType::Bee => BEE_SCALE,                     // 1.5
-        InsectModelType::ApisMellifera => APIS_MELLIFERA_SCALE, // 1.5
+        InsectModelType::ApisMellifera => BEE_SCALE, // Use bee scale as fallback
         InsectModelType::Spider => SPIDER_SCALE,               // 1.5
         InsectModelType::WolfSpider => WOLF_SPIDER_SCALE,      // 1.5
         InsectModelType::QueenFacedBug => QUEEN_FACED_BUG_SCALE, // 1.5
@@ -678,9 +813,48 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::RolyPoly => ROLY_POLY_SCALE,          // 1.5
         InsectModelType::MysteryModel => MYSTERY_MODEL_SCALE,   // 1.5
         
-        // Environment objects - larger for visual impact
-        InsectModelType::Mushrooms => MUSHROOMS_SCALE,         // 2.5
+        // Environment objects - various scales for different types
+        InsectModelType::Mushrooms => MUSHROOMS_SCALE,                 // 2.5
+        InsectModelType::Grass => GRASS_SCALE,                         // 1.0
+        InsectModelType::Grass2 => GRASS_2_SCALE,                      // 1.2
+        InsectModelType::Hive => HIVE_SCALE,                           // 3.0
+        InsectModelType::StickShelter => STICK_SHELTER_SCALE,          // 2.0
+        InsectModelType::WoodStick => WOOD_STICK_SCALE,                // 1.5
+        InsectModelType::SimpleGrassChunks => SIMPLE_GRASS_CHUNKS_SCALE, // 0.8
+        
+        // New environment objects - various scales for natural scenery
+        InsectModelType::CherryBlossomTree => CHERRY_BLOSSOM_TREE_SCALE, // 4.0
+        InsectModelType::PineCone => PINE_CONE_SCALE,                   // 1.0
+        InsectModelType::PlantsAssetSet => PLANTS_ASSET_SET_SCALE,      // 1.5
+        InsectModelType::BeechFern => BEECH_FERN_SCALE,                 // 2.0
+        InsectModelType::TreesPack => TREES_PACK_SCALE,                 // 5.0
+        InsectModelType::RiverRock => RIVER_ROCK_SCALE,                 // 2.5
+        InsectModelType::SmallRocks => SMALL_ROCKS_SCALE,               // 1.2
+        
+        // Defensive catch-all: provide reasonable default scale for any new types
+        #[allow(unreachable_patterns)] // This is intentional for defensive programming
+        _ => {
+            warn!("Model scale not defined for type: {:?}. Using default scale of 2.0.", model_type);
+            2.0 // Reasonable default scale for most objects
+        }
     }
+}
+
+/// Defensive helper function to safely get a model handle with fallback.
+/// 
+/// This function provides a safe way to get model handles even for newly added
+/// model types that might not be explicitly handled everywhere.
+pub fn get_model_handle_safe(model_assets: &ModelAssets, model_type: &InsectModelType) -> Handle<Scene> {
+    // Use the defensive method that includes fallbacks
+    model_assets.get_model_handle(model_type) // This already has defensive fallback
+}
+
+/// Defensive helper function to safely get a model scale with fallback.
+/// 
+/// This function provides a safe way to get model scales even for newly added
+/// model types that might not have specific scale constants defined.
+pub fn get_model_scale_safe(model_type: &InsectModelType) -> f32 {
+    get_model_scale(model_type) // This already has defensive fallback
 }
 
 /// System that sets up animation controllers for newly spawned GLB units.
@@ -802,3 +976,135 @@ fn clamp_extreme_positions(transform: &mut Transform) {
         transform.translation.z = transform.translation.z.clamp(-MAX_COORDINATE, MAX_COORDINATE);
     }
 }
+
+/// System that applies team colors to GLB model materials.
+/// 
+/// This system finds GLB models that have team colors but haven't been tinted yet,
+/// then creates unique material instances for each entity to avoid shared material issues.
+/// 
+/// IMPORTANT: Each entity gets its own unique material instances to prevent color bleeding.
+pub fn apply_team_colors_to_glb_models(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    team_color_query: Query<(Entity, &TeamColor, Option<&TeamColorRetryCount>), (With<UseGLBModel>, Without<TeamColorApplied>)>,
+    all_mesh_query: Query<&MeshMaterial3d<StandardMaterial>>,
+    children_query: Query<&Children>,
+) {
+    let entity_count = team_color_query.iter().count();
+    if entity_count > 0 {
+        debug!("Processing {} entities for team color application", entity_count);
+    }
+    
+    for (entity, team_color, retry_count_opt) in team_color_query.iter() {
+        // Get retry count and update it
+        let retry_count = if let Some(count) = retry_count_opt {
+            let new_count = count.attempts + 1;
+            commands.entity(entity).insert(TeamColorRetryCount { attempts: new_count });
+            new_count
+        } else {
+            commands.entity(entity).insert(TeamColorRetryCount { attempts: 1 });
+            1
+        };
+        
+        // Give up after reasonable attempts (about 2 seconds at 60fps)
+        if retry_count > 120 {
+            warn!("Giving up on team color application for player {} after {} attempts", team_color.player_id, retry_count);
+            commands.entity(entity).insert(TeamColorApplied);
+            continue;
+        }
+        
+        debug!("Attempting to apply team color for player {} to entity {:?} (attempt {})", 
+               team_color.player_id, entity, retry_count);
+        
+        // Collect all material updates needed for this entity tree
+        let mut material_updates = Vec::new();
+        collect_material_updates_recursive(
+            entity,
+            &children_query,
+            &all_mesh_query,
+            &materials,
+            &team_color.tint_color,
+            &mut material_updates,
+            0,
+        );
+        
+        if !material_updates.is_empty() {
+            // Apply all material updates
+            for (entity_to_update, old_handle, new_material) in material_updates {
+                let new_handle = materials.add(new_material);
+                commands.entity(entity_to_update).insert(MeshMaterial3d(new_handle));
+                debug!("Updated entity {:?} with new unique team-colored material", entity_to_update);
+            }
+            
+            // Mark as processed
+            commands.entity(entity).insert(TeamColorApplied);
+            info!("Successfully applied team color tint to GLB model for player {} entity {:?}", 
+                  team_color.player_id, entity);
+        } else {
+            // Don't mark as processed - let it retry next frame
+            debug!("No materials found yet for player {} entity {:?} - will retry next frame", 
+                   team_color.player_id, entity);
+        }
+    }
+}
+
+/// Recursively collects materials that need to be updated with team colors
+/// Returns a list of (entity, old_handle, new_material) tuples for batch processing
+fn collect_material_updates_recursive(
+    entity: Entity,
+    children_query: &Query<&Children>,
+    mesh_query: &Query<&MeshMaterial3d<StandardMaterial>>,
+    materials: &Assets<StandardMaterial>,
+    tint_color: &Color,
+    material_updates: &mut Vec<(Entity, Handle<StandardMaterial>, StandardMaterial)>,
+    depth: usize,
+) {
+    debug!("Checking entity {:?} at depth {} for materials", entity, depth);
+    
+    // Try to get the material handle from this entity
+    if let Ok(mesh_material) = mesh_query.get(entity) {
+        debug!("Found mesh material on entity {:?}", entity);
+        if let Some(original_material) = materials.get(&mesh_material.0) {
+            // Create a unique material instance for this entity
+            let mut new_material = original_material.clone();
+            
+            // Apply team color tint to the cloned material
+            let original_color = new_material.base_color;
+            let tint_rgba = tint_color.to_srgba();
+            let original_rgba = original_color.to_srgba();
+            
+            // Apply team color tint - blend with original color
+            let new_color = Color::srgba(
+                (original_rgba.red * 0.3 + tint_rgba.red * 0.7).min(1.0),
+                (original_rgba.green * 0.3 + tint_rgba.green * 0.7).min(1.0),
+                (original_rgba.blue * 0.3 + tint_rgba.blue * 0.7).min(1.0),
+                original_rgba.alpha,
+            );
+            new_material.base_color = new_color;
+            
+            // Add to updates list
+            material_updates.push((entity, mesh_material.0.clone(), new_material));
+            info!("Prepared unique team-colored material for entity {:?}: {:?} -> {:?}", 
+                  entity, original_color, new_color);
+        }
+    }
+    
+    // Recursively check children
+    if let Ok(children) = children_query.get(entity) {
+        for &child in children.iter() {
+            collect_material_updates_recursive(
+                child,
+                children_query,
+                mesh_query,
+                materials,
+                tint_color,
+                material_updates,
+                depth + 1,
+            );
+        }
+    }
+}
+
+/// Marker component to prevent re-applying team colors
+#[derive(Component)]
+pub struct TeamColorApplied;

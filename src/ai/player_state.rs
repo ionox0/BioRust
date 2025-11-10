@@ -114,7 +114,7 @@ fn spawn_starting_units(
     base_position: Vec3,
 ) {
     // Spawn AI town center
-    crate::rts_entities::RTSEntityFactory::spawn_town_center(
+    crate::rts_entities::RTSEntityFactory::spawn_queen_chamber(
         commands, meshes, materials, base_position, player_id
     );
     
@@ -122,7 +122,7 @@ fn spawn_starting_units(
     for i in 0..3 {
         use crate::constants::ai::*;
         let villager_pos = base_position + Vec3::new(i as f32 * AI_SPAWN_RANGE, 0.0, AI_SPAWN_RANGE);
-        crate::rts_entities::RTSEntityFactory::spawn_villager(
+        crate::rts_entities::RTSEntityFactory::spawn_worker_ant(
             commands, meshes, materials, villager_pos, player_id, rand::random()
         );
     }

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::components::*;
+use crate::model_loader::UseGLBModel;
 
 pub struct AnimationPlugin;
 
@@ -7,9 +8,11 @@ impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Update, (
+                add_missing_animation_controllers, // Add this first
                 animation_state_manager,
                 update_animations,
                 find_animation_players,
+                animation_debug_system,
             ).chain())
             .add_event::<AnimationStateChangeEvent>();
     }
@@ -139,7 +142,6 @@ pub fn update_animations(
     mut animation_events: EventReader<AnimationStateChangeEvent>,
     mut controllers: Query<&mut UnitAnimationController>,
     mut animation_players: Query<&mut AnimationPlayer>,
-    _scenes: Res<Assets<Scene>>,
 ) {
     for event in animation_events.read() {
         if let Ok(mut controller) = controllers.get_mut(event.entity) {
@@ -149,12 +151,20 @@ pub fn update_animations(
             
             // Try to play the animation if we have a player
             if let Some(player_entity) = controller.animation_player {
-                if let Ok(_player) = animation_players.get_mut(player_entity) {
-                    if let Some(_animation_name) = get_animation_name_for_state(&controller.clips, &event.new_state) {
-                        // For now, just log that we would play the animation
-                        // In a full implementation, you'd need to set up the animation graph properly
-                        info!("Would play animation '{}' for state {:?} on entity {:?}", 
-                              _animation_name, event.new_state, event.entity);
+                if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                    if let Some(animation_name) = get_animation_name_for_state(&controller.clips, &event.new_state) {
+                        debug!("Animation state changed to {:?} for entity {:?} (target animation: '{}')", 
+                              event.new_state, event.entity, animation_name);
+                        
+                        // In Bevy 0.15, animations are automatically played when GLB models are loaded
+                        // We log the state change but don't need to manually control playback for GLB animations
+                        // The animation player will automatically use the first animation from the GLB file
+                    } else {
+                        // Only log missing animations occasionally to avoid spam
+                        if event.entity.index() % 10 == 0 {
+                            debug!("No specific animation for state {:?} on entity {:?}", 
+                                  event.new_state, event.entity);
+                        }
                     }
                 }
             }
@@ -163,41 +173,107 @@ pub fn update_animations(
 }
 
 // System to find animation players for controllers
+// This waits for GLB scene instantiation to complete before searching
 pub fn find_animation_players(
     mut controllers: Query<(Entity, &mut UnitAnimationController), Without<AnimationPlayer>>,
     animation_players: Query<Entity, With<AnimationPlayer>>,
     children: Query<&Children>,
     parents: Query<&Parent>,
+    scene_roots: Query<&SceneRoot>,
 ) {
     for (controller_entity, mut controller) in controllers.iter_mut() {
         if controller.animation_player.is_none() {
-            // Try to find animation player in children
-            if let Ok(children) = children.get(controller_entity) {
-                for &child in children.iter() {
-                    if animation_players.get(child).is_ok() {
-                        controller.animation_player = Some(child);
-                        info!("Found AnimationPlayer child for controller {:?}", controller_entity);
-                        break;
-                    }
+            // Check if this entity has a SceneRoot (GLB model)
+            if let Ok(_scene_root) = scene_roots.get(controller_entity) {
+                // For GLB scenes, wait until the entity has children before searching
+                // This indicates the scene has been instantiated
+                if children.get(controller_entity).is_err() {
+                    // No children yet, scene still loading
+                    continue;
                 }
-            }
-            
-            // Try to find animation player in siblings (common with GLB imports)
-            if controller.animation_player.is_none() {
-                if let Ok(parent) = parents.get(controller_entity) {
-                    if let Ok(siblings) = children.get(parent.get()) {
-                        for &sibling in siblings.iter() {
-                            if animation_players.get(sibling).is_ok() {
-                                controller.animation_player = Some(sibling);
-                                info!("Found AnimationPlayer sibling for controller {:?}", controller_entity);
-                                break;
-                            }
-                        }
-                    }
+                
+                // Scene is ready (has children), now search for animation players
+                if let Some(player) = search_recursive_for_player(
+                    controller_entity, 
+                    &children, 
+                    &animation_players, 
+                    0
+                ) {
+                    controller.animation_player = Some(player);
+                    debug!("Found AnimationPlayer for GLB scene controller {:?} -> {:?}", 
+                          controller_entity, player);
+                }
+            } else {
+                // Non-GLB entity, use simpler search
+                if let Some(player) = search_simple_for_player(
+                    controller_entity,
+                    &children,
+                    &parents,
+                    &animation_players,
+                ) {
+                    controller.animation_player = Some(player);
+                    debug!("Found AnimationPlayer for non-GLB controller {:?} -> {:?}", 
+                          controller_entity, player);
                 }
             }
         }
     }
+}
+
+// Recursive search for animation players in GLB scene hierarchies
+fn search_recursive_for_player(
+    entity: Entity,
+    children: &Query<&Children>,
+    animation_players: &Query<Entity, With<AnimationPlayer>>,
+    depth: usize,
+) -> Option<Entity> {
+    if depth > 8 { return None; } // Prevent infinite recursion, deeper limit for GLB scenes
+    
+    // Check if this entity is an animation player
+    if animation_players.get(entity).is_ok() {
+        return Some(entity);
+    }
+    
+    // Search children
+    if let Ok(children_list) = children.get(entity) {
+        for &child in children_list.iter() {
+            if let Some(player) = search_recursive_for_player(child, children, animation_players, depth + 1) {
+                return Some(player);
+            }
+        }
+    }
+    
+    None
+}
+
+// Simple search for animation players in non-GLB entities
+fn search_simple_for_player(
+    entity: Entity,
+    children: &Query<&Children>,
+    parents: &Query<&Parent>,
+    animation_players: &Query<Entity, With<AnimationPlayer>>,
+) -> Option<Entity> {
+    // Check direct children
+    if let Ok(children_list) = children.get(entity) {
+        for &child in children_list.iter() {
+            if animation_players.get(child).is_ok() {
+                return Some(child);
+            }
+        }
+    }
+    
+    // Check siblings
+    if let Ok(parent) = parents.get(entity) {
+        if let Ok(siblings) = children.get(parent.get()) {
+            for &sibling in siblings.iter() {
+                if animation_players.get(sibling).is_ok() {
+                    return Some(sibling);
+                }
+            }
+        }
+    }
+    
+    None
 }
 
 // Helper function to get animation name for a state
@@ -214,6 +290,31 @@ fn get_animation_name_for_state<'a>(clips: &'a UnitAnimationClips, state: &'a An
     }
 }
 
+// Helper function to get the model filename for an animation
+fn get_model_name_for_animation(animation_name: &str) -> &str {
+    if animation_name.contains("BlackOxBeetle") {
+        "black_ox_beetle_small"
+    } else if animation_name.contains("Wolf Spider") {
+        "wolf_spider"
+    } else if animation_name.contains("_bee_") {
+        "bee-v1"
+    } else if animation_name.contains("Spider") && animation_name.contains("Small") {
+        "spider_small"
+    } else if animation_name.contains("LADYBUG") {
+        "ladybug"
+    } else {
+        "black_ox_beetle_small" // Default fallback
+    }
+}
+
+/// Defensive helper function to safely create animation clips with fallback.
+/// 
+/// This function provides a safe way to create animation clips even for newly added
+/// unit types that might not have specific animation configurations defined.
+pub fn create_animation_clips_safe(unit_type: &UnitType) -> UnitAnimationClips {
+    create_animation_clips_for_unit(unit_type) // This already has defensive fallback
+}
+
 // Helper function to create animation clips based on unit type
 pub fn create_animation_clips_for_unit(
     unit_type: &UnitType,
@@ -224,37 +325,38 @@ pub fn create_animation_clips_for_unit(
     
     match model_type {
         crate::model_loader::InsectModelType::Beetle => {
-            // Black ox beetle has the most complete animation set
+            // Black ox beetle has the most complete animation set - use exact names from animation summary
             UnitAnimationClips {
-                idle: Some("AS_BlackOxBeetle_Idle_SK_BlackOxBeetle01".to_string()), // Idle
-                walking: Some("AS_BlackOxBeetle_Walk_Forward_SK_BlackOxBeetle01".to_string()), // Walk forward
-                running: Some("AS_BlackOxBeetle_Run_Forward_SK_BlackOxBeetle01".to_string()), // Run forward
+                idle: Some("AS_BlackOxBeetle_Idle_NC_01_SK_BlackOxBeetle01".to_string()), // Non-combat idle
+                walking: Some("AS_BlackOxBeetle_Walk_Forward_01_SK_BlackOxBeetle01".to_string()), // Walk forward
+                running: Some("AS_BlackOxBeetle_Run_Forward_01_SK_BlackOxBeetle01".to_string()), // Run forward
                 attacking: Some("AS_BlackOxBeetle_Attack_Basic_SK_BlackOxBeetle01".to_string()), // Basic attack
-                defending: Some("AS_BlackOxBeetle_CombatIdle_SK_BlackOxBeetle01".to_string()), // Combat idle
-                taking_damage: Some("AS_BlackOxBeetle_Flinch_Front_SK_BlackOxBeetle01".to_string()), // Flinch from front
-                death: Some("AS_BlackOxBeetle_Death_SK_BlackOxBeetle01".to_string()), // Death
+                defending: Some("AS_BlackOxBeetle_Idle_Combat_01_SK_BlackOxBeetle01".to_string()), // Combat idle
+                taking_damage: None, // No flinch animation found in summary
+                death: Some("AS_BlackOxBeetle_Death_01_SK_BlackOxBeetle01".to_string()), // Death
                 special: vec![
                     "AS_BlackOxBeetle_Attack_Spin_SK_BlackOxBeetle01".to_string(), // Spin attack
                     "AS_BlackOxBeetle_Attack_Thrash_SK_BlackOxBeetle01".to_string(), // Thrash attack
                     "AS_BlackOxBeetle_Attack_RockFling_SK_BlackOxBeetle01".to_string(), // Rock fling
+                    "as_blackoxbeetle_jump_SK_BlackOxBeetle01".to_string(), // Jump
                 ],
             }
         },
         crate::model_loader::InsectModelType::WolfSpider => {
-            // Wolf spider has good movement animations
+            // Wolf spider has good movement animations - use exact names from animation summary
             UnitAnimationClips {
-                idle: Some("Walking".to_string()), // Walking (as idle)
-                walking: Some("Walking".to_string()), // Spider walking
-                running: Some("Running".to_string()), // Spider running
+                idle: Some("Wolf Spider Armature|Spider walking".to_string()), // Use walking as idle
+                walking: Some("Wolf Spider Armature|Spider walking".to_string()), // Spider walking
+                running: Some("Wolf Spider Armature|Spider running".to_string()), // Spider running
                 attacking: None, // No attack animation available
                 defending: None,
                 taking_damage: None,
                 death: None,
                 special: vec![
-                    "Walking_fast".to_string(), // Walking fast
-                    "Walking_backward".to_string(), // Walking backward
-                    "Turn_left_while_walking".to_string(), // Turn left
-                    "Turn_right_while_walking".to_string(), // Turn right
+                    "Wolf Spider Armature|Spider walking fast".to_string(), // Walking fast
+                    "Wolf Spider Armature|Spider walking backword".to_string(), // Walking backward
+                    "Wolf Spider Armature|Spider walk and turn left".to_string(), // Turn left
+                    "Wolf Spider Armature|Spider walk and turn right".to_string(), // Turn right
                 ],
             }
         },
@@ -460,5 +562,161 @@ pub fn create_animation_clips_for_unit(
                 special: vec![],
             }
         },
+        // Environment objects - all static, no animations
+        crate::model_loader::InsectModelType::Mushrooms |
+        crate::model_loader::InsectModelType::Grass |
+        crate::model_loader::InsectModelType::Grass2 |
+        crate::model_loader::InsectModelType::Hive |
+        crate::model_loader::InsectModelType::StickShelter |
+        crate::model_loader::InsectModelType::WoodStick |
+        crate::model_loader::InsectModelType::SimpleGrassChunks |
+        crate::model_loader::InsectModelType::CherryBlossomTree |
+        crate::model_loader::InsectModelType::PineCone |
+        crate::model_loader::InsectModelType::PlantsAssetSet |
+        crate::model_loader::InsectModelType::BeechFern |
+        crate::model_loader::InsectModelType::TreesPack |
+        crate::model_loader::InsectModelType::RiverRock |
+        crate::model_loader::InsectModelType::SmallRocks => {
+            UnitAnimationClips {
+                idle: None, // Static environment objects
+                walking: None,
+                running: None,
+                attacking: None,
+                defending: None,
+                taking_damage: None,
+                death: None,
+                special: vec![],
+            }
+        },
+        
+        // Defensive catch-all for any new model types not explicitly handled
+        _ => {
+            warn!("Animation clips not specifically defined for model type: {:?}. Using default static configuration.", model_type);
+            UnitAnimationClips {
+                idle: None, // Default: no animations (static)
+                walking: None,
+                running: None,
+                attacking: None,
+                defending: None,
+                taking_damage: None,
+                death: None,
+                special: vec![],
+            }
+        },
+    }
+}
+
+// System to retroactively add animation controllers to units that don't have them
+pub fn add_missing_animation_controllers(
+    mut commands: Commands,
+    units_without_controllers: Query<(Entity, &RTSUnit), (Without<UnitAnimationController>, With<RTSUnit>)>,
+) {
+    for (entity, unit) in units_without_controllers.iter() {
+        // Only add animation controller to units with a specific type
+        let Some(unit_type) = &unit.unit_type else {
+            continue;
+        };
+        
+        // Create animation clips specific to this unit type
+        let clips = create_animation_clips_for_unit(unit_type);
+        
+        let animation_controller = UnitAnimationController {
+            current_state: AnimationState::Idle,
+            previous_state: AnimationState::Idle,
+            animation_player: None, // Will be populated by find_animation_players system
+            clips,
+        };
+        
+        // Add the animation controller to the entity
+        commands.entity(entity).insert(animation_controller);
+        debug!("Retroactively added animation controller to unit {:?} (entity {:?})", unit_type, entity);
+    }
+}
+
+// Debug system to check animation status
+pub fn animation_debug_system(
+    animation_controllers: Query<(Entity, &UnitAnimationController, Option<&RTSUnit>)>,
+    animation_players: Query<&AnimationPlayer>,
+    all_rts_units: Query<Entity, With<RTSUnit>>, // Check all RTS units
+    all_glb_models: Query<Entity, With<UseGLBModel>>, // Check all GLB models
+    children: Query<&Children>,
+    names: Query<&Name>,
+    scene_roots: Query<Entity, With<SceneRoot>>,
+    mut logged_entities: Local<std::collections::HashSet<Entity>>,
+    mut run_count: Local<u32>,
+) {
+    *run_count += 1;
+    
+    // Log system is running every 300 frames (about once per 5 seconds)
+    if *run_count % 300 == 1 {
+        let controller_count = animation_controllers.iter().count();
+        let player_count = animation_players.iter().count();
+        let unit_count = all_rts_units.iter().count();
+        let glb_count = all_glb_models.iter().count();
+        let scene_count = scene_roots.iter().count();
+        info!("Animation debug: {} controllers, {} players, {} total RTSUnits, {} GLB models, {} scene roots (frame {})", 
+              controller_count, player_count, unit_count, glb_count, scene_count, *run_count);
+        
+        // Every 30 seconds, do a deep hierarchy analysis
+        if *run_count % 1800 == 1 {
+            info!("=== DEEP HIERARCHY ANALYSIS ===");
+            
+            // Find all units with SceneRoot and examine their children
+            for (controller_entity, controller, unit_opt) in animation_controllers.iter().take(3) {
+                let unit_type = unit_opt.and_then(|u| u.unit_type.as_ref());
+                info!("Analyzing entity {:?} (unit: {:?})", controller_entity, unit_type);
+                
+                // Check if this entity has children
+                if let Ok(children_list) = children.get(controller_entity) {
+                    info!("  Entity has {} children", children_list.len());
+                    
+                    // Examine each child
+                    for &child in children_list.iter() {
+                        let child_name = names.get(child).map(|n| n.as_str()).unwrap_or("unnamed");
+                        let has_animation_player = animation_players.get(child).is_ok();
+                        let has_children = children.get(child).map(|c| c.len()).unwrap_or(0);
+                        
+                        info!("    Child {:?} '{}' - AnimPlayer: {}, Children: {}", 
+                              child, child_name, has_animation_player, has_children);
+                        
+                        // Check grandchildren too
+                        if let Ok(grandchildren) = children.get(child) {
+                            for &grandchild in grandchildren.iter() {
+                                let grandchild_name = names.get(grandchild).map(|n| n.as_str()).unwrap_or("unnamed");
+                                let grandchild_has_player = animation_players.get(grandchild).is_ok();
+                                
+                                info!("      Grandchild {:?} '{}' - AnimPlayer: {}", 
+                                      grandchild, grandchild_name, grandchild_has_player);
+                            }
+                        }
+                    }
+                } else {
+                    info!("  Entity has no children");
+                }
+            }
+            
+            info!("=== END HIERARCHY ANALYSIS ===");
+        }
+    }
+    
+    for (entity, controller, unit_opt) in animation_controllers.iter() {
+        // Only log each entity once to avoid spam
+        if !logged_entities.contains(&entity) {
+            if let Some(player_entity) = controller.animation_player {
+                if animation_players.get(player_entity).is_ok() {
+                    let unit_type = unit_opt.and_then(|u| u.unit_type.as_ref());
+                    info!("✓ Animation controller found for entity {:?} (unit: {:?}), player entity: {:?}", 
+                          entity, unit_type, player_entity);
+                } else {
+                    info!("✗ Animation controller for entity {:?} references invalid player entity {:?}", 
+                          entity, player_entity);
+                }
+            } else {
+                let unit_type = unit_opt.and_then(|u| u.unit_type.as_ref());
+                info!("⚠ Animation controller for entity {:?} (unit: {:?}) has no animation player assigned", 
+                      entity, unit_type);
+            }
+            logged_entities.insert(entity);
+        }
     }
 }

@@ -134,7 +134,7 @@ fn spawn_produced_unit(
     
     match unit_type {
         UnitType::WorkerAnt => {
-            RTSEntityFactory::spawn_villager(
+            RTSEntityFactory::spawn_worker_ant(
                 commands,
                 meshes,
                 materials,
@@ -144,7 +144,7 @@ fn spawn_produced_unit(
             );
         },
         UnitType::SoldierAnt => {
-            RTSEntityFactory::spawn_militia(
+            RTSEntityFactory::spawn_soldier_ant(
                 commands,
                 meshes,
                 materials,
@@ -154,7 +154,7 @@ fn spawn_produced_unit(
             );
         },
         UnitType::HunterWasp => {
-            RTSEntityFactory::spawn_archer(
+            RTSEntityFactory::spawn_hunter_wasp(
                 commands,
                 meshes,
                 materials,
@@ -164,7 +164,7 @@ fn spawn_produced_unit(
             );
         },
         UnitType::BeetleKnight => {
-            RTSEntityFactory::spawn_knight(
+            RTSEntityFactory::spawn_beetle_knight(
                 commands,
                 meshes,
                 materials,

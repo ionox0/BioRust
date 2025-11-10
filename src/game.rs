@@ -4,9 +4,9 @@ use crate::resources::*;
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
-    #[default]
     MainMenu,
-    Playing,
+    #[default]
+    Playing, // Start directly in Playing state to test animations
     // Removed unused states: Loading, Paused, GameOver
 }
 
@@ -39,17 +39,13 @@ impl Plugin for GamePlugin {
             .init_resource::<PlayerResources>()
             .init_resource::<AIResources>()
             .insert_resource(GameCosts::initialize())
-            .add_systems(Startup, setup_game)
+            .add_systems(Startup, (setup_game, spawn_rts_elements))
             .add_systems(
                 Update,
                 (
                     handle_rts_camera_input.in_set(GameSet::Input),
                     // Removed references to dead systems
                 ).run_if(in_state(GameState::Playing))
-            )
-            .add_systems(
-                OnEnter(GameState::Playing),
-                spawn_rts_elements
             )
             .add_systems(
                 OnEnter(GameState::MainMenu),

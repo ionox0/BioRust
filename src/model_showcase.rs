@@ -200,7 +200,9 @@ fn get_all_model_types() -> Vec<InsectModelType> {
         InsectModelType::LadybugLowpoly,
         InsectModelType::RolyPoly,
         InsectModelType::MysteryModel,
-        InsectModelType::Mushrooms, // Environment objects
+
+        // Environment objects
+        InsectModelType::Mushrooms,
     ]
 }
 

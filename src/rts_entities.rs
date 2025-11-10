@@ -5,7 +5,7 @@ use crate::model_loader::*;
 pub struct RTSEntityFactory;
 
 impl RTSEntityFactory {
-    pub fn spawn_villager(
+    pub fn spawn_worker_ant(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -13,10 +13,10 @@ impl RTSEntityFactory {
         player_id: u8,
         unit_id: u32,
     ) -> Entity {
-        Self::spawn_villager_with_models(commands, meshes, materials, position, player_id, unit_id, None)
+        Self::spawn_worker_ant_with_models(commands, meshes, materials, position, player_id, unit_id, None)
     }
 
-    pub fn spawn_villager_with_models(
+    pub fn spawn_worker_ant_with_models(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -52,17 +52,14 @@ impl RTSEntityFactory {
                     scale: model_scale,
                 },
                 UseGLBModel,
+                TeamColor::new(player_id), // Add team coloring
             ))
         } else {
             // Fallback to primitive shapes
             commands.spawn((
                 Mesh3d(meshes.add(Capsule3d::new(1.0, 2.0))),
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: if player_id == 1 { 
-                        Color::srgb(0.4, 0.6, 0.8) 
-                    } else { 
-                        Color::srgb(0.8, 0.4, 0.2) 
-                    },
+                    base_color: TeamColor::get_primitive_color(player_id),
                     ..default()
                 })),
                 Transform::from_translation(position),
@@ -71,6 +68,7 @@ impl RTSEntityFactory {
 
         entity.insert((
             RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::WorkerAnt) },
+            TeamColor::new(player_id), // Add team coloring for primitive units too
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -82,8 +80,8 @@ impl RTSEntityFactory {
             ..default()
         },
             RTSHealth {
-                current: 25.0,
-                max: 25.0,
+                current: 75.0,
+                max: 75.0,
                 armor: 0.0,
                 regeneration_rate: 0.1,
                 last_damage_time: 0.0,
@@ -108,7 +106,7 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_militia(
+    pub fn spawn_soldier_ant(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -116,10 +114,10 @@ impl RTSEntityFactory {
         player_id: u8,
         unit_id: u32,
     ) -> Entity {
-        Self::spawn_militia_with_models(commands, meshes, materials, position, player_id, unit_id, None)
+        Self::spawn_soldier_ant_with_models(commands, meshes, materials, position, player_id, unit_id, None)
     }
 
-    pub fn spawn_militia_with_models(
+    pub fn spawn_soldier_ant_with_models(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -155,17 +153,14 @@ impl RTSEntityFactory {
                     scale: model_scale,
                 },
                 UseGLBModel,
+                TeamColor::new(player_id), // Add team coloring
             ))
         } else {
             // Fallback to primitive shapes
             commands.spawn((
                 Mesh3d(meshes.add(Capsule3d::new(1.2, 2.2))),
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: if player_id == 1 { 
-                        Color::srgb(0.8, 0.2, 0.2) 
-                    } else { 
-                        Color::srgb(0.2, 0.8, 0.2) 
-                    },
+                    base_color: TeamColor::get_primitive_color(player_id),
                     ..default()
                 })),
                 Transform::from_translation(position),
@@ -174,6 +169,7 @@ impl RTSEntityFactory {
 
         entity.insert((
             RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::SoldierAnt) },
+            TeamColor::new(player_id), // Add team coloring
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -185,15 +181,15 @@ impl RTSEntityFactory {
                 ..default()
             },
             RTSHealth {
-                current: 40.0,
-                max: 40.0,
+                current: 120.0,
+                max: 120.0,
                 armor: 1.0,
                 regeneration_rate: 0.0,
                 last_damage_time: 0.0,
             },
             Combat {
                 attack_damage: 4.0,
-                attack_range: 10.0,
+                attack_range: 5.0,
                 attack_speed: 2.0,
                 last_attack_time: 0.0,
                 target: None,
@@ -210,7 +206,7 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_archer(
+    pub fn spawn_hunter_wasp(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -221,11 +217,12 @@ impl RTSEntityFactory {
         commands.spawn((
             Mesh3d(meshes.add(Capsule3d::new(1.0, 2.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.8, 0.2),
+                base_color: TeamColor::get_primitive_color(player_id),
                 ..default()
             })),
             Transform::from_translation(position),
             RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::HunterWasp) },
+            TeamColor::new(player_id), // Add team coloring
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -237,15 +234,15 @@ impl RTSEntityFactory {
                 ..default()
             },
             RTSHealth {
-                current: 30.0,
-                max: 30.0,
+                current: 90.0,
+                max: 90.0,
                 armor: 0.0,
                 regeneration_rate: 0.0,
                 last_damage_time: 0.0,
             },
             Combat {
                 attack_damage: 6.0,
-                attack_range: 100.0,
+                attack_range: 15.0,
                 attack_speed: 1.5,
                 last_attack_time: 0.0,
                 target: None,
@@ -265,7 +262,211 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_knight(
+    pub fn spawn_spear_mantis(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+    ) -> Entity {
+        Self::spawn_spear_mantis_with_models(commands, meshes, materials, position, player_id, unit_id, None)
+    }
+
+    pub fn spawn_spear_mantis_with_models(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+        model_assets: Option<&ModelAssets>,
+    ) -> Entity {
+        // Calculate model scale factor for movement adjustment
+        let model_scale = if let Some(_models) = model_assets {
+            let model_type = get_unit_insect_model(&UnitType::SpearMantis);
+            match model_type {
+                crate::model_loader::InsectModelType::QueenFacedBug => crate::constants::models::QUEEN_FACED_BUG_SCALE,
+                _ => crate::model_loader::get_model_scale(&model_type),
+            }
+        } else {
+            1.0 // Primitive models use default scale
+        };
+        
+        let mut entity = if let Some(models) = model_assets {
+            // Use GLB model
+            let model_type = get_unit_insect_model(&UnitType::SpearMantis);
+            let model_handle = models.get_model_handle(&model_type);
+            
+            commands.spawn((
+                SceneRoot(model_handle),
+                Transform::from_translation(position)
+                    .with_scale(Vec3::splat(model_scale))
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                InsectModel {
+                    model_type,
+                    scale: model_scale,
+                },
+                UseGLBModel,
+                TeamColor::new(player_id), // Add team coloring
+            ))
+        } else {
+            // Fallback to primitive shapes
+            commands.spawn((
+                Mesh3d(meshes.add(Capsule3d::new(1.2, 2.5))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: TeamColor::get_primitive_color(player_id),
+                    ..default()
+                })),
+                Transform::from_translation(position),
+            ))
+        };
+
+        entity.insert((
+            RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::SpearMantis) },
+            TeamColor::new(player_id), // Add team coloring
+            Position {
+                translation: position,
+                rotation: Quat::IDENTITY,
+            },
+            Movement {
+                max_speed: 25.0 / model_scale.max(2.0), // Use reduced scale penalty for large models
+                acceleration: 55.0 / model_scale.max(2.0),
+                turning_speed: 2.8,
+                ..default()
+            },
+            RTSHealth {
+                current: 110.0,
+                max: 110.0,
+                armor: 1.0,
+                regeneration_rate: 0.4,
+                last_damage_time: 0.0,
+            },
+            Combat {
+                attack_damage: 22.0,
+                attack_range: 8.0,
+                attack_speed: 1.8,
+                last_attack_time: 0.0,
+                target: None,
+                attack_type: AttackType::Melee,
+                attack_cooldown: 0.0,
+                is_attacking: false,
+                auto_attack: true,
+            },
+            Selectable::default(),
+            Vision {
+                sight_range: 120.0,
+                line_of_sight: true,
+            },
+            CollisionRadius { radius: crate::constants::collision::DEFAULT_UNIT_COLLISION_RADIUS },
+            EntityState::default(),
+            GameEntity,
+        )).id()
+    }
+
+    pub fn spawn_scout_ant(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+    ) -> Entity {
+        Self::spawn_scout_ant_with_models(commands, meshes, materials, position, player_id, unit_id, None)
+    }
+
+    pub fn spawn_scout_ant_with_models(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+        player_id: u8,
+        unit_id: u32,
+        model_assets: Option<&ModelAssets>,
+    ) -> Entity {
+        // Calculate model scale factor for movement adjustment
+        let model_scale = if let Some(_models) = model_assets {
+            let model_type = get_unit_insect_model(&UnitType::ScoutAnt);
+            match model_type {
+                crate::model_loader::InsectModelType::CairnsBirdwing => crate::constants::models::CAIRNS_BIRDWING_SCALE,
+                _ => crate::model_loader::get_model_scale(&model_type),
+            }
+        } else {
+            1.0 // Primitive models use default scale
+        };
+        
+        let mut entity = if let Some(models) = model_assets {
+            // Use GLB model
+            let model_type = get_unit_insect_model(&UnitType::ScoutAnt);
+            let model_handle = models.get_model_handle(&model_type);
+            
+            commands.spawn((
+                SceneRoot(model_handle),
+                Transform::from_translation(position)
+                    .with_scale(Vec3::splat(model_scale))
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                InsectModel {
+                    model_type,
+                    scale: model_scale,
+                },
+                UseGLBModel,
+                TeamColor::new(player_id), // Add team coloring
+            ))
+        } else {
+            // Fallback to primitive shapes
+            commands.spawn((
+                Mesh3d(meshes.add(Capsule3d::new(0.9, 2.0))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: TeamColor::get_primitive_color(player_id),
+                    ..default()
+                })),
+                Transform::from_translation(position),
+            ))
+        };
+
+        entity.insert((
+            RTSUnit { unit_id, player_id, size: 1.0, unit_type: Some(UnitType::ScoutAnt) },
+            TeamColor::new(player_id), // Add team coloring
+            Position {
+                translation: position,
+                rotation: Quat::IDENTITY,
+            },
+            Movement {
+                max_speed: 40.0 / model_scale.max(2.0), // Use reduced scale penalty for large models  
+                acceleration: 70.0 / model_scale.max(2.0),
+                turning_speed: 3.2,
+                ..default()
+            },
+            RTSHealth {
+                current: 65.0,
+                max: 65.0,
+                armor: 0.0,
+                regeneration_rate: 0.2,
+                last_damage_time: 0.0,
+            },
+            Combat {
+                attack_damage: 12.0,
+                attack_range: 6.0,
+                attack_speed: 2.2,
+                last_attack_time: 0.0,
+                target: None,
+                attack_type: AttackType::Melee,
+                attack_cooldown: 0.0,
+                is_attacking: false,
+                auto_attack: true,
+            },
+            Selectable::default(),
+            Vision {
+                sight_range: 180.0,
+                line_of_sight: true,
+            },
+            CollisionRadius { radius: crate::constants::collision::DEFAULT_UNIT_COLLISION_RADIUS },
+            EntityState::default(),
+            GameEntity,
+        )).id()
+    }
+
+    pub fn spawn_beetle_knight(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -276,11 +477,12 @@ impl RTSEntityFactory {
         commands.spawn((
             Mesh3d(meshes.add(Capsule3d::new(1.5, 2.5))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.7, 0.7, 0.1),
+                base_color: TeamColor::get_primitive_color(player_id),
                 ..default()
             })),
             Transform::from_translation(position),
             RTSUnit { unit_id, player_id, size: 1.5, unit_type: Some(UnitType::BeetleKnight) },
+            TeamColor::new(player_id), // Add team coloring
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -292,15 +494,15 @@ impl RTSEntityFactory {
                 ..default()
             },
             RTSHealth {
-                current: 100.0,
-                max: 100.0,
+                current: 200.0,
+                max: 200.0,
                 armor: 3.0,
                 regeneration_rate: 0.0,
                 last_damage_time: 0.0,
             },
             Combat {
                 attack_damage: 12.0,
-                attack_range: 15.0,
+                attack_range: 8.0,
                 attack_speed: 1.8,
                 last_attack_time: 0.0,
                 target: None,
@@ -317,7 +519,7 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_town_center(
+    pub fn spawn_queen_chamber(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -327,11 +529,12 @@ impl RTSEntityFactory {
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(20.0, 15.0, 20.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.6, 0.4, 0.2),
+                base_color: TeamColor::get_primitive_color(player_id),
                 ..default()
             })),
-            Transform::from_translation(position),
+            Transform::from_translation(position + Vec3::new(0.0, 7.5, 0.0)),
             RTSUnit { unit_id: 0, player_id, size: 4.0, unit_type: None },
+            TeamColor::new(player_id), // Add team coloring
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -373,7 +576,7 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_house(
+    pub fn spawn_nursery(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -383,11 +586,12 @@ impl RTSEntityFactory {
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(8.0, 6.0, 8.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.8, 0.6, 0.4),
+                base_color: TeamColor::get_primitive_color(player_id),
                 ..default()
             })),
-            Transform::from_translation(position),
+            Transform::from_translation(position + Vec3::new(0.0, 3.0, 0.0)),
             RTSUnit { unit_id: 0, player_id, size: 2.0, unit_type: None },
+            TeamColor::new(player_id), // Add team coloring
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -415,7 +619,7 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_barracks(
+    pub fn spawn_warrior_chamber(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -425,11 +629,12 @@ impl RTSEntityFactory {
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(12.0, 8.0, 12.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.5, 0.3, 0.1),
+                base_color: TeamColor::get_primitive_color(player_id),
                 ..default()
             })),
-            Transform::from_translation(position),
+            Transform::from_translation(position + Vec3::new(0.0, 4.0, 0.0)),
             RTSUnit { unit_id: 0, player_id, size: 3.0, unit_type: None },
+            TeamColor::new(player_id), // Add team coloring
             Position {
                 translation: position,
                 rotation: Quat::IDENTITY,
@@ -462,14 +667,14 @@ impl RTSEntityFactory {
         )).id()
     }
 
-    pub fn spawn_wood_resource(
+    pub fn spawn_chitin_source(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
         position: Vec3,
     ) -> Entity {
         commands.spawn((
-            Mesh3d(meshes.add(Cylinder::new(2.0, 8.0))),
+            Mesh3d(meshes.add(Cuboid::new(4.0, 8.0, 4.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.4, 0.2, 0.0),
                 ..default()
@@ -485,12 +690,12 @@ impl RTSEntityFactory {
                 is_selected: false,
                 selection_radius: 3.0,
             },
-            CollisionRadius { radius: 5.0 }, // Wood resource collision radius
+            CollisionRadius { radius: 5.0 }, // Chitin source collision radius
             GameEntity,
         )).id()
     }
 
-    pub fn spawn_stone_resource(
+    pub fn spawn_mineral_deposit(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -513,12 +718,12 @@ impl RTSEntityFactory {
                 is_selected: false,
                 selection_radius: 4.0,
             },
-            CollisionRadius { radius: 6.0 }, // Stone resource collision radius
+            CollisionRadius { radius: 6.0 }, // Mineral deposit collision radius
             GameEntity,
         )).id()
     }
 
-    pub fn spawn_gold_resource(
+    pub fn spawn_pheromone_cache(
         commands: &mut Commands,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -541,7 +746,35 @@ impl RTSEntityFactory {
                 is_selected: false,
                 selection_radius: 3.0,
             },
-            CollisionRadius { radius: 5.5 }, // Gold resource collision radius
+            CollisionRadius { radius: 5.5 }, // Pheromone cache collision radius
+            GameEntity,
+        )).id()
+    }
+
+    pub fn spawn_nectar_source(
+        commands: &mut Commands,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+        position: Vec3,
+    ) -> Entity {
+        commands.spawn((
+            Mesh3d(meshes.add(Sphere::new(2.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.5, 0.8),
+                ..default()
+            })),
+            Transform::from_translation(position),
+            ResourceSource {
+                resource_type: ResourceType::Nectar,
+                amount: 150.0,
+                max_gatherers: 3,
+                current_gatherers: 0,
+            },
+            Selectable {
+                is_selected: false,
+                selection_radius: 3.0,
+            },
+            CollisionRadius { radius: 4.0 }, // Nectar source collision radius
             GameEntity,
         )).id()
     }

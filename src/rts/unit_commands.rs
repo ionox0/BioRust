@@ -250,15 +250,23 @@ pub fn spawn_test_units_system(
     
     if keyboard.just_pressed(KeyCode::KeyE) {
         let spawn_pos = camera_ground_pos + Vec3::new(0.0, 1.0, crate::constants::combat::UNIT_SPAWN_RANGE);
-        crate::combat_systems::create_combat_unit(
+        
+        // Use the new EntityFactory for enemy spawning
+        let config = crate::entity_factory::SpawnConfig::unit(
+            crate::entity_factory::EntityType::from_unit(UnitType::SoldierAnt),
+            spawn_pos,
+            2, // Player 2 (enemy)
+        );
+        
+        crate::entity_factory::EntityFactory::spawn(
             &mut commands,
             &mut meshes,
             &mut materials,
-            spawn_pos,
-            2,
-            UnitType::SoldierAnt,
+            config,
+            None, // No model assets for now - will use primitives that upgrade to GLB
         );
-        info!("Spawned Enemy at {:?}", spawn_pos);
+        
+        info!("Spawned Enemy with animation controller at {:?}", spawn_pos);
     }
 }
 
@@ -272,13 +280,21 @@ fn spawn_test_unit(
     offset_x: f32,
 ) {
     let spawn_pos = camera_ground_pos + Vec3::new(offset_x, 1.0, 0.0);
-    crate::combat_systems::create_combat_unit(
+    
+    // Use the new EntityFactory instead of the old create_combat_unit
+    let config = crate::entity_factory::SpawnConfig::unit(
+        crate::entity_factory::EntityType::from_unit(unit_type.clone()),
+        spawn_pos,
+        player_id,
+    );
+    
+    crate::entity_factory::EntityFactory::spawn(
         commands,
         meshes,
         materials,
-        spawn_pos,
-        player_id,
-        unit_type.clone(),
+        config,
+        None, // No model assets for now - will use primitives that upgrade to GLB
     );
-    info!("Spawned {:?} at {:?}", unit_type, spawn_pos);
+    
+    info!("Spawned {:?} with animation controller at {:?}", unit_type, spawn_pos);
 }

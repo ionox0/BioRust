@@ -32,6 +32,51 @@ pub struct UI;
 #[derive(Component)]
 pub struct GameEntity;
 
+// Team color component for tinting GLB models
+#[derive(Component, Debug, Clone)]
+pub struct TeamColor {
+    pub player_id: u8,
+    pub tint_color: Color,
+}
+
+impl TeamColor {
+    pub fn new(player_id: u8) -> Self {
+        use crate::constants::team_colors::*;
+        let tint_color = match player_id {
+            1 => PLAYER_1_TINT,
+            2 => PLAYER_2_TINT,
+            3 => PLAYER_3_TINT,
+            4 => PLAYER_4_TINT,
+            _ => UNKNOWN_PLAYER_TINT,
+        };
+        Self { player_id, tint_color }
+    }
+    
+    /// Get the primitive color for a player (used for fallback geometric shapes)
+    pub fn get_primitive_color(player_id: u8) -> Color {
+        use crate::constants::team_colors::*;
+        match player_id {
+            1 => PLAYER_1_PRIMITIVE,
+            2 => PLAYER_2_PRIMITIVE,
+            3 => PLAYER_3_PRIMITIVE,
+            4 => PLAYER_4_PRIMITIVE,
+            _ => UNKNOWN_PLAYER_PRIMITIVE,
+        }
+    }
+}
+
+/// Component to track how many frames we've tried to apply team colors
+#[derive(Component, Debug)]
+pub struct TeamColorRetryCount {
+    pub attempts: u8,
+}
+
+impl Default for TeamColorRetryCount {
+    fn default() -> Self {
+        Self { attempts: 0 }
+    }
+}
+
 // RTS-specific components
 
 #[derive(Component, Debug, Clone)]
@@ -452,4 +497,35 @@ impl Default for CollisionRadius {
             radius: 2.5, // Larger default radius for GLB models with scaling
         }
     }
+}
+
+/// Component for environment objects (non-interactive decorations)
+#[derive(Component, Debug, Clone)]
+pub struct EnvironmentObject {
+    pub object_type: EnvironmentObjectType,
+}
+
+/// Types of environment objects available in the scene
+#[derive(Debug, Clone, PartialEq)]
+pub enum EnvironmentObjectType {
+    /// Mushroom clusters for natural decoration
+    Mushrooms,
+    /// Grass patches for ground coverage
+    Grass,
+    /// Hive structures for insect theme
+    Hive,
+    /// Stick shelters for natural cover
+    StickShelter,
+    /// Wood stick debris for natural clutter
+    WoodStick,
+    
+    // New environment object types
+    /// Trees for major landmarks and natural barriers
+    Trees,
+    /// Rock formations for geological features
+    Rocks,
+    /// Ferns and plants for undergrowth decoration
+    Plants,
+    /// Pine cones and forest debris
+    ForestDebris,
 }

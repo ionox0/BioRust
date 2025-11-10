@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use crate::components::*;
+use crate::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+use rand;
 use crate::ui::{
     resource_display::{PlayerResources, setup_resource_display},
     button_styles::{create_building_button_with_icon, create_unit_button_with_icon, ButtonStyle, BuildingButton, UnitButton},
@@ -173,8 +175,10 @@ fn setup_units_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(80.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(10.0),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: Val::Px(5.0),
+                row_gap: Val::Px(5.0),
                 ..default()
             },
             ProductionQueueDisplay,
@@ -211,12 +215,13 @@ pub fn handle_building_panel_interactions(
     mut unit_interaction_query: Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
     mut placement: ResMut<BuildingPlacement>,
     player_resources: Res<PlayerResources>,
+    model_assets: Option<Res<crate::model_loader::ModelAssets>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     handle_building_button_interactions(&mut interaction_query, &mut placement, &player_resources);
-    handle_unit_button_interactions(&mut unit_interaction_query, &player_resources, &mut commands, &mut meshes, &mut materials);
+    handle_unit_button_interactions(&mut unit_interaction_query, &player_resources, model_assets, &mut commands, &mut meshes, &mut materials);
 }
 
 fn handle_building_button_interactions(
@@ -258,6 +263,7 @@ fn handle_building_button_interactions(
 fn handle_unit_button_interactions(
     unit_interaction_query: &mut Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
     player_resources: &PlayerResources,
+    model_assets: Option<Res<crate::model_loader::ModelAssets>>,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -266,7 +272,7 @@ fn handle_unit_button_interactions(
         match *interaction {
             Interaction::Pressed => {
                 if can_afford_unit(&unit_button.cost, player_resources) {
-                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone());
+                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone(), model_assets.as_deref());
                     info!("Producing unit: {:?}", unit_button.unit_type);
                 } else {
                     info!("Cannot afford unit: {:?}", unit_button.unit_type);
@@ -291,34 +297,34 @@ fn spawn_unit_from_building(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     unit_type: UnitType,
+    model_assets: Option<&crate::model_loader::ModelAssets>,
 ) {
     use crate::constants::combat::*;
     let x = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
     let z = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
-    let spawn_position = Vec3::new(x, 1.0, z);
+    
+    // Use appropriate height offset based on unit type
+    let height_offset = match unit_type {
+        UnitType::SpecialOps => 5.0,  // Ops model needs higher spawn height
+        UnitType::HunterWasp => 3.0,  // Flying units spawn higher
+        _ => 2.0,  // Standard ground units
+    };
+    let spawn_position = Vec3::new(x, height_offset, z);
 
-    match unit_type {
-        UnitType::WorkerAnt => {
-            crate::rts_entities::RTSEntityFactory::spawn_villager(
-                commands, meshes, materials, spawn_position, 1, rand::random()
-            );
-        }
-        UnitType::SoldierAnt => {
-            crate::combat_systems::create_combat_unit(
-                commands, meshes, materials, spawn_position, 1, UnitType::SoldierAnt
-            );
-        }
-        UnitType::HunterWasp => {
-            crate::combat_systems::create_combat_unit(
-                commands, meshes, materials, spawn_position, 1, UnitType::HunterWasp
-            );
-        }
-        other => {
-            crate::combat_systems::create_combat_unit(
-                commands, meshes, materials, spawn_position, 1, other
-            );
-        }
-    }
+    // Use the consolidated factory for all unit spawning with model assets
+    let config = SpawnConfig::unit(
+        EntityType::from_unit(unit_type.clone()), 
+        spawn_position, 
+        1 // Player ID
+    );
+    
+    EntityFactory::spawn(
+        commands, 
+        meshes, 
+        materials, 
+        config, 
+        model_assets // Pass through model assets so GLB models get proper scaling
+    );
 }
 
 pub fn update_production_queue_display() {

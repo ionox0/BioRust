@@ -37,12 +37,8 @@ pub fn target_acquisition_system(
         let default_vision = Vision::default();
         let vision = vision_query.get(entity).unwrap_or(&default_vision);
         
-        // Enemies get enhanced vision range for more aggressive behavior
-        let effective_vision_range = if unit.player_id != 1 {
-            vision.sight_range * 2.0 // Double vision range for enemies
-        } else {
-            vision.sight_range
-        };
+        // Use standard vision range for balanced gameplay
+        let effective_vision_range = vision.sight_range;
 
         let mut closest_enemy: Option<(Entity, f32)> = None;
 
@@ -170,10 +166,10 @@ pub fn combat_movement_system(
                     
                     movement.target_position = Some(target_position);
                     
-                    // Increase movement speed for aggressive enemies
-                    if unit.player_id != 1 { // Enemy units are more aggressive
-                        movement.max_speed = 120.0; // Faster than default
-                        movement.acceleration = 300.0; // Quicker acceleration
+                    // Moderate movement adjustment for enemies to approach targets
+                    if unit.player_id != 1 { // Enemy units move slightly faster to targets
+                        movement.max_speed = 50.0; // Slightly faster than default
+                        movement.acceleration = 100.0; // Moderate acceleration
                     }
                 } else {
                     // Stop moving when in range
@@ -403,6 +399,76 @@ pub fn create_combat_unit(
                 ..default()
             }),
         ),
+        UnitType::SpearMantis => (
+            RTSHealth {
+                current: 110.0,
+                max: 110.0,
+                armor: 1.0,
+                regeneration_rate: 0.4,
+                last_damage_time: 0.0,
+            },
+            Combat {
+                attack_damage: 22.0,
+                attack_range: 8.0,
+                attack_speed: 1.8,
+                last_attack_time: 0.0,
+                target: None,
+                attack_type: AttackType::Melee,
+                attack_cooldown: 1.0 / 1.8,
+                is_attacking: false,
+                auto_attack: true,
+            },
+            Movement {
+                max_speed: 25.0,
+                acceleration: 55.0,
+                turning_speed: 2.8,
+                ..default()
+            },
+            Vision {
+                sight_range: 120.0,
+                ..default()
+            },
+            meshes.add(Cuboid::new(1.2, 2.2, 1.2)),
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.6, 0.8, 0.3),
+                ..default()
+            }),
+        ),
+        UnitType::ScoutAnt => (
+            RTSHealth {
+                current: 65.0,
+                max: 65.0,
+                armor: 0.0,
+                regeneration_rate: 0.2,
+                last_damage_time: 0.0,
+            },
+            Combat {
+                attack_damage: 12.0,
+                attack_range: 6.0,
+                attack_speed: 2.2,
+                last_attack_time: 0.0,
+                target: None,
+                attack_type: AttackType::Melee,
+                attack_cooldown: 1.0 / 2.2,
+                is_attacking: false,
+                auto_attack: true,
+            },
+            Movement {
+                max_speed: 40.0,
+                acceleration: 70.0,
+                turning_speed: 3.2,
+                ..default()
+            },
+            Vision {
+                sight_range: 180.0,
+                ..default()
+            },
+            meshes.add(Cuboid::new(0.9, 1.8, 0.9)),
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.3, 0.7, 0.9),
+                ..default()
+            }),
+        ),
         _ => (
             RTSHealth::default(),
             Combat {
@@ -426,12 +492,12 @@ pub fn create_combat_unit(
         ),
     };
 
-    // Make enemy units more aggressive
+    // Make enemy units slightly more active but balanced
     if player_id != 1 {
         combat.auto_attack = true;
-        movement.max_speed = 120.0; // Faster movement
-        movement.acceleration = 300.0; // Quicker acceleration
-        vision.sight_range = 200.0; // Extended vision
+        movement.max_speed = 35.0; // Slightly faster movement
+        movement.acceleration = 50.0; // Moderate acceleration
+        vision.sight_range = 80.0; // Reasonable vision range
     }
 
     commands.spawn((

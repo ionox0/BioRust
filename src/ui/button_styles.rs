@@ -91,14 +91,14 @@ pub fn create_unit_button_with_icon(
     parent.spawn((
         Button,
         Node {
-            width: Val::Percent(100.0),
+            width: Val::Percent(48.0), // Make buttons thinner for two-column layout
             height: Val::Px(UNIT_BUTTON_HEIGHT),
             border: UiRect::all(Val::Px(UNIT_BUTTON_BORDER)),
             justify_content: JustifyContent::FlexStart,
             align_items: AlignItems::Center,
             flex_direction: FlexDirection::Row,
             padding: UiRect::all(Val::Px(UNIT_BUTTON_PADDING)),
-            column_gap: Val::Px(8.0),
+            column_gap: Val::Px(4.0), // Reduce gap between icon and text
             ..default()
         },
         BackgroundColor(UNIT_BUTTON_COLOR),
@@ -109,8 +109,8 @@ pub fn create_unit_button_with_icon(
         parent.spawn((
             ImageNode::new(icon_handle),
             Node {
-                width: Val::Px(24.0),
-                height: Val::Px(24.0),
+                width: Val::Px(20.0), // Smaller icon for compact layout
+                height: Val::Px(20.0),
                 ..default()
             },
         ));
@@ -118,7 +118,7 @@ pub fn create_unit_button_with_icon(
         parent.spawn((
             Text::new(name),
             TextFont {
-                font_size: UNIT_BUTTON_TEXT_SIZE,
+                font_size: UNIT_BUTTON_TEXT_SIZE - 2.0, // Smaller text to fit better
                 ..default()
             },
             TextColor(Color::WHITE),

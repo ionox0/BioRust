@@ -203,13 +203,13 @@ fn execute_build_building(
                 
                 match building_type {
                     BuildingType::Nursery => {
-                        crate::rts_entities::RTSEntityFactory::spawn_house(
+                        crate::rts_entities::RTSEntityFactory::spawn_nursery(
                             commands, meshes, materials, position, player_id
                         );
                         resources.add_housing(5); // Nurseries provide 5 population
                     },
                     BuildingType::WarriorChamber => {
-                        crate::rts_entities::RTSEntityFactory::spawn_barracks(
+                        crate::rts_entities::RTSEntityFactory::spawn_warrior_chamber(
                             commands, meshes, materials, position, player_id
                         );
                     },
