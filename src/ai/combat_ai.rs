@@ -71,7 +71,7 @@ pub fn ai_combat_system(
 
         // Update combat state
         if let Some(ref mut cs) = combat_state_opt {
-            *cs = state;
+            **cs = state;
         }
     }
 }
