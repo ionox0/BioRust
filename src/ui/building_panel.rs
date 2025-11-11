@@ -277,7 +277,7 @@ fn handle_unit_button_interactions(
         match *interaction {
             Interaction::Pressed => {
                 if can_afford_unit(&unit_button.cost, player_resources) {
-                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone(), unit_button.building_type, buildings, model_assets.as_deref());
+                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone(), unit_button.building_type.clone(), buildings, model_assets.as_deref());
                     info!("Producing unit: {:?}", unit_button.unit_type);
                 } else {
                     info!("Cannot afford unit: {:?}", unit_button.unit_type);
