@@ -176,12 +176,7 @@ pub fn combat_movement_system(
                     if unit.player_id != 1 || movement.target_position.is_none() {
                         movement.target_position = Some(target_position);
                     }
-
-                    // Moderate movement adjustment for enemies to approach targets
-                    if unit.player_id != 1 { // Enemy units move slightly faster to targets
-                        movement.max_speed = 50.0; // Slightly faster than default
-                        movement.acceleration = 100.0; // Moderate acceleration
-                    }
+                    // DO NOT override max_speed or acceleration - use unit's configured stats
                 } else {
                     // Stop moving when in range (only for AI units, player units retain manual control)
                     if unit.player_id != 1 {
@@ -508,8 +503,7 @@ pub fn create_combat_unit(
     // Make enemy units slightly more active but balanced
     if player_id != 1 {
         combat.auto_attack = true;
-        movement.max_speed = 35.0; // Slightly faster movement
-        movement.acceleration = 50.0; // Moderate acceleration
+        // DO NOT override movement stats - use unit's configured stats
         vision.sight_range = 80.0; // Reasonable vision range
     }
 
