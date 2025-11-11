@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use crate::core::components::*;
+use std::sync::{LazyLock, Mutex};
+use std::collections::{HashMap, HashSet};
 
 // Configurable gathering parameters
 const GATHERING_DISTANCE: f32 = 5.0;  // Distance within which gathering occurs
@@ -33,8 +35,6 @@ fn ensure_dropoff_building_assigned(
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
-    let mut current_distance = f32::MAX;
-
     // If gatherer already has a drop-off building, verify it still exists and is valid
     if let Some(current_dropoff) = gatherer.drop_off_building {
         if let Ok((_, building_transform, building, building_unit)) = buildings.get(current_dropoff) {
@@ -48,8 +48,6 @@ fn ensure_dropoff_building_assigned(
             if is_valid {
                 // Building is valid - keep it assigned!
                 // Workers can be thousands of units away while gathering - that's totally fine
-                // We only want to reassign if a significantly closer building becomes available
-                current_distance = worker_transform.translation.distance(building_transform.translation);
                 return; // Current drop-off is valid, keep it
             }
         }
@@ -91,12 +89,10 @@ fn ensure_dropoff_building_assigned(
             BuildingType::Nursery => {
                 let distance = worker_transform.translation.distance(building_transform.translation);
 
-                // Only consider this building if it's significantly closer than current assignment
-                if current_distance == f32::MAX || distance < current_distance - DROPOFF_REASSIGNMENT_THRESHOLD {
-                    if distance < closest_distance {
-                        closest_distance = distance;
-                        closest_building = Some(building_entity);
-                    }
+                // Find the closest building
+                if distance < closest_distance {
+                    closest_distance = distance;
+                    closest_building = Some(building_entity);
                 }
             }
             _ => continue,
@@ -114,20 +110,19 @@ fn ensure_dropoff_building_assigned(
     } else if gatherer.drop_off_building.is_none() {
         // Worker needs dropoff but none found - log this as it's a problem
         // Only log once per second to avoid spam
-        static mut LAST_WARNING_TIME: f32 = 0.0;
+        static LAST_WARNING_TIME: LazyLock<Mutex<f32>> = LazyLock::new(|| Mutex::new(0.0));
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs_f32();
 
-        unsafe {
-            if current_time - LAST_WARNING_TIME > 1.0 {
-                warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
-                      unit.unit_id, unit.player_id);
-                warn!("   Buildings check: {} total, {} for player {}, {} complete",
-                      total_buildings, player_buildings, unit.player_id, complete_buildings);
-                LAST_WARNING_TIME = current_time;
-            }
+        let mut last_time = LAST_WARNING_TIME.lock().unwrap();
+        if current_time - *last_time > 1.0 {
+            warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
+                  unit.unit_id, unit.player_id);
+            warn!("   Buildings check: {} total, {} for player {}, {} complete",
+                  total_buildings, player_buildings, unit.player_id, complete_buildings);
+            *last_time = current_time;
         }
     }
 }
@@ -156,19 +151,18 @@ fn process_resource_gathering(
     // If at full capacity, stop gathering but keep target_resource so we can return after delivery
     if gatherer.carried_amount >= gatherer.capacity {
         // Log when worker reaches full capacity and stops gathering
-        static mut LAST_FULL_LOG: std::collections::HashMap<u32, f32> = std::collections::HashMap::new();
+        static LAST_FULL_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs_f32();
 
-        unsafe {
-            let last_time = LAST_FULL_LOG.get(&unit.unit_id).copied().unwrap_or(0.0);
-            if current_time - last_time > 2.0 {
-                info!("📦 Worker {} (player {}) FULL: {:.1}/{:.1} - waiting to return",
-                      unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
-                LAST_FULL_LOG.insert(unit.unit_id, current_time);
-            }
+        let mut log = LAST_FULL_LOG.lock().unwrap();
+        let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+        if current_time - last_time > 2.0 {
+            info!("📦 Worker {} (player {}) FULL: {:.1}/{:.1} - waiting to return",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
+            log.insert(unit.unit_id, current_time);
         }
         return;
     }
@@ -177,20 +171,19 @@ fn process_resource_gathering(
 
     // Log gathering progress periodically
     if gather_amount > 0.0 {
-        static mut LAST_GATHER_LOG: std::collections::HashMap<u32, f32> = std::collections::HashMap::new();
+        static LAST_GATHER_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs_f32();
 
-        unsafe {
-            let last_time = LAST_GATHER_LOG.get(&unit.unit_id).copied().unwrap_or(0.0);
-            if current_time - last_time > 1.0 {
-                info!("⛏️  Worker {} (player {}) gathering {:?}: {:.1}/{:.1} (resource has {:.1} left)",
-                      unit.unit_id, unit.player_id, gatherer.resource_type,
-                      gatherer.carried_amount, gatherer.capacity, resource.amount);
-                LAST_GATHER_LOG.insert(unit.unit_id, current_time);
-            }
+        let mut log = LAST_GATHER_LOG.lock().unwrap();
+        let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+        if current_time - last_time > 1.0 {
+            info!("⛏️  Worker {} (player {}) gathering {:?}: {:.1}/{:.1} (resource has {:.1} left)",
+                  unit.unit_id, unit.player_id, gatherer.resource_type,
+                  gatherer.carried_amount, gatherer.capacity, resource.amount);
+            log.insert(unit.unit_id, current_time);
         }
     }
 
@@ -241,20 +234,19 @@ fn process_resource_delivery(
     }
 
     // Log when worker decides to return
-    static mut DELIVERY_DECISION_LOGGED: std::collections::HashSet<u32> = std::collections::HashSet::new();
-    unsafe {
-        if !DELIVERY_DECISION_LOGGED.contains(&unit.unit_id) {
-            let reason = if gatherer.carried_amount >= gatherer.capacity {
-                "FULL CAPACITY"
-            } else if gatherer.target_resource.is_none() {
-                "RESOURCE DEPLETED"
-            } else {
-                "UNKNOWN"
-            };
-            info!("🔵 Worker {} (player {}) READY TO RETURN: {:.1}/{:.1} resources (reason: {})",
-                  unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity, reason);
-            DELIVERY_DECISION_LOGGED.insert(unit.unit_id);
-        }
+    static DELIVERY_DECISION_LOGGED: LazyLock<Mutex<HashSet<u32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+    let mut logged = DELIVERY_DECISION_LOGGED.lock().unwrap();
+    if !logged.contains(&unit.unit_id) {
+        let reason = if gatherer.carried_amount >= gatherer.capacity {
+            "FULL CAPACITY"
+        } else if gatherer.target_resource.is_none() {
+            "RESOURCE DEPLETED"
+        } else {
+            "UNKNOWN"
+        };
+        info!("🔵 Worker {} (player {}) READY TO RETURN: {:.1}/{:.1} resources (reason: {})",
+              unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity, reason);
+        logged.insert(unit.unit_id);
     }
 
     let Some(dropoff_entity) = gatherer.drop_off_building else {
