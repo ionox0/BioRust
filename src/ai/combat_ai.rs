@@ -2,6 +2,16 @@ use bevy::prelude::*;
 use crate::core::components::*;
 use crate::ai::tactics::{TacticalManager, TacticalStance};
 
+/// Context for AI combat decision-making
+pub struct CombatContext<'a> {
+    pub unit: &'a RTSUnit,
+    pub unit_transform: &'a Transform,
+    pub health: &'a RTSHealth,
+    pub all_units: &'a Query<'a, 'a, (Entity, &'a Transform, &'a RTSUnit, &'a RTSHealth), With<RTSUnit>>,
+    pub stance: TacticalStance,
+    pub current_time: f32,
+}
+
 /// Component to track combat state for individual units
 #[derive(Component, Debug, Clone)]
 pub struct CombatState {
@@ -55,18 +65,23 @@ pub fn ai_combat_system(
             TacticalStance::Defensive
         };
 
+        // Create combat context
+        let context = CombatContext {
+            unit,
+            unit_transform,
+            health,
+            all_units: &all_units,
+            stance,
+            current_time,
+        };
+
         // Advanced combat AI with tactics
         handle_advanced_combat_ai(
             entity,
             &mut movement,
             &mut combat,
-            unit_transform,
-            unit,
-            health,
             &mut state,
-            &all_units,
-            stance,
-            current_time,
+            &context,
         );
 
         // Update combat state
@@ -80,29 +95,12 @@ fn handle_advanced_combat_ai(
     _self_entity: Entity,
     movement: &mut Movement,
     combat: &mut Combat,
-    unit_transform: &Transform,
-    unit: &RTSUnit,
-    health: &RTSHealth,
     state: &mut CombatState,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
-    stance: TacticalStance,
-    current_time: f32,
+    context: &CombatContext,
 ) {
     // 1. Check if we should retreat (low health or outnumbered)
-    if should_retreat(health, unit_transform, unit, all_units, &stance) {
-        if !state.is_retreating {
-            state.is_retreating = true;
-            // Retreat towards home base
-            let home_pos = estimate_home_position(unit.player_id);
-            state.retreat_position = Some(home_pos);
-        }
-
-        if let Some(retreat_pos) = state.retreat_position {
-            // Only update if significantly different to avoid jitter
-            if should_update_target_position(&movement.target_position, retreat_pos, 2.0) {
-                movement.target_position = Some(retreat_pos);
-            }
-        }
+    if should_retreat(context) {
+        handle_retreat(movement, state, context.unit.player_id);
         return;
     } else {
         state.is_retreating = false;
@@ -110,20 +108,20 @@ fn handle_advanced_combat_ai(
     }
 
     // 2. Find best target (with target prioritization)
-    let target_info = find_best_target(unit_transform, unit, all_units, state.current_target);
+    let target_info = find_best_target(context.unit_transform, context.unit, context.all_units, state.current_target);
 
     if let Some((target_entity, target_pos, target_distance, _target_priority)) = target_info {
         state.current_target = Some(target_entity);
 
         // 3. Handle different unit types with different tactics
-        match unit.unit_type.as_ref() {
+        match context.unit.unit_type.as_ref() {
             Some(UnitType::HunterWasp) => {
                 // Ranged units: Kiting behavior - stay at max range
-                handle_ranged_combat(movement, combat, unit_transform, target_pos, target_distance);
+                handle_ranged_combat(movement, combat, context.unit_transform, target_pos, target_distance);
             }
             Some(UnitType::SoldierAnt | UnitType::BeetleKnight) => {
                 // Melee units: Aggressive approach
-                handle_melee_combat(movement, combat, unit_transform, target_pos, target_distance);
+                handle_melee_combat(movement, combat, context.unit_transform, target_pos, target_distance);
             }
             _ => {
                 // Default combat behavior with threshold to prevent jitter
@@ -138,15 +136,15 @@ fn handle_advanced_combat_ai(
             }
         }
 
-        state.last_attack_time = current_time;
+        state.last_attack_time = context.current_time;
     } else {
         // No target found - follow group or return to rally
         state.current_target = None;
 
         // If no enemy nearby and defensive stance, stay near home
-        if stance == TacticalStance::Defensive {
-            let home_pos = estimate_home_position(unit.player_id);
-            if unit_transform.translation.distance(home_pos) > 40.0 {
+        if context.stance == TacticalStance::Defensive {
+            let home_pos = estimate_home_position(context.unit.player_id);
+            if context.unit_transform.translation.distance(home_pos) > 40.0 {
                 // Only update if significantly different to avoid jitter
                 if should_update_target_position(&movement.target_position, home_pos, 2.0) {
                     movement.target_position = Some(home_pos);
@@ -156,39 +154,36 @@ fn handle_advanced_combat_ai(
     }
 }
 
+/// Handle retreat behavior for a unit
+fn handle_retreat(movement: &mut Movement, state: &mut CombatState, player_id: u8) {
+    if !state.is_retreating {
+        state.is_retreating = true;
+        let home_pos = estimate_home_position(player_id);
+        state.retreat_position = Some(home_pos);
+    }
+
+    if let Some(retreat_pos) = state.retreat_position {
+        // Only update if significantly different to avoid jitter
+        if should_update_target_position(&movement.target_position, retreat_pos, 2.0) {
+            movement.target_position = Some(retreat_pos);
+        }
+    }
+}
+
 /// Determines if unit should retreat based on health and enemy presence
-fn should_retreat(
-    health: &RTSHealth,
-    unit_transform: &Transform,
-    unit: &RTSUnit,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
-    stance: &TacticalStance,
-) -> bool {
+fn should_retreat(context: &CombatContext) -> bool {
     // Retreat if health is below 30%
-    if health.current < health.max * 0.3 {
+    if context.health.current < context.health.max * 0.3 {
         return true;
     }
 
     // If stance is retreat, always retreat
-    if *stance == TacticalStance::Retreat {
+    if context.stance == TacticalStance::Retreat {
         return true;
     }
 
     // Count nearby allies and enemies
-    let mut nearby_allies = 0;
-    let mut nearby_enemies = 0;
-    let detection_range = 40.0;
-
-    for (_entity, enemy_transform, enemy_unit, _enemy_health) in all_units.iter() {
-        let distance = unit_transform.translation.distance(enemy_transform.translation);
-        if distance < detection_range {
-            if enemy_unit.player_id == unit.player_id {
-                nearby_allies += 1;
-            } else {
-                nearby_enemies += 1;
-            }
-        }
-    }
+    let (nearby_allies, nearby_enemies) = count_nearby_forces(context);
 
     // Retreat if significantly outnumbered (3:1 or worse)
     if nearby_enemies >= 3 && nearby_allies < nearby_enemies / 3 {
@@ -196,6 +191,26 @@ fn should_retreat(
     }
 
     false
+}
+
+/// Count nearby allied and enemy forces
+fn count_nearby_forces(context: &CombatContext) -> (u32, u32) {
+    let mut nearby_allies = 0;
+    let mut nearby_enemies = 0;
+    let detection_range = 40.0;
+
+    for (_entity, enemy_transform, enemy_unit, _enemy_health) in context.all_units.iter() {
+        let distance = context.unit_transform.translation.distance(enemy_transform.translation);
+        if distance < detection_range {
+            if enemy_unit.player_id == context.unit.player_id {
+                nearby_allies += 1;
+            } else {
+                nearby_enemies += 1;
+            }
+        }
+    }
+
+    (nearby_allies, nearby_enemies)
 }
 
 /// Find the best target with prioritization
