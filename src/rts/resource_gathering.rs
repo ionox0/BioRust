@@ -90,8 +90,12 @@ fn ensure_dropoff_building_assigned(
     // Assign the closest building if we found a significantly better option
     if let Some(building) = closest_building {
         gatherer.drop_off_building = Some(building);
-        info!("Assigned drop-off building to worker {} (player {}) at distance {:.1}",
+        info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
               unit.unit_id, unit.player_id, closest_distance);
+    } else if gatherer.drop_off_building.is_none() {
+        // Worker needs dropoff but none found - log this as it's a problem
+        warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
+              unit.unit_id, unit.player_id);
     }
 }
 
@@ -192,7 +196,8 @@ fn process_resource_delivery(
         if movement.target_position.is_none() ||
            movement.target_position.unwrap().distance(building_transform.translation) > 5.0 {
             movement.target_position = Some(building_transform.translation);
-            info!("🚚 Worker {:?} returning to base with resources", unit.unit_id);
+            info!("🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount, distance);
         }
         return;
     }
