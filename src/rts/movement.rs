@@ -107,7 +107,7 @@ fn reset_unit_to_origin(transform: &mut Transform, movement: &mut Movement) {
 }
 
 fn calculate_new_position(current_pos: Vec3, target: Vec3, movement: &mut Movement, context: &MovementContext) -> Vec3 {
-    use crate::constants::movement::*;
+    
     
     let direction = (target - current_pos).normalize_or_zero();
     let target_velocity = direction * movement.max_speed;
@@ -138,7 +138,7 @@ fn apply_collision_avoidance(
     collision_radius: &CollisionRadius,
     context: &MovementContext,
 ) {
-    use crate::constants::movement::*;
+    
     
     if !is_valid_position(new_position) {
         warn!("New position would be invalid, stopping movement");

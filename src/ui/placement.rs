@@ -249,7 +249,7 @@ fn attempt_building_placement(
     main_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     building_type: BuildingType,
     placement_pos: Vec3,
-    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    _model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
     is_valid: bool,
 ) {
     // Check if placement is valid (no collision)
@@ -264,7 +264,7 @@ fn attempt_building_placement(
         
         // Create a building site for player 1 (requires worker to complete)
         let placeholder_visual = create_placeholder_building_visual(meshes, materials, &building_type, placement_pos);
-        let building_site = commands.spawn((
+        let _building_site = commands.spawn((
             BuildingSite {
                 building_type: building_type.clone(),
                 position: placement_pos,
@@ -362,7 +362,7 @@ fn create_placeholder_building_visual(
     position: Vec3,
 ) -> (Transform, Mesh3d, MeshMaterial3d<StandardMaterial>) {
     use crate::constants::buildings::*;
-    use crate::constants::building_placement::*;
+    
 
     // Get building size for placeholder
     let (mesh, size) = match building_type {

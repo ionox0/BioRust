@@ -6,8 +6,4 @@ pub mod game;
 pub mod unit_stats;
 
 // Re-export commonly used items for convenience
-pub use components::*;
-pub use resources::*;
-pub use constants::*;
-pub use game::*;
-pub use unit_stats::*;
+// Only re-export what's actually used externally

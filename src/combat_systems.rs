@@ -352,7 +352,7 @@ pub fn create_combat_unit(
     player_id: u8,
     unit_type: UnitType,
 ) -> Entity {
-    let (health, mut combat, mut movement, mut vision, mesh_handle, material_handle) = match unit_type {
+    let (health, mut combat, movement, mut vision, mesh_handle, material_handle) = match unit_type {
         UnitType::SoldierAnt => (
             RTSHealth {
                 current: crate::constants::combat::SOLDIER_ANT_HEALTH,

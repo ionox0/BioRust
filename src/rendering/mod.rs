@@ -4,6 +4,4 @@ pub mod animation_systems;
 pub mod seamless_texture;
 
 // Re-export commonly used items
-pub use model_loader::*;
-pub use animation_systems::*;
-pub use seamless_texture::*;
+// Only re-export what's actually used externally

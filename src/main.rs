@@ -15,7 +15,6 @@ mod collision;
 use core::game::*;
 use core::constants;
 use world::terrain_v2::TerrainPluginV2;
-use rts::RTSSystemsPlugin;
 use combat_systems::CombatPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;

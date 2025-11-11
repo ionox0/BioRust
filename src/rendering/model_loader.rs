@@ -1173,7 +1173,7 @@ pub fn apply_team_colors_to_glb_models(
         
         if !material_updates.is_empty() {
             // Apply all material updates
-            for (entity_to_update, old_handle, new_material) in material_updates {
+            for (entity_to_update, _old_handle, new_material) in material_updates {
                 let new_handle = materials.add(new_material);
                 commands.entity(entity_to_update).insert(MeshMaterial3d(new_handle));
                 debug!("Updated entity {:?} with new unique team-colored material", entity_to_update);

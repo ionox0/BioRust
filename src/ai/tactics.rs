@@ -89,7 +89,7 @@ pub fn tactical_decision_system(
             .count();
 
         // Store previous stance
-        let prev_stance = tactics.current_stance.clone();
+        let _prev_stance = tactics.current_stance.clone();
 
         // Decide tactical stance based on intelligence and army size
         tactics.current_stance = decide_tactical_stance(
@@ -239,7 +239,7 @@ fn update_army_groups(
 
 /// System to coordinate army groups
 pub fn army_coordination_system(
-    mut commands: Commands,
+    _commands: Commands,
     tactical_manager: Res<TacticalManager>,
     intelligence: Res<IntelligenceSystem>,
     mut units: Query<(Entity, &mut Movement, &RTSUnit, &Transform), With<Combat>>,

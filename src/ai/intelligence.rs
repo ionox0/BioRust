@@ -99,7 +99,7 @@ pub fn intelligence_update_system(
 ) {
     let current_time = time.elapsed_secs();
 
-    for (ai_player_id, intel) in intelligence.player_intel.iter_mut() {
+    for (_ai_player_id, intel) in intelligence.player_intel.iter_mut() {
         let enemy_player_id = intel.player_id;
 
         // Update unit composition

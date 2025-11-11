@@ -687,7 +687,7 @@ pub fn setup_glb_animations(
 
 // Mark component to track that we've searched for an animation player
 #[derive(Component)]
-struct AnimationPlayerSearched;
+pub(crate) struct AnimationPlayerSearched;
 
 // Helper function to recursively search for AnimationPlayer entity
 fn search_for_animation_player_entity(
@@ -752,7 +752,7 @@ pub fn animation_debug_system(
             info!("=== DEEP HIERARCHY ANALYSIS ===");
             
             // Find all units with SceneRoot and examine their children
-            for (controller_entity, controller, unit_opt) in animation_controllers.iter().take(3) {
+            for (controller_entity, _controller, unit_opt) in animation_controllers.iter().take(3) {
                 let unit_type = unit_opt.and_then(|u| u.unit_type.as_ref());
                 info!("Analyzing entity {:?} (unit: {:?})", controller_entity, unit_type);
                 

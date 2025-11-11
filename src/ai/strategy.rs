@@ -5,12 +5,12 @@ use crate::core::resources::*;
 
 // System to spawn initial resources for AI strategy testing
 pub fn ai_resource_initialization_system(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    _commands: Commands,
+    _meshes: ResMut<Assets<Mesh>>,
+    _materials: ResMut<Assets<StandardMaterial>>,
     resource_query: Query<&ResourceSource>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    _terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    _terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     mut initialized: Local<bool>,
 ) {
     // Only run once at startup
@@ -265,7 +265,7 @@ fn execute_next_goal(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    units: &Query<&RTSUnit>,
+    _units: &Query<&RTSUnit>,
     buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
     ai_resources: &mut ResMut<AIResources>,
     terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
@@ -445,7 +445,7 @@ fn try_build_building(
     };
     
     // Create a building site instead of directly spawning the building
-    let building_site = commands.spawn(BuildingSite {
+    let _building_site = commands.spawn(BuildingSite {
         building_type: building_type.clone(),
         position: building_position,
         player_id,
@@ -462,7 +462,7 @@ fn try_build_building(
 
 fn add_dynamic_goals(
     strategy: &mut PlayerStrategy,
-    resources: &PlayerResources,
+    _resources: &PlayerResources,
     units: &Query<&RTSUnit>,
     buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
     player_id: u8,
@@ -543,7 +543,7 @@ fn assign_workers_to_resources(
         }
         
         // Find idle workers for this player and assign them to nearest resource
-        for (worker_entity, mut gatherer, mut movement, worker_transform, unit) in workers.iter_mut() {
+        for (_worker_entity, mut gatherer, mut movement, worker_transform, unit) in workers.iter_mut() {
             if unit.player_id == player_id && gatherer.target_resource.is_none() {
                 // Find the closest resource source
                 let mut closest_resource: Option<Entity> = None;
@@ -581,7 +581,7 @@ pub fn ai_worker_initialization_system(
     mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), (With<ResourceGatherer>, With<RTSUnit>, Added<ResourceGatherer>)>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
 ) {
-    for (worker_entity, mut gatherer, mut movement, worker_transform, unit) in workers.iter_mut() {
+    for (_worker_entity, mut gatherer, mut movement, worker_transform, unit) in workers.iter_mut() {
         // Only process AI workers (not player 1)
         if unit.player_id == 1 {
             continue;

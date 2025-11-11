@@ -27,7 +27,7 @@ pub fn scouting_system(
         // Send scout early in the game if we don't have one
         if intel.scout_unit.is_none() && current_time > 10.0 && current_time < 120.0 {
             // Find a worker to send as scout
-            if let Some((worker_entity, worker_unit)) = workers.iter().find(|(_, unit)| unit.player_id == *ai_player_id) {
+            if let Some((worker_entity, _worker_unit)) = workers.iter().find(|(_, unit)| unit.player_id == *ai_player_id) {
                 // Estimate enemy base location (opposite side of map)
                 let scout_target = estimate_enemy_base_location(*ai_player_id);
 

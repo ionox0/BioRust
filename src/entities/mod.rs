@@ -3,5 +3,4 @@ pub mod entity_factory;
 pub mod entity_state_systems;
 
 // Re-export commonly used items
-pub use entity_factory::*;
-pub use entity_state_systems::*;
+// Only re-export what's actually used externally

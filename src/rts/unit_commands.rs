@@ -325,14 +325,14 @@ fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_uni
 }
 
 fn execute_unit_command(
-    unit_entity: Entity,
+    _unit_entity: Entity,
     unit_pos: Vec3,
     movement: &mut Movement,
     combat: &mut Combat,
     gatherer: Option<Mut<ResourceGatherer>>,
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform), With<Building>>,
-    commands: &mut Commands,
+    _commands: &mut Commands,
     target_enemy: Option<Entity>,
     target_resource: Option<(Entity, Vec3)>,
     target_point: Vec3,
@@ -446,7 +446,7 @@ fn handle_building_site_command(
 
 /// Find the nearest building for a given player
 fn find_nearest_building(
-    player_id: u8,
+    _player_id: u8,
     unit_pos: Vec3,
     buildings: &Query<(Entity, &Transform), With<Building>>,
 ) -> Option<Entity> {

@@ -153,7 +153,7 @@ pub fn building_completion_system(
             building.construction_progress += time.delta_secs();
             
             let completion_ratio = (building.construction_progress / building.max_construction).min(1.0);
-            health.current = (health.max * completion_ratio);
+            health.current = health.max * completion_ratio;
             
             if building.construction_progress >= building.max_construction {
                 building.is_complete = true;

@@ -174,7 +174,7 @@ pub fn update_resource_display(
 
 // Setup AI resources display (bottom left corner)
 pub fn setup_ai_resource_display(mut commands: Commands, ui_icons: Res<UIIcons>) {
-    use crate::constants::ui::*;
+    // Removed unused import: use crate::constants::ui::*;
 
     commands.spawn((
         Node {

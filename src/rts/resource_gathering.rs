@@ -37,7 +37,7 @@ fn ensure_dropoff_building_assigned(
 ) {
     // If gatherer already has a drop-off building, verify it still exists and is valid
     if let Some(current_dropoff) = gatherer.drop_off_building {
-        if let Ok((_, building_transform, building, building_unit)) = buildings.get(current_dropoff) {
+        if let Ok((_, _building_transform, building, building_unit)) = buildings.get(current_dropoff) {
             // Check if building is still valid (same player, complete, can accept resources)
             let is_correct_type = matches!(building.building_type,
                 BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
