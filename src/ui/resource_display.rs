@@ -123,6 +123,7 @@ fn create_population_counter(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             ..default()
         },
         BorderColor(Color::srgba(0.0, 0.0, 0.0, 0.0)), // Initially transparent border
+        Interaction::default(), // Add interaction component for consistency
         PopulationCounter,
     )).with_children(|parent| {
         // Population icon
