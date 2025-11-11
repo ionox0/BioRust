@@ -134,83 +134,23 @@ fn spawn_produced_unit(
     // Spawn units next to the building, offset slightly to the side
     let default_offset = Vec3::new(8.0, 0.0, 8.0); // Spawn 8 units away from building
     let spawn_position = building.rally_point.unwrap_or(building_transform.translation + default_offset);
-    let unit_id = rand::random();
-    
-    use crate::entities::rts_entities::RTSEntityFactory;
-    
-    match unit_type {
-        UnitType::WorkerAnt => {
-            RTSEntityFactory::spawn_worker_ant(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::SoldierAnt => {
-            RTSEntityFactory::spawn_soldier_ant(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::HunterWasp => {
-            RTSEntityFactory::spawn_hunter_wasp(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::BeetleKnight => {
-            RTSEntityFactory::spawn_beetle_knight(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::SpearMantis => {
-            RTSEntityFactory::spawn_spear_mantis(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::ScoutAnt => {
-            RTSEntityFactory::spawn_scout_ant(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::DragonFly => {
-            RTSEntityFactory::spawn_dragonfly(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        _ => {},
-    }
+
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+
+    // Use generic entity factory for all unit types
+    let config = SpawnConfig::unit(
+        EntityType::from_unit(unit_type.clone()),
+        spawn_position,
+        player_id
+    );
+
+    EntityFactory::spawn(
+        commands,
+        meshes,
+        materials,
+        config,
+        None // No model assets in production system - models will be upgraded later by the model loader
+    );
 }
 
 fn handle_production_failure(player_id: u8) {

@@ -197,15 +197,30 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
         (UnitType::SoldierAnt, ui_icons.soldier_icon.clone(), "Soldier", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::Queen),
         (UnitType::SpearMantis, ui_icons.worker_icon.clone(), "Mantis", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
         (UnitType::ScoutAnt, ui_icons.soldier_icon.clone(), "Scout", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::Queen),
+        (UnitType::TermiteWorker, ui_icons.worker_icon.clone(), "Termite", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
 
         // Bee/Flying units from Nursery (Bee Hive)
         (UnitType::HunterWasp, ui_icons.hunter_icon.clone(), "Hunter", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::Nursery),
         (UnitType::DragonFly, ui_icons.hunter_icon.clone(), "DragonFly", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::Nursery),
         (UnitType::AcidSpitter, ui_icons.hunter_icon.clone(), "Acid", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::Nursery),
+        (UnitType::HoneyBee, ui_icons.hunter_icon.clone(), "Bee", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Nursery),
+        (UnitType::Housefly, ui_icons.hunter_icon.clone(), "Fly", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Nursery),
 
         // Beetle/Heavy units from WarriorChamber (Pine Cone)
         (UnitType::BeetleKnight, ui_icons.worker_icon.clone(), "Beetle", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
         (UnitType::BatteringBeetle, ui_icons.soldier_icon.clone(), "Battering", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
+        (UnitType::LegBeetle, ui_icons.soldier_icon.clone(), "Leg Beetle", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
+        (UnitType::Scorpion, ui_icons.soldier_icon.clone(), "Scorpion", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
+        (UnitType::TermiteWarrior, ui_icons.soldier_icon.clone(), "T.Warrior", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
+        (UnitType::Stinkbug, ui_icons.hunter_icon.clone(), "Stinkbug", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::WarriorChamber),
+
+        // Spider/Predator units from HunterChamber
+        (UnitType::EliteSpider, ui_icons.hunter_icon.clone(), "E.Spider", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::HunterChamber),
+        (UnitType::DefenderBug, ui_icons.soldier_icon.clone(), "Defender", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::HunterChamber),
+        (UnitType::SpiderHunter, ui_icons.hunter_icon.clone(), "Spider", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::HunterChamber),
+        (UnitType::WolfSpider, ui_icons.hunter_icon.clone(), "W.Spider", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::HunterChamber),
+        (UnitType::Ladybug, ui_icons.soldier_icon.clone(), "Ladybug", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::HunterChamber),
+        (UnitType::LadybugScout, ui_icons.worker_icon.clone(), "L.Scout", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::HunterChamber),
     ];
     
     for (unit_type, icon, name, cost, building_type) in unit_data {
@@ -327,8 +342,12 @@ fn spawn_unit_from_building(
 
     // Use appropriate height offset based on unit type
     let height_offset = match unit_type {
-        UnitType::DragonFly => 30.0,  // DragonFly model needs higher spawn height
-        UnitType::HunterWasp => 30.0,  // Flying units spawn higher
+        // Flying units spawn higher
+        UnitType::DragonFly => 30.0,
+        UnitType::HunterWasp => 30.0,
+        UnitType::HoneyBee => 30.0,
+        UnitType::Housefly => 30.0,
+        UnitType::AcidSpitter => 30.0,
         _ => 2.0,  // Standard ground units
     };
 
