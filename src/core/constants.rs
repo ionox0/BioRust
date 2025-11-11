@@ -11,7 +11,7 @@ pub const WINDOW_HEIGHT: f32 = 720.0;
 pub mod movement {
     // Safety limits to prevent units from going to astronomical positions
     pub const MAX_POSITION: f32 = 100000.0;
-    pub const MAX_VELOCITY: f32 = 100.0;
+    pub const MAX_VELOCITY: f32 = 500.0;  // Increased from 100.0 to allow dragonfly's extreme speed
     pub const MAX_DISTANCE: f32 = 50000.0;
     
     // Movement physics

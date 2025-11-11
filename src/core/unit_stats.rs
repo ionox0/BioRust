@@ -211,7 +211,7 @@ pub const BEETLE_KNIGHT_STATS: UnitStatsConfig = UnitStatsConfig {
     collision_radius: crate::constants::collision::BEETLE_KNIGHT_COLLISION_RADIUS,
 };
 
-/// DragonFly - Elite ranged unit with exceptional stats
+/// DragonFly - Elite ranged unit with exceptional stats and EXTREME SPEED
 pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
     health: HealthStats {
         current: 250.0,
@@ -227,9 +227,9 @@ pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
         auto_attack: true,
     },
     movement: MovementStats {
-        max_speed: 140.0,  // Fast elite flying unit - faster than scouts
-        acceleration: 150.0,  // Quick acceleration for elite mobility
-        turning_speed: 2.0,  // Improved turning for better maneuverability
+        max_speed: 10000.0,  // MASSIVELY increased to compensate for double scale division (10000 / 25 / 2 = 200)
+        acceleration: 10000.0,  // MASSIVELY increased acceleration for instant response
+        turning_speed: 4.0,  // Much faster turning for elite maneuverability
     },
     vision: VisionStats {
         sight_range: 250.0,
