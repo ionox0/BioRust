@@ -266,10 +266,40 @@ impl GameCosts {
         costs.unit_costs.insert(UnitType::HunterWasp, vec![(ResourceType::Chitin, 25.0), (ResourceType::Pheromones, 45.0)]);
         costs.unit_costs.insert(UnitType::BeetleKnight, vec![(ResourceType::Nectar, 60.0), (ResourceType::Pheromones, 75.0)]);
         costs.unit_costs.insert(UnitType::SpearMantis, vec![(ResourceType::Nectar, 35.0), (ResourceType::Chitin, 25.0)]);
-        
+        costs.unit_costs.insert(UnitType::ScoutAnt, vec![(ResourceType::Nectar, 40.0), (ResourceType::Pheromones, 15.0)]);
+        costs.unit_costs.insert(UnitType::BatteringBeetle, vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 40.0)]);
+        costs.unit_costs.insert(UnitType::AcidSpitter, vec![(ResourceType::Chitin, 50.0), (ResourceType::Minerals, 30.0)]);
+
+        // Elite units (existing types)
+        costs.unit_costs.insert(UnitType::DragonFly, vec![(ResourceType::Nectar, 100.0), (ResourceType::Chitin, 75.0), (ResourceType::Minerals, 50.0)]);
+        costs.unit_costs.insert(UnitType::DefenderBug, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 60.0)]);
+        costs.unit_costs.insert(UnitType::EliteSpider, vec![(ResourceType::Chitin, 80.0), (ResourceType::Pheromones, 60.0)]);
+
+        // Worker/Economy units
+        costs.unit_costs.insert(UnitType::TermiteWorker, vec![(ResourceType::Nectar, 55.0)]);
+
+        // Basic flying units
+        costs.unit_costs.insert(UnitType::HoneyBee, vec![(ResourceType::Nectar, 45.0), (ResourceType::Chitin, 20.0)]);
+        costs.unit_costs.insert(UnitType::Housefly, vec![(ResourceType::Nectar, 35.0), (ResourceType::Pheromones, 10.0)]);
+
+        // Light predators
+        costs.unit_costs.insert(UnitType::SpiderHunter, vec![(ResourceType::Chitin, 40.0), (ResourceType::Pheromones, 25.0)]);
+        costs.unit_costs.insert(UnitType::LadybugScout, vec![(ResourceType::Nectar, 40.0), (ResourceType::Pheromones, 20.0)]);
+
+        // Mid-tier units
+        costs.unit_costs.insert(UnitType::Ladybug, vec![(ResourceType::Nectar, 55.0), (ResourceType::Chitin, 35.0)]);
+        costs.unit_costs.insert(UnitType::LegBeetle, vec![(ResourceType::Nectar, 50.0), (ResourceType::Chitin, 30.0)]);
+        costs.unit_costs.insert(UnitType::Stinkbug, vec![(ResourceType::Chitin, 45.0), (ResourceType::Pheromones, 35.0)]);
+
+        // Heavy units
+        costs.unit_costs.insert(UnitType::Scorpion, vec![(ResourceType::Nectar, 75.0), (ResourceType::Chitin, 50.0)]);
+        costs.unit_costs.insert(UnitType::WolfSpider, vec![(ResourceType::Chitin, 70.0), (ResourceType::Pheromones, 50.0)]);
+        costs.unit_costs.insert(UnitType::TermiteWarrior, vec![(ResourceType::Nectar, 90.0), (ResourceType::Chitin, 60.0), (ResourceType::Minerals, 40.0)]);
+
         // Building costs
         costs.building_costs.insert(BuildingType::Nursery, vec![(ResourceType::Chitin, 25.0)]);
         costs.building_costs.insert(BuildingType::WarriorChamber, vec![(ResourceType::Chitin, 175.0)]);
+        costs.building_costs.insert(BuildingType::HunterChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Pheromones, 50.0)]);
         costs.building_costs.insert(BuildingType::Queen, vec![(ResourceType::Chitin, 275.0), (ResourceType::Minerals, 100.0)]);
         costs.building_costs.insert(BuildingType::WoodProcessor, vec![(ResourceType::Chitin, 100.0)]);
         costs.building_costs.insert(BuildingType::MineralProcessor, vec![(ResourceType::Chitin, 100.0)]);

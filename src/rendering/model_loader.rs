@@ -72,10 +72,16 @@ pub struct ModelAssets {
     pub hornet: Handle<Scene>,          // Hornet
     pub fourmi: Handle<Scene>,          // Ant (French: "fourmi")
     pub cairns_birdwing: Handle<Scene>, // Butterfly
+    pub ladybug: Handle<Scene>,         // Classic ladybug model
     pub ladybug_lowpoly: Handle<Scene>, // Low-poly ladybug variant
     pub roly_poly: Handle<Scene>,       // Pill bug (isopod)
     pub mystery_model: Handle<Scene>,   // Unknown/special model
-    
+    pub common_housefly: Handle<Scene>, // Common housefly
+    pub giant_termite: Handle<Scene>,   // Giant termite
+    pub leg_beetle: Handle<Scene>,      // Leg beetle
+    pub stinkbug: Handle<Scene>,        // Stinkbug
+    pub termite: Handle<Scene>,         // Regular termite
+
     // Environment objects
     pub mushrooms: Handle<Scene>,       // Mushroom environment objects
     pub grass: Handle<Scene>,           // Grass patches
@@ -121,10 +127,16 @@ impl Default for ModelAssets {
             hornet: Handle::default(),
             fourmi: Handle::default(),
             cairns_birdwing: Handle::default(),
+            ladybug: Handle::default(),
             ladybug_lowpoly: Handle::default(),
             roly_poly: Handle::default(),
             mystery_model: Handle::default(),
-            
+            common_housefly: Handle::default(),
+            giant_termite: Handle::default(),
+            leg_beetle: Handle::default(),
+            stinkbug: Handle::default(),
+            termite: Handle::default(),
+
             // Environment objects
             mushrooms: Handle::default(),
             grass: Handle::default(),
@@ -192,7 +204,13 @@ pub enum InsectModelType {
     LadybugLowpoly,   // Low-poly ladybug variant - alternative style
     RolyPoly,         // Pill bug (isopod) - defensive units
     DragonFly,     // Unknown special model - unique units
-    
+    Ladybug,          // Classic ladybug - balanced mid-tier unit
+    CommonHousefly,   // Common housefly - fast flying unit
+    GiantTermite,     // Giant termite - heavy siege unit
+    LegBeetle,        // Leg beetle - specialized melee unit
+    Stinkbug,         // Stinkbug - area denial unit
+    Termite,          // Regular termite - builder/worker variant
+
     // Environment objects - decorative non-interactive models
     Mushrooms,        // Mushroom cluster - environment decoration
     Grass,            // Grass patches - ground coverage
@@ -283,7 +301,12 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("ladybug_lowpoly", "models/insects/ladybug_simple.glb#Scene0", "Low-poly ladybug"),
     ModelConfig::new("roly_poly", "models/insects/roly_poly.glb#Scene0", "Pill bug"),
     ModelConfig::new("mystery_model", "models/insects/unknown.glb#Scene0", "Mystery model"),
-    
+    ModelConfig::new("common_housefly", "models/insects/common_housefly.glb#Scene0", "Common housefly"),
+    ModelConfig::new("giant_termite", "models/insects/giant_termite.glb#Scene0", "Giant termite"),
+    ModelConfig::new("leg_beetle", "models/insects/leg_beetle.glb#Scene", "Leg beetle"),
+    ModelConfig::new("stinkbug", "models/insects/stinkbug.glb#Scene0", "Stinkbug"),
+    ModelConfig::new("termite", "models/insects/termite.glb#Scene0", "Regular termite"),
+
     // Environment objects
     ModelConfig::new("mushrooms", "models/objects/mushrooms.glb#Scene0", "Mushroom environment objects"),
     ModelConfig::new("grass", "models/objects/grass.glb#Scene0", "Grass patches"),
@@ -346,10 +369,16 @@ pub fn load_models(
     load_model_handle(&mut model_assets.hornet, &asset_server, "hornet");
     load_model_handle(&mut model_assets.fourmi, &asset_server, "fourmi");
     load_model_handle(&mut model_assets.cairns_birdwing, &asset_server, "cairns_birdwing");
+    load_model_handle(&mut model_assets.ladybug, &asset_server, "ladybug");
     load_model_handle(&mut model_assets.ladybug_lowpoly, &asset_server, "ladybug_lowpoly");
     load_model_handle(&mut model_assets.roly_poly, &asset_server, "roly_poly");
     load_model_handle(&mut model_assets.mystery_model, &asset_server, "mystery_model");
-    
+    load_model_handle(&mut model_assets.common_housefly, &asset_server, "common_housefly");
+    load_model_handle(&mut model_assets.giant_termite, &asset_server, "giant_termite");
+    load_model_handle(&mut model_assets.leg_beetle, &asset_server, "leg_beetle");
+    load_model_handle(&mut model_assets.stinkbug, &asset_server, "stinkbug");
+    load_model_handle(&mut model_assets.termite, &asset_server, "termite");
+
     // Load environment objects
     load_model_handle(&mut model_assets.mushrooms, &asset_server, "mushrooms");
     load_model_handle(&mut model_assets.grass, &asset_server, "grass");
@@ -376,23 +405,23 @@ pub fn load_models(
 }
 
 /// Helper function to load a single model handle.
-/// 
+///
 /// This function looks up the model configuration by name and loads the asset.
 /// It follows the DRY (Don't Repeat Yourself) principle to reduce code duplication.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `handle` - Mutable reference to the scene handle to populate
 /// * `asset_server` - Bevy's asset server for loading files
 /// * `name` - The model's internal name (e.g., "bee", "spider")
-/// 
+///
 /// # Errors
-/// 
+///
 /// Logs a warning if the model name is not found in `MODEL_DEFINITIONS`.
 fn load_model_handle(handle: &mut Handle<Scene>, asset_server: &AssetServer, name: &str) {
     if let Some(config) = MODEL_DEFINITIONS.iter().find(|c| c.name == name) {
         *handle = asset_server.load(config.path);
-        info!("Loaded {}: {}", name, config.description);
+        info!("Loading {}: {} from {}", name, config.description, config.path);
     } else {
         warn!("Model configuration not found for: {}", name);
     }
@@ -500,7 +529,7 @@ fn upgrade_units_to_glb<'a>(
         ));
         
         // Update transform for proper model display
-        apply_model_transform(&mut transform, model_scale);
+        apply_model_transform(&mut transform, model_scale, &model_type);
         
         // Adjust movement speed to compensate for visual scale
         if let Some(mut movement) = movement_opt {
@@ -512,7 +541,7 @@ fn upgrade_units_to_glb<'a>(
 }
 
 /// Calculates the appropriate scale for a given model type.
-/// 
+///
 /// Special handling for certain models, otherwise uses the standard scale function.
 fn calculate_model_scale(model_type: &InsectModelType) -> f32 {
     match model_type {
@@ -522,21 +551,38 @@ fn calculate_model_scale(model_type: &InsectModelType) -> f32 {
     }
 }
 
+/// Calculates the appropriate Y-axis rotation for a given model type.
+///
+/// Most models need a 180° rotation to face forward (from default backwards orientation).
+/// Some models need additional rotation adjustments.
+fn calculate_model_rotation(model_type: &InsectModelType) -> f32 {
+    let base_rotation = std::f32::consts::PI; // 180° to face forward
+
+    match model_type {
+        // Termite needs 90° clockwise rotation (when viewed from above)
+        InsectModelType::Termite | InsectModelType::GiantTermite => {
+            base_rotation + std::f32::consts::FRAC_PI_2 // 180° + 90° = 270°
+        },
+        // All other models use default forward-facing rotation
+        _ => base_rotation,
+    }
+}
+
 /// Applies proper transform settings for a GLB model.
-/// 
+///
 /// Sets the scale to match the model's intended size and rotates it to face forward
 /// (GLB models typically face backwards by default).
-fn apply_model_transform(transform: &mut Transform, model_scale: f32) {
+/// Some models need special rotation adjustments.
+fn apply_model_transform(transform: &mut Transform, model_scale: f32, model_type: &InsectModelType) {
     let target_scale = Vec3::splat(model_scale);
-    
+
     // Only update scale if it's significantly different to avoid jitter
     if (transform.scale - target_scale).length() > 0.1 {
         transform.scale = target_scale;
     }
-    
-    // Fix model orientation - models face backwards by default
-    // Apply 180° rotation around Y-axis to face forward
-    transform.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+
+    // Apply model-specific rotation
+    transform.rotation = Quat::from_rotation_y(calculate_model_rotation(model_type));
 }
 
 /// Adjusts movement speed to compensate for visual model scale.
@@ -615,7 +661,13 @@ impl ModelAssets {
             InsectModelType::LadybugLowpoly => self.ladybug_lowpoly.clone(),
             InsectModelType::RolyPoly => self.roly_poly.clone(),
             InsectModelType::DragonFly => self.mystery_model.clone(),
-            
+            InsectModelType::Ladybug => self.ladybug.clone(),
+            InsectModelType::CommonHousefly => self.common_housefly.clone(),
+            InsectModelType::GiantTermite => self.giant_termite.clone(),
+            InsectModelType::LegBeetle => self.leg_beetle.clone(),
+            InsectModelType::Stinkbug => self.stinkbug.clone(),
+            InsectModelType::Termite => self.termite.clone(),
+
             // Environment objects
             InsectModelType::Mushrooms => self.mushrooms.clone(),
             InsectModelType::Grass => self.grass.clone(),
@@ -686,14 +738,14 @@ pub fn spawn_insect_model(
     } else {
         scale
     };
-    
+
     commands.spawn((
         SceneRoot(model_handle),
         Transform::from_translation(position)
             .with_scale(Vec3::splat(final_scale))
-            .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)), // Face forward
+            .with_rotation(Quat::from_rotation_y(calculate_model_rotation(&model_type))),
         InsectModel {
-            model_type,
+            model_type: model_type.clone(),
             scale: final_scale,
         },
         UseGLBModel,
@@ -740,8 +792,22 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::DragonFly => InsectModelType::Meganeura, // Ancient dragonfly
         crate::core::components::UnitType::DefenderBug => InsectModelType::RolyPoly, // Defensive pill bug
         crate::core::components::UnitType::EliteSpider => InsectModelType::AnimatedSpider, // Predator
-        crate::core::components::UnitType::DragonFly => InsectModelType::DragonFly, // Unknown/special
-        
+
+        // Units for previously unused models
+        crate::core::components::UnitType::HoneyBee => InsectModelType::Bee, // Classic bee
+        crate::core::components::UnitType::Scorpion => InsectModelType::Scorpion, // Scorpion
+        crate::core::components::UnitType::SpiderHunter => InsectModelType::Spider, // Small spider
+        crate::core::components::UnitType::WolfSpider => InsectModelType::WolfSpider, // Wolf spider
+        crate::core::components::UnitType::Ladybug => InsectModelType::Ladybug, // Classic ladybug
+        crate::core::components::UnitType::LadybugScout => InsectModelType::LadybugLowpoly, // Low-poly ladybug
+
+        // Units for newly added models
+        crate::core::components::UnitType::Housefly => InsectModelType::CommonHousefly, // Housefly
+        crate::core::components::UnitType::TermiteWorker => InsectModelType::Termite, // Regular termite
+        crate::core::components::UnitType::TermiteWarrior => InsectModelType::GiantTermite, // Giant termite
+        crate::core::components::UnitType::LegBeetle => InsectModelType::LegBeetle, // Leg beetle
+        crate::core::components::UnitType::Stinkbug => InsectModelType::Stinkbug, // Stinkbug
+
         // Default fallback - high-quality honey bee
         _ => InsectModelType::ApisMellifera,
     }
@@ -834,7 +900,13 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::LadybugLowpoly => LADYBUG_LOWPOLY_SCALE, // 1.5
         InsectModelType::RolyPoly => ROLY_POLY_SCALE,          // 1.5
         InsectModelType::DragonFly => DRAGONFLY_SCALE,   // 1.5
-        
+        InsectModelType::Ladybug => UNIFORM_UNIT_SCALE,        // 1.5
+        InsectModelType::CommonHousefly => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::GiantTermite => UNIFORM_UNIT_SCALE,   // 1.5
+        InsectModelType::LegBeetle => UNIFORM_UNIT_SCALE,      // 1.5
+        InsectModelType::Stinkbug => UNIFORM_UNIT_SCALE,       // 1.5
+        InsectModelType::Termite => UNIFORM_UNIT_SCALE,        // 1.5
+
         // Environment objects - various scales for different types
         InsectModelType::Mushrooms => MUSHROOMS_SCALE,                 // 2.5
         InsectModelType::Grass => GRASS_SCALE,                         // 1.0
