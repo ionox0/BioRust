@@ -221,16 +221,15 @@ fn finalize_selection(
     let bounds = calculate_selection_bounds(&drag_selection);
     let is_drag = is_significant_drag(&bounds);
 
-    // Always clear selections if not holding shift and doing a click
-    if !shift_held {
-        clear_all_selections(selectables);
-    }
-
     if is_drag {
+        // Clear selections before box selecting (unless shift is held)
+        if !shift_held {
+            clear_all_selections(selectables);
+        }
         perform_box_selection(&bounds, selectables, shift_held, camera, camera_transform);
     } else {
-        // Single click - don't select anything (just deselect previous)
-        // This will be handled by a separate raycast-based selection system
+        // Single click - don't do anything here
+        // This will be handled by the separate click_selection_system which handles raycasting
     }
 
     drag_selection.is_active = false;
