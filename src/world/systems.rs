@@ -333,6 +333,36 @@ fn spawn_building(
     EntityFactory::spawn(commands, meshes, materials, config, model_assets);
 }
 
+/// Add ResourceSource and Selectable components for harvestable environment objects
+fn add_resource_source_if_harvestable(
+    entity_commands: &mut bevy::ecs::system::EntityCommands,
+    object_type: &EnvironmentObjectType,
+    base_scale: f32,
+) {
+    use crate::core::components::{ResourceSource, ResourceType, Selectable};
+
+    let resource_config = match object_type {
+        EnvironmentObjectType::Mushrooms => Some((ResourceType::Nectar, 300.0, 3)),
+        EnvironmentObjectType::Rocks => Some((ResourceType::Minerals, 500.0, 4)),
+        EnvironmentObjectType::WoodStick => Some((ResourceType::Chitin, 400.0, 3)),
+        EnvironmentObjectType::Hive => Some((ResourceType::Pheromones, 350.0, 3)),
+        _ => None, // Other objects (Grass, etc.) are not harvestable
+    };
+
+    if let Some((resource_type, amount, max_gatherers)) = resource_config {
+        entity_commands.insert(ResourceSource {
+            resource_type,
+            amount,
+            max_gatherers,
+            current_gatherers: 0,
+        });
+        entity_commands.insert(Selectable {
+            is_selected: false,
+            selection_radius: base_scale * 2.0,
+        });
+    }
+}
+
 /// Spawn minimal environment objects near center area only
 fn spawn_minimal_environment_objects(
     commands: &mut Commands,
@@ -416,57 +446,7 @@ fn spawn_minimal_environment_objects(
                 ));
                 
                 // Add ResourceSource component for harvestable objects
-                match env_obj_type {
-                    EnvironmentObjectType::Mushrooms => {
-                        entity_commands.insert(ResourceSource {
-                            resource_type: ResourceType::Nectar,
-                            amount: 300.0,
-                            max_gatherers: 3,
-                            current_gatherers: 0,
-                        });
-                        entity_commands.insert(Selectable {
-                            is_selected: false,
-                            selection_radius: base_scale * 2.0,
-                        });
-                    },
-                    EnvironmentObjectType::Rocks => {
-                        entity_commands.insert(ResourceSource {
-                            resource_type: ResourceType::Minerals,
-                            amount: 500.0,
-                            max_gatherers: 4,
-                            current_gatherers: 0,
-                        });
-                        entity_commands.insert(Selectable {
-                            is_selected: false,
-                            selection_radius: base_scale * 2.0,
-                        });
-                    },
-                    EnvironmentObjectType::WoodStick => {
-                        entity_commands.insert(ResourceSource {
-                            resource_type: ResourceType::Chitin,
-                            amount: 400.0,
-                            max_gatherers: 3,
-                            current_gatherers: 0,
-                        });
-                        entity_commands.insert(Selectable {
-                            is_selected: false,
-                            selection_radius: base_scale * 2.0,
-                        });
-                    },
-                    EnvironmentObjectType::Hive => {
-                        entity_commands.insert(ResourceSource {
-                            resource_type: ResourceType::Pheromones,
-                            amount: 350.0,
-                            max_gatherers: 3,
-                            current_gatherers: 0,
-                        });
-                        entity_commands.insert(Selectable {
-                            is_selected: false,
-                            selection_radius: base_scale * 2.0,
-                        });
-                    },
-                    _ => {} // Other objects (Grass, etc.) are not harvestable
-                }
+                add_resource_source_if_harvestable(&mut entity_commands, &env_obj_type, base_scale);
                 
                 info!("Spawned {} at {:?} (scale: {:.1})", object_name.to_lowercase(), position, base_scale);
             }
@@ -481,13 +461,13 @@ fn spawn_minimal_environment_objects(
 }
 
 /// Enhanced RTS camera system with terrain-aware scroll wheel zoom
-/// 
+///
 /// Controls:
 /// - WASD: Pan camera over terrain (W=North, S=South, A=West, D=East)
 /// - Mouse wheel: Zoom in/out (constrained to terrain height)
 /// - Right mouse + drag: Look around
 /// - Shift + controls: Fast mode (10x speed)
-/// - Alt + controls: Hyper mode (50x speed) 
+/// - Alt + controls: Hyper mode (50x speed)
 /// - G: Disable terrain following
 /// - F: Disable height clamping during zoom
 pub fn handle_rts_camera_input(
@@ -501,112 +481,139 @@ pub fn handle_rts_camera_input(
     time: Res<Time>,
 ) {
     if let Ok((mut camera_transform, rts_camera)) = camera_query.get_single_mut() {
-        let dt = time.delta_secs();
-        
-        // Movement calculation based on current camera rotation
-        let mut movement = Vec3::ZERO;
-        
-        // Enhanced terrain following system (always on, Press G to disable)
         let terrain_following = !keyboard.pressed(KeyCode::KeyG);
-        
-        // RTS-style movement: use world space directions for proper panning
-        // W/S moves north/south (Z axis), A/D moves west/east (X axis)
-        
-        if keyboard.pressed(KeyCode::KeyW) {
-            movement += Vec3::new(0.0, 0.0, 1.0);  // North (positive Z)
+
+        // Handle camera movement (WASD controls)
+        apply_camera_movement(&keyboard, &mut camera_transform, &rts_camera, time.delta_secs());
+
+        // Apply terrain following and height constraints
+        apply_terrain_following(&keyboard, &mut camera_transform, &terrain_manager, &terrain_settings, terrain_following);
+
+        // Handle scroll wheel zoom
+        apply_camera_zoom(&keyboard, &mut mouse_wheel, &mut camera_transform, &terrain_manager, &terrain_settings);
+    }
+}
+
+/// Apply WASD camera movement with speed modifiers
+fn apply_camera_movement(
+    keyboard: &Res<ButtonInput<KeyCode>>,
+    camera_transform: &mut Transform,
+    rts_camera: &RTSCamera,
+    dt: f32,
+) {
+    let mut movement = Vec3::ZERO;
+
+    // RTS-style movement: use world space directions for proper panning
+    // W/S moves north/south (Z axis), A/D moves west/east (X axis)
+    if keyboard.pressed(KeyCode::KeyW) {
+        movement += Vec3::new(0.0, 0.0, 1.0);  // North (positive Z)
+    }
+    if keyboard.pressed(KeyCode::KeyS) {
+        movement += Vec3::new(0.0, 0.0, -1.0); // South (negative Z)
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        movement += Vec3::new(-1.0, 0.0, 0.0); // West (negative X)
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        movement += Vec3::new(1.0, 0.0, 0.0);  // East (positive X)
+    }
+
+    // Apply movement with multiple speed modes
+    if movement.length() > 0.0 {
+        let speed_multiplier = if keyboard.pressed(KeyCode::ControlLeft) { 0.1 }      // Very slow
+                             else if keyboard.pressed(KeyCode::ShiftLeft) { 10.0 }   // Very fast
+                             else if keyboard.pressed(KeyCode::AltLeft) { 50.0 }     // Hyper speed
+                             else { 1.0 };                                            // Normal
+        movement = movement.normalize() * rts_camera.move_speed * speed_multiplier * dt;
+        camera_transform.translation += movement;
+    }
+}
+
+/// Apply terrain following and height constraints to camera
+fn apply_terrain_following(
+    keyboard: &Res<ButtonInput<KeyCode>>,
+    camera_transform: &mut Transform,
+    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_following: bool,
+) {
+    use crate::constants::camera::*;
+
+    if terrain_following {
+        // Sample terrain height at camera position
+        let current_pos = camera_transform.translation;
+        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
+            current_pos.x,
+            current_pos.z,
+            &terrain_manager.noise_generator,
+            terrain_settings,
+        );
+
+        let current_height_above_terrain = camera_transform.translation.y - terrain_height;
+
+        // Only force camera up if it's too close to terrain (below minimum height)
+        if current_height_above_terrain < MIN_HEIGHT_ABOVE_TERRAIN {
+            let target_height = terrain_height + MIN_HEIGHT_ABOVE_TERRAIN;
+            camera_transform.translation.y = target_height;
+            debug!("Terrain collision: Adjusted camera to minimum height above terrain");
         }
-        if keyboard.pressed(KeyCode::KeyS) {
-            movement += Vec3::new(0.0, 0.0, -1.0); // South (negative Z)
-        }
-        if keyboard.pressed(KeyCode::KeyA) {
-            movement += Vec3::new(-1.0, 0.0, 0.0); // West (negative X)
-        }
-        if keyboard.pressed(KeyCode::KeyD) {
-            movement += Vec3::new(1.0, 0.0, 0.0);  // East (positive X)
-        }
-        
-        // Apply movement with multiple speed modes
-        if movement.length() > 0.0 {
-            let speed_multiplier = if keyboard.pressed(KeyCode::ControlLeft) { 0.1 }      // Very slow
-                                 else if keyboard.pressed(KeyCode::ShiftLeft) { 10.0 }   // Very fast
-                                 else if keyboard.pressed(KeyCode::AltLeft) { 50.0 }     // Hyper speed
-                                 else { 1.0 };                                            // Normal
-            movement = movement.normalize() * rts_camera.move_speed * speed_multiplier * dt;
-            camera_transform.translation += movement;
-        }
-        
-        // Apply terrain following if enabled
-        if terrain_following {
-            // Sample terrain height at camera position and nearby points for slope calculation
-            let current_pos = camera_transform.translation;
-            let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-                current_pos.x,
-                current_pos.z,
-                &terrain_manager.noise_generator,
-                &terrain_settings,
-            );
-            
-            // Only adjust height for terrain following if camera is within reasonable bounds
-            // This allows scroll wheel zoom to work while still preventing underground camera
-            let current_height_above_terrain = camera_transform.translation.y - terrain_height;
-            
-            // Only force camera up if it's too close to terrain (below minimum height)
-            // Otherwise, let manual zoom control the height
-            use crate::constants::camera::*;
-            if current_height_above_terrain < MIN_HEIGHT_ABOVE_TERRAIN {
-                let target_height = terrain_height + MIN_HEIGHT_ABOVE_TERRAIN;
-                camera_transform.translation.y = target_height;
-                debug!("Terrain collision: Adjusted camera to minimum height above terrain");
-            }
-            
-            // Apply height limits when not in free flight mode
-            if !keyboard.pressed(KeyCode::KeyF) {
-                camera_transform.translation.y = camera_transform.translation.y.clamp(
-                    crate::constants::camera::MIN_HEIGHT_ABOVE_TERRAIN, 
-                    crate::constants::camera::MAX_HEIGHT_ABOVE_TERRAIN
-                );
-            }
-        } else if !keyboard.pressed(KeyCode::KeyF) {
-            // Standard height clamping when not terrain following
+
+        // Apply height limits when not in free flight mode
+        if !keyboard.pressed(KeyCode::KeyF) {
             camera_transform.translation.y = camera_transform.translation.y.clamp(
-                crate::constants::camera::MIN_HEIGHT_ABOVE_TERRAIN, 
-                crate::constants::camera::MAX_HEIGHT_ABOVE_TERRAIN
+                MIN_HEIGHT_ABOVE_TERRAIN,
+                MAX_HEIGHT_ABOVE_TERRAIN
             );
         }
-        
-        // True zoom in/out using vertical camera movement with terrain constraints
-        for wheel_event in mouse_wheel.read() {
-            use crate::constants::camera::*;
-            let zoom_speed_multiplier = if keyboard.pressed(KeyCode::ShiftLeft) { ZOOM_SPEED_FAST_MULTIPLIER } 
-                                      else if keyboard.pressed(KeyCode::AltLeft) { ZOOM_SPEED_HYPER_MULTIPLIER }
-                                      else { 1.0 };
-            
-            // More responsive zoom - don't use dt for scroll wheel as it's event-based
-            let zoom_delta = -wheel_event.y * SCROLL_ZOOM_SENSITIVITY * zoom_speed_multiplier;
-            
-            // Calculate new camera height
-            let current_position = camera_transform.translation;
-            let new_height = current_position.y + zoom_delta;
-            
-            // Sample terrain height at current camera position
-            let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-                current_position.x,
-                current_position.z,
-                &terrain_manager.noise_generator,
-                &terrain_settings,
-            );
-            
-            // Define terrain-relative height constraints using constants
-            let absolute_min_height = terrain_height + MIN_HEIGHT_ABOVE_TERRAIN;
-            let absolute_max_height = terrain_height + MAX_HEIGHT_ABOVE_TERRAIN;
-            
-            // Clamp the new height to stay within terrain constraints
-            let constrained_height = new_height.clamp(absolute_min_height, absolute_max_height);
-            
-            // Only apply zoom if there was actually a change
-            if (constrained_height - current_position.y).abs() > 0.1 {
-                camera_transform.translation.y = constrained_height;
-            }
+    } else if !keyboard.pressed(KeyCode::KeyF) {
+        // Standard height clamping when not terrain following
+        camera_transform.translation.y = camera_transform.translation.y.clamp(
+            MIN_HEIGHT_ABOVE_TERRAIN,
+            MAX_HEIGHT_ABOVE_TERRAIN
+        );
+    }
+}
+
+/// Apply scroll wheel zoom with terrain constraints
+fn apply_camera_zoom(
+    keyboard: &Res<ButtonInput<KeyCode>>,
+    mouse_wheel: &mut EventReader<bevy::input::mouse::MouseWheel>,
+    camera_transform: &mut Transform,
+    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+) {
+    use crate::constants::camera::*;
+
+    for wheel_event in mouse_wheel.read() {
+        let zoom_speed_multiplier = if keyboard.pressed(KeyCode::ShiftLeft) { ZOOM_SPEED_FAST_MULTIPLIER }
+                                  else if keyboard.pressed(KeyCode::AltLeft) { ZOOM_SPEED_HYPER_MULTIPLIER }
+                                  else { 1.0 };
+
+        // More responsive zoom - don't use dt for scroll wheel as it's event-based
+        let zoom_delta = -wheel_event.y * SCROLL_ZOOM_SENSITIVITY * zoom_speed_multiplier;
+
+        // Calculate new camera height
+        let current_position = camera_transform.translation;
+        let new_height = current_position.y + zoom_delta;
+
+        // Sample terrain height at current camera position
+        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
+            current_position.x,
+            current_position.z,
+            &terrain_manager.noise_generator,
+            terrain_settings,
+        );
+
+        // Define terrain-relative height constraints using constants
+        let absolute_min_height = terrain_height + MIN_HEIGHT_ABOVE_TERRAIN;
+        let absolute_max_height = terrain_height + MAX_HEIGHT_ABOVE_TERRAIN;
+
+        // Clamp the new height to stay within terrain constraints
+        let constrained_height = new_height.clamp(absolute_min_height, absolute_max_height);
+
+        // Only apply zoom if there was actually a change
+        if (constrained_height - current_position.y).abs() > 0.1 {
+            camera_transform.translation.y = constrained_height;
         }
     }
 }
