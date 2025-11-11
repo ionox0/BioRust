@@ -108,23 +108,9 @@ impl Default for PlayerResources {
 
 impl PlayerResources {
     pub fn can_afford(&self, cost: &[(crate::core::components::ResourceType, f32)]) -> bool {
-        for (resource_type, amount) in cost {
-            match resource_type {
-                crate::core::components::ResourceType::Nectar => {
-                    if self.nectar < *amount { return false; }
-                },
-                crate::core::components::ResourceType::Chitin => {
-                    if self.chitin < *amount { return false; }
-                },
-                crate::core::components::ResourceType::Minerals => {
-                    if self.minerals < *amount { return false; }
-                },
-                crate::core::components::ResourceType::Pheromones => {
-                    if self.pheromones < *amount { return false; }
-                },
-            }
-        }
-        true
+        cost.iter().all(|(resource_type, amount)| {
+            resource_type.get_from(self) >= *amount
+        })
     }
 
     pub fn spend_resources(&mut self, cost: &[(crate::core::components::ResourceType, f32)]) -> bool {
@@ -133,23 +119,13 @@ impl PlayerResources {
         }
 
         for (resource_type, amount) in cost {
-            match resource_type {
-                crate::core::components::ResourceType::Nectar => self.nectar -= amount,
-                crate::core::components::ResourceType::Chitin => self.chitin -= amount,
-                crate::core::components::ResourceType::Minerals => self.minerals -= amount,
-                crate::core::components::ResourceType::Pheromones => self.pheromones -= amount,
-            }
+            resource_type.subtract_from(self, *amount);
         }
         true
     }
 
     pub fn add_resource(&mut self, resource_type: crate::core::components::ResourceType, amount: f32) {
-        match resource_type {
-            crate::core::components::ResourceType::Nectar => self.nectar += amount,
-            crate::core::components::ResourceType::Chitin => self.chitin += amount,
-            crate::core::components::ResourceType::Minerals => self.minerals += amount,
-            crate::core::components::ResourceType::Pheromones => self.pheromones += amount,
-        }
+        resource_type.add_to(self, amount);
     }
 
     pub fn has_population_space(&self) -> bool {

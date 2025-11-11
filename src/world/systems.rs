@@ -98,7 +98,6 @@ pub fn spawn_rts_elements(
     info!("=== SPAWNING RTS ELEMENTS ===");
     // Spawn RTS units and buildings - one of each type for testing
     use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-    use crate::entities::rts_entities::RTSEntityFactory;
     
     // Helper function to get terrain-aware position
     let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
@@ -113,12 +112,16 @@ pub fn spawn_rts_elements(
     let player1_base = get_terrain_position(player1_base_2d.x, player1_base_2d.z, 0.0);
     
     // Spawn Queen Chamber (main building)
-    RTSEntityFactory::spawn_queen_chamber(
+    let queen_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::Queen),
+        player1_base,
+        1,
+    );
+    EntityFactory::spawn(
         &mut commands,
         &mut meshes,
         &mut materials,
-        player1_base,
-        1,
+        queen_config,
         model_assets.as_deref(),
     );
     
@@ -187,20 +190,20 @@ pub fn spawn_rts_elements(
     let building_spacing = 30.0;
     
     // Nursery (house equivalent)
-    RTSEntityFactory::spawn_nursery(
-        &mut commands, &mut meshes, &mut materials,
+    let nursery_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::Nursery),
         get_terrain_position(player1_base.x - building_spacing, player1_base.z - building_spacing, 0.0),
         1,
-        model_assets.as_deref(),
     );
-    
+    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, nursery_config, model_assets.as_deref());
+
     // Warrior Chamber (barracks equivalent)
-    RTSEntityFactory::spawn_warrior_chamber(
-        &mut commands, &mut meshes, &mut materials,
+    let warrior_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::WarriorChamber),
         get_terrain_position(player1_base.x + building_spacing, player1_base.z - building_spacing, 0.0),
         1,
-        model_assets.as_deref(),
     );
+    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, warrior_config, model_assets.as_deref());
     
     // Note: Additional building types would need spawn functions created
     
@@ -209,12 +212,16 @@ pub fn spawn_rts_elements(
     let player2_base = get_terrain_position(player2_base_2d.x, player2_base_2d.z, 0.0);
     
     // Spawn Queen Chamber for enemy
-    RTSEntityFactory::spawn_queen_chamber(
+    let queen2_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::Queen),
+        player2_base,
+        2,
+    );
+    EntityFactory::spawn(
         &mut commands,
         &mut meshes,
         &mut materials,
-        player2_base,
-        2,
+        queen2_config,
         model_assets.as_deref(),
     );
     
@@ -275,19 +282,19 @@ pub fn spawn_rts_elements(
     );
     
     // Enemy buildings
-    RTSEntityFactory::spawn_nursery(
-        &mut commands, &mut meshes, &mut materials,
+    let enemy_nursery_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::Nursery),
         get_terrain_position(player2_base.x + building_spacing, player2_base.z + building_spacing, 0.0),
         2,
-        model_assets.as_deref(),
     );
-    
-    RTSEntityFactory::spawn_warrior_chamber(
-        &mut commands, &mut meshes, &mut materials,
+    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, enemy_nursery_config, model_assets.as_deref());
+
+    let enemy_warrior_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::WarriorChamber),
         get_terrain_position(player2_base.x - building_spacing, player2_base.z + building_spacing, 0.0),
         2,
-        model_assets.as_deref(),
     );
+    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, enemy_warrior_config, model_assets.as_deref());
     
     // === NEUTRAL RESOURCES ===
     // Resources are now spawned as environment objects (mushrooms, rocks) with ResourceSource components

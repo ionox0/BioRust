@@ -361,3 +361,25 @@ pub mod building_placement {
     pub const VALID_PLACEMENT_COLOR: bevy::prelude::Color = bevy::prelude::Color::srgba(0.5, 1.0, 0.5, 0.5);
     pub const INVALID_PLACEMENT_COLOR: bevy::prelude::Color = bevy::prelude::Color::srgba(1.0, 0.5, 0.5, 0.5);
 }
+
+// === UI STYLING ===
+pub mod ui_styling {
+    use bevy::prelude::Color;
+
+    // Health bar dimensions
+    pub const HEALTH_BAR_WIDTH: f32 = 3.5;
+    pub const HEALTH_BAR_HEIGHT: f32 = 0.6;
+    pub const HEALTH_BAR_Y_OFFSET: f32 = 3.0;
+    pub const HEALTH_BAR_FOREGROUND_OFFSET: f32 = 0.1;
+
+    // Health bar colors
+    pub const HEALTH_BAR_BACKGROUND_COLOR: Color = Color::srgb(0.8, 0.2, 0.2);
+    pub const HEALTH_BAR_HEALTHY_COLOR: Color = Color::srgb(0.2, 0.8, 0.2);
+    pub const HEALTH_BAR_WOUNDED_COLOR: Color = Color::srgb(1.0, 0.8, 0.0);
+    pub const HEALTH_BAR_CRITICAL_COLOR: Color = Color::srgb(1.0, 0.2, 0.2);
+
+    // Health status thresholds
+    pub const HEALTH_THRESHOLD_HEALTHY: f32 = 0.8;   // 80%+
+    pub const HEALTH_THRESHOLD_WOUNDED: f32 = 0.4;   // 40-79%
+    // Below HEALTH_THRESHOLD_WOUNDED is critical (0-39%)
+}

@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use crate::core::components::*;
 use crate::core::resources::*;
-use crate::entities::rts_entities::RTSEntityFactory;
 
 // System to spawn initial resources for AI strategy testing
 pub fn ai_resource_initialization_system(
@@ -380,52 +379,11 @@ fn try_build_unit(
         Vec3::new(spawn_x, 10.0, spawn_z)
     };
     
-    let unit_id = rand::random();
-    
-    match unit_type {
-        UnitType::WorkerAnt => {
-            RTSEntityFactory::spawn_worker_ant(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::SoldierAnt => {
-            RTSEntityFactory::spawn_soldier_ant(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::HunterWasp => {
-            RTSEntityFactory::spawn_hunter_wasp(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        UnitType::BeetleKnight => {
-            RTSEntityFactory::spawn_beetle_knight(
-                commands,
-                meshes,
-                materials,
-                spawn_position,
-                player_id,
-                unit_id,
-            );
-        },
-        _ => return false,
-    }
-    
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+
+    let config = SpawnConfig::unit(EntityType::Unit(unit_type), spawn_position, player_id);
+    EntityFactory::spawn(commands, meshes, materials, config, None);
+
     true
 }
 
