@@ -240,31 +240,75 @@ pub fn validate_environment_object_position(
     for (transform, collision_radius) in existing_objects.iter() {
         let distance = position.distance(transform.translation);
         let min_distance = radius + collision_radius.radius + 5.0; // Extra spacing
-        
+
         if distance < min_distance {
             return false;
         }
     }
-    
+
     // Check against buildings
     for (transform, collision_radius) in buildings.iter() {
         let distance = position.distance(transform.translation);
         let min_distance = radius + collision_radius.radius + 10.0; // Extra spacing from buildings
-        
+
         if distance < min_distance {
             return false;
         }
     }
-    
+
     // Check against units (ensure objects don't spawn on top of units)
     for (transform, collision_radius) in units.iter() {
         let distance = position.distance(transform.translation);
         let min_distance = radius + collision_radius.radius + 3.0; // Small spacing from units
-        
+
         if distance < min_distance {
             return false;
         }
     }
-    
+
     true // Position is safe
+}
+
+/// Validate that a building can be placed at the given position without overlapping
+/// Returns true if the position is valid (no collisions), false otherwise
+pub fn validate_building_placement(
+    position: Vec3,
+    building_radius: f32,
+    existing_buildings: &Query<(&Transform, &CollisionRadius), With<Building>>,
+    units: &Query<(&Transform, &CollisionRadius), With<RTSUnit>>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), With<EnvironmentObject>>,
+) -> bool {
+    use crate::constants::building_placement::*;
+
+    // Check against existing buildings - prevent overlap
+    for (transform, collision_radius) in existing_buildings.iter() {
+        let distance = position.distance(transform.translation);
+        let min_distance = building_radius + collision_radius.radius + MIN_SPACING_BETWEEN_BUILDINGS;
+
+        if distance < min_distance {
+            return false; // Too close to another building
+        }
+    }
+
+    // Check against units - buildings shouldn't be placed on top of units
+    for (transform, collision_radius) in units.iter() {
+        let distance = position.distance(transform.translation);
+        let min_distance = building_radius + collision_radius.radius + MIN_SPACING_FROM_UNITS;
+
+        if distance < min_distance {
+            return false; // Too close to a unit
+        }
+    }
+
+    // Check against environment objects - avoid placing buildings on obstacles
+    for (transform, collision_radius) in environment_objects.iter() {
+        let distance = position.distance(transform.translation);
+        let min_distance = building_radius + collision_radius.radius + MIN_SPACING_FROM_ENVIRONMENT;
+
+        if distance < min_distance {
+            return false; // Too close to environment object
+        }
+    }
+
+    true // Position is valid
 }

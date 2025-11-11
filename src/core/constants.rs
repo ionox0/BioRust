@@ -331,12 +331,12 @@ pub mod terrain {
 // === INPUT HOTKEYS ===
 pub mod hotkeys {
     use bevy::prelude::KeyCode;
-    
+
     pub const BUILD_WARRIOR_CHAMBER: KeyCode = KeyCode::KeyB;
     pub const BUILD_NURSERY: KeyCode = KeyCode::KeyH;
     pub const BUILD_FUNGAL_GARDEN: KeyCode = KeyCode::KeyF;
     pub const CANCEL_BUILD: KeyCode = KeyCode::Escape;
-    
+
     // Legacy hotkeys for compatibility
     #[deprecated(note = "Use BUILD_WARRIOR_CHAMBER instead")]
     pub const BUILD_BARRACKS: KeyCode = BUILD_WARRIOR_CHAMBER;
@@ -344,4 +344,20 @@ pub mod hotkeys {
     pub const BUILD_HOUSE: KeyCode = BUILD_NURSERY;
     #[deprecated(note = "Use BUILD_FUNGAL_GARDEN instead")]
     pub const BUILD_FARM: KeyCode = BUILD_FUNGAL_GARDEN;
+}
+
+// === BUILDING PLACEMENT ===
+pub mod building_placement {
+    // Minimum spacing between buildings to prevent overlap
+    pub const MIN_SPACING_BETWEEN_BUILDINGS: f32 = 2.0;
+
+    // Minimum spacing from units when placing buildings
+    pub const MIN_SPACING_FROM_UNITS: f32 = 5.0;
+
+    // Minimum spacing from environment objects (rocks, trees, etc.)
+    pub const MIN_SPACING_FROM_ENVIRONMENT: f32 = 3.0;
+
+    // Visual feedback colors for placement preview
+    pub const VALID_PLACEMENT_COLOR: bevy::prelude::Color = bevy::prelude::Color::srgba(0.5, 1.0, 0.5, 0.5);
+    pub const INVALID_PLACEMENT_COLOR: bevy::prelude::Color = bevy::prelude::Color::srgba(1.0, 0.5, 0.5, 0.5);
 }
