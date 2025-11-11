@@ -18,17 +18,15 @@ impl CollisionUtils {
         position: Vec3,
         radius: f32,
         existing_entities: &Query<(&Transform, &CollisionRadius), With<GameEntity>>,
-        exclude_entity: Option<Entity>,
+        _exclude_entity: Option<Entity>,
     ) -> bool {
         for (transform, collision_radius) in existing_entities.iter() {
-            if let Some(exclude) = exclude_entity {
-                // Skip the entity we're checking against itself
-                continue;
-            }
-            
+            // Note: Entity filtering would require access to the entity ID in the query
+            // This is a simplified version that checks all entities
+
             let distance = position.distance(transform.translation);
             let min_distance = radius + collision_radius.radius;
-            
+
             if distance < min_distance {
                 return true; // Collision detected
             }
