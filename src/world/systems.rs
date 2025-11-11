@@ -96,214 +96,241 @@ pub fn spawn_rts_elements(
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
     info!("=== SPAWNING RTS ELEMENTS ===");
-    // Spawn RTS units and buildings - one of each type for testing
-    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-    
-    // Helper function to get terrain-aware position
+
+    // Helper for terrain-aware positioning
     let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
         let terrain_height = crate::world::terrain_v2::sample_terrain_height(
             x, z, &terrain_manager.noise_generator, &terrain_settings
         );
         Vec3::new(x, terrain_height + height_offset, z)
     };
-    
-    // === PLAYER 1 (Human) - Left side of map ===
-    let player1_base_2d = Vec3::new(-200.0, 0.0, 0.0);
-    let player1_base = get_terrain_position(player1_base_2d.x, player1_base_2d.z, 0.0);
-    
-    // Spawn Queen Chamber (main building)
-    let queen_config = SpawnConfig::building(
-        EntityType::Building(crate::core::components::BuildingType::Queen),
-        player1_base,
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        queen_config,
-        model_assets.as_deref(),
-    );
-    
-    // Spawn one of each unit type in a grid formation
-    let unit_spacing = 15.0;
-    let _units_per_row = 4;
-    
-    // Worker units using new EntityFactory with animations
-    let worker_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::WorkerAnt),
-        get_terrain_position(player1_base.x, player1_base.z + 30.0, 2.0),
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        worker_config,
-        model_assets.as_deref(),
-    );
-    
-    // Combat units using new EntityFactory with animations
-    let soldier_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::SoldierAnt),
-        get_terrain_position(player1_base.x + unit_spacing, player1_base.z + 30.0, 2.0),
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        soldier_config,
-        model_assets.as_deref(),
-    );
-    
-    let wasp_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::HunterWasp),
-        get_terrain_position(player1_base.x + unit_spacing * 2.0, player1_base.z + 30.0, 2.0),
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        wasp_config,
-        model_assets.as_deref(),
-    );
-    
-    let beetle_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::BeetleKnight),
-        get_terrain_position(player1_base.x + unit_spacing * 3.0, player1_base.z + 30.0, 2.0),
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        beetle_config,
-        model_assets.as_deref(),
-    );
-    
-    // Note: Additional unit types (SpearMantis, ScoutAnt, etc.) would need spawn functions created
-    // For now we have the 4 main unit types that have spawn functions
-    
-    // Spawn one of each building type
-    let building_spacing = 30.0;
-    
-    // Nursery (house equivalent)
-    let nursery_config = SpawnConfig::building(
-        EntityType::Building(crate::core::components::BuildingType::Nursery),
-        get_terrain_position(player1_base.x - building_spacing, player1_base.z - building_spacing, 0.0),
-        1,
-    );
-    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, nursery_config, model_assets.as_deref());
 
-    // Warrior Chamber (barracks equivalent)
-    let warrior_config = SpawnConfig::building(
-        EntityType::Building(crate::core::components::BuildingType::WarriorChamber),
-        get_terrain_position(player1_base.x + building_spacing, player1_base.z - building_spacing, 0.0),
-        1,
-    );
-    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, warrior_config, model_assets.as_deref());
-    
-    // Note: Additional building types would need spawn functions created
-    
-    // === PLAYER 2 (Enemy) - Right side of map ===
-    let player2_base_2d = Vec3::new(200.0, 0.0, 0.0);
-    let player2_base = get_terrain_position(player2_base_2d.x, player2_base_2d.z, 0.0);
-    
-    // Spawn Queen Chamber for enemy
-    let queen2_config = SpawnConfig::building(
-        EntityType::Building(crate::core::components::BuildingType::Queen),
-        player2_base,
-        2,
-    );
-    EntityFactory::spawn(
+    // Spawn player 1 (human) base on left side
+    spawn_player_base(
         &mut commands,
         &mut meshes,
         &mut materials,
-        queen2_config,
         model_assets.as_deref(),
+        1,
+        Vec3::new(-200.0, 0.0, 0.0),
+        &get_terrain_position,
     );
-    
-    // Enemy units - spawn multiple workers for better economy
-    for i in 0..5 {
-        let worker_offset_x = (i as f32 - 2.0) * 8.0;
-        let enemy_worker_config = SpawnConfig::unit(
-            EntityType::from_unit(crate::core::components::UnitType::WorkerAnt),
-            get_terrain_position(player2_base.x + worker_offset_x, player2_base.z - 30.0, 2.0),
-            2,
-        );
-        EntityFactory::spawn(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            enemy_worker_config,
-            model_assets.as_deref(),
+
+    // Spawn player 2 (AI) base on right side
+    spawn_player_base(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        model_assets.as_deref(),
+        2,
+        Vec3::new(200.0, 0.0, 0.0),
+        &get_terrain_position,
+    );
+
+    // Spawn environment objects (resources, decorations)
+    spawn_minimal_environment_objects(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        &terrain_manager,
+        &terrain_settings,
+        model_assets.as_ref().map(|v| &**v),
+    );
+
+    info!("RTS elements spawned");
+}
+
+/// Spawn a player's base with buildings and units
+fn spawn_player_base(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
+    player_id: u8,
+    base_position_2d: Vec3,
+    get_terrain_position: &dyn Fn(f32, f32, f32) -> Vec3,
+) {
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+    use crate::core::components::{BuildingType, UnitType};
+
+    let base_pos = get_terrain_position(base_position_2d.x, base_position_2d.z, 0.0);
+
+    // Spawn main building (Queen Chamber)
+    spawn_building(
+        commands,
+        meshes,
+        materials,
+        model_assets,
+        BuildingType::Queen,
+        base_pos,
+        player_id,
+    );
+
+    // Spawn units
+    spawn_player_units(
+        commands,
+        meshes,
+        materials,
+        model_assets,
+        player_id,
+        base_pos,
+        get_terrain_position,
+    );
+
+    // Spawn additional buildings
+    spawn_player_buildings(
+        commands,
+        meshes,
+        materials,
+        model_assets,
+        player_id,
+        base_pos,
+        get_terrain_position,
+    );
+}
+
+/// Spawn units for a player
+fn spawn_player_units(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
+    player_id: u8,
+    base_pos: Vec3,
+    get_terrain_position: &dyn Fn(f32, f32, f32) -> Vec3,
+) {
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+    use crate::core::components::UnitType;
+
+    let unit_spacing = 15.0;
+    let unit_offset = if player_id == 1 { 30.0 } else { -30.0 };
+
+    // For player 2 (AI), spawn multiple workers
+    if player_id == 2 {
+        for i in 0..5 {
+            let worker_offset_x = (i as f32 - 2.0) * 8.0;
+            spawn_unit(
+                commands,
+                meshes,
+                materials,
+                model_assets,
+                UnitType::WorkerAnt,
+                get_terrain_position(base_pos.x + worker_offset_x, base_pos.z + unit_offset, 2.0),
+                player_id,
+            );
+        }
+    } else {
+        // For player 1, spawn one worker
+        spawn_unit(
+            commands,
+            meshes,
+            materials,
+            model_assets,
+            UnitType::WorkerAnt,
+            get_terrain_position(base_pos.x, base_pos.z + unit_offset, 2.0),
+            player_id,
         );
     }
-    
-    let enemy_soldier_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::SoldierAnt),
-        get_terrain_position(player2_base.x - unit_spacing, player2_base.z - 30.0, 2.0),
-        2,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        enemy_soldier_config,
-        model_assets.as_deref(),
-    );
-    
-    let enemy_wasp_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::HunterWasp),
-        get_terrain_position(player2_base.x - unit_spacing * 2.0, player2_base.z - 30.0, 2.0),
-        2,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        enemy_wasp_config,
-        model_assets.as_deref(),
-    );
-    
-    let enemy_beetle_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::BeetleKnight),
-        get_terrain_position(player2_base.x - unit_spacing * 3.0, player2_base.z - 30.0, 2.0),
-        2,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        enemy_beetle_config,
-        model_assets.as_deref(),
-    );
-    
-    // Enemy buildings
-    let enemy_nursery_config = SpawnConfig::building(
-        EntityType::Building(crate::core::components::BuildingType::Nursery),
-        get_terrain_position(player2_base.x + building_spacing, player2_base.z + building_spacing, 0.0),
-        2,
-    );
-    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, enemy_nursery_config, model_assets.as_deref());
 
-    let enemy_warrior_config = SpawnConfig::building(
-        EntityType::Building(crate::core::components::BuildingType::WarriorChamber),
-        get_terrain_position(player2_base.x - building_spacing, player2_base.z + building_spacing, 0.0),
-        2,
+    // Spawn combat units
+    let unit_x_offset = if player_id == 1 { 1.0 } else { -1.0 };
+    let combat_units = [
+        UnitType::SoldierAnt,
+        UnitType::HunterWasp,
+        UnitType::BeetleKnight,
+    ];
+
+    for (i, unit_type) in combat_units.iter().enumerate() {
+        let x_pos = base_pos.x + (unit_x_offset * unit_spacing * (i as f32 + 1.0));
+        spawn_unit(
+            commands,
+            meshes,
+            materials,
+            model_assets,
+            unit_type.clone(),
+            get_terrain_position(x_pos, base_pos.z + unit_offset, 2.0),
+            player_id,
+        );
+    }
+}
+
+/// Spawn additional buildings for a player
+fn spawn_player_buildings(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
+    player_id: u8,
+    base_pos: Vec3,
+    get_terrain_position: &dyn Fn(f32, f32, f32) -> Vec3,
+) {
+    use crate::core::components::BuildingType;
+
+    let building_spacing = 30.0;
+    let x_sign = if player_id == 1 { 1.0 } else { -1.0 };
+    let z_sign = if player_id == 1 { -1.0 } else { 1.0 };
+
+    // Nursery
+    spawn_building(
+        commands,
+        meshes,
+        materials,
+        model_assets,
+        BuildingType::Nursery,
+        get_terrain_position(
+            base_pos.x - x_sign * building_spacing,
+            base_pos.z + z_sign * building_spacing,
+            0.0,
+        ),
+        player_id,
     );
-    EntityFactory::spawn(&mut commands, &mut meshes, &mut materials, enemy_warrior_config, model_assets.as_deref());
-    
-    // === NEUTRAL RESOURCES ===
-    // Resources are now spawned as environment objects (mushrooms, rocks) with ResourceSource components
-    // This provides better visual integration and uses GLB models instead of primitive shapes
-    
-    // === ENVIRONMENT OBJECTS ===
-    spawn_minimal_environment_objects(&mut commands, &mut meshes, &mut materials, &terrain_manager, &terrain_settings, model_assets.as_ref().map(|v| &**v));
-    
-    info!("RTS elements spawned");
+
+    // Warrior Chamber
+    spawn_building(
+        commands,
+        meshes,
+        materials,
+        model_assets,
+        BuildingType::WarriorChamber,
+        get_terrain_position(
+            base_pos.x + x_sign * building_spacing,
+            base_pos.z + z_sign * building_spacing,
+            0.0,
+        ),
+        player_id,
+    );
+}
+
+/// Helper to spawn a single unit
+fn spawn_unit(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
+    unit_type: crate::core::components::UnitType,
+    position: Vec3,
+    player_id: u8,
+) {
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+
+    let config = SpawnConfig::unit(EntityType::from_unit(unit_type), position, player_id);
+    EntityFactory::spawn(commands, meshes, materials, config, model_assets);
+}
+
+/// Helper to spawn a single building
+fn spawn_building(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
+    building_type: crate::core::components::BuildingType,
+    position: Vec3,
+    player_id: u8,
+) {
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+
+    let config = SpawnConfig::building(EntityType::Building(building_type), position, player_id);
+    EntityFactory::spawn(commands, meshes, materials, config, model_assets);
 }
 
 /// Spawn minimal environment objects near center area only

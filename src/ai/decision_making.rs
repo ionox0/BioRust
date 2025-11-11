@@ -4,6 +4,15 @@ use crate::core::resources::*;
 use crate::ai::player_state::{AIPlayer, AIType, AIDecision, PlayerCounts};
 use crate::ai::intelligence::{IntelligenceSystem, EnemyStrategy, ThreatLevel};
 
+/// Context for executing AI decisions
+pub struct DecisionExecutionContext<'a> {
+    pub commands: &'a mut Commands,
+    pub meshes: &'a mut ResMut<'a, Assets<Mesh>>,
+    pub materials: &'a mut ResMut<'a, Assets<StandardMaterial>>,
+    pub game_costs: &'a Res<'a, GameCosts>,
+    pub model_assets: &'a Option<Res<'a, crate::rendering::model_loader::ModelAssets>>,
+}
+
 pub fn ai_decision_system(
     mut ai_players: Query<&mut AIPlayer>,
     mut ai_resources: ResMut<AIResources>,
@@ -37,16 +46,21 @@ pub fn ai_decision_system(
 
             let decision = make_adaptive_ai_decision(&ai_player.ai_type, &resources, &counts, enemy_intel);
 
+            // Create execution context
+            let mut context = DecisionExecutionContext {
+                commands: &mut commands,
+                meshes: &mut meshes,
+                materials: &mut materials,
+                game_costs: &game_costs,
+                model_assets: &model_assets,
+            };
+
             execute_ai_decision(
                 decision,
                 ai_player.player_id,
                 &mut ai_resources,
-                &game_costs,
                 &mut buildings,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &model_assets,
+                &mut context,
             );
         }
     }
@@ -151,22 +165,18 @@ fn execute_ai_decision(
     decision: AIDecision,
     player_id: u8,
     ai_resources: &mut ResMut<AIResources>,
-    game_costs: &Res<GameCosts>,
     buildings: &mut Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    context: &mut DecisionExecutionContext,
 ) {
     match decision {
         AIDecision::BuildWorkerAnt => {
-            execute_build_worker(player_id, ai_resources, game_costs, buildings);
+            execute_build_worker(player_id, ai_resources, context.game_costs, buildings);
         },
         AIDecision::BuildMilitary(unit_type) => {
-            execute_build_military(player_id, unit_type, ai_resources, game_costs, buildings);
+            execute_build_military(player_id, unit_type, ai_resources, context.game_costs, buildings);
         },
         AIDecision::BuildBuilding(building_type) => {
-            execute_build_building(player_id, building_type, ai_resources, game_costs, commands, meshes, materials, &model_assets);
+            execute_build_building(player_id, building_type, ai_resources, context);
         },
         AIDecision::AttackPlayer(_target_player) => {
             info!("AI Player {} initiating attack!", player_id);
@@ -235,30 +245,26 @@ fn execute_build_building(
     player_id: u8,
     building_type: BuildingType,
     ai_resources: &mut ResMut<AIResources>,
-    game_costs: &Res<GameCosts>,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    context: &mut DecisionExecutionContext,
 ) {
-    if let Some(cost) = game_costs.building_costs.get(&building_type) {
+    if let Some(cost) = context.game_costs.building_costs.get(&building_type) {
         if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
             if resources.can_afford(cost) {
                 resources.spend_resources(cost);
-                
+
                 let position = generate_ai_building_position();
-                
+
                 use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
 
                 let config = SpawnConfig::building(EntityType::Building(building_type.clone()), position, player_id);
-                let model_assets_ref = model_assets.as_ref().map(|r| &**r);
-                EntityFactory::spawn(commands, meshes, materials, config, model_assets_ref);
+                let model_assets_ref = context.model_assets.as_ref().map(|r| &**r);
+                EntityFactory::spawn(context.commands, context.meshes, context.materials, config, model_assets_ref);
 
                 // Add housing for nurseries
                 if building_type == BuildingType::Nursery {
                     resources.add_housing(5); // Nurseries provide 5 population
                 }
-                
+
                 info!("AI Player {} built {:?}", player_id, building_type);
             }
         }
