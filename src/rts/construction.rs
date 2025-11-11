@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 use crate::core::components::*;
 
+// Construction distance threshold - matches gathering distance to account for collision constraints
+const CONSTRUCTION_DISTANCE: f32 = 20.0;
+
 pub fn construction_system(
     mut constructors: Query<(&mut Constructor, &Position), With<RTSUnit>>,
     mut buildings: Query<(Entity, &mut Building)>,
@@ -27,7 +30,7 @@ pub fn ai_construction_workflow_system(
             // Check if worker has reached the construction site
             let distance = worker_transform.translation.distance(task.target_position);
             
-            if distance <= 5.0 { // Close enough to start construction
+            if distance <= CONSTRUCTION_DISTANCE { // Close enough to start construction
                 task.is_moving_to_site = false;
                 
                 // Mark the building site as construction started
@@ -39,7 +42,12 @@ pub fn ai_construction_workflow_system(
             }
         } else {
             // Worker is at site, perform construction work
-            task.construction_progress += 50.0 * delta_time; // Construction speed
+            // Only increment progress if not already complete
+            if task.construction_progress < task.total_build_time {
+                task.construction_progress += 50.0 * delta_time; // Construction speed
+                // Cap at total build time to prevent overrun
+                task.construction_progress = task.construction_progress.min(task.total_build_time);
+            }
             
             // Check if construction is complete
             if task.construction_progress >= task.total_build_time {
@@ -57,7 +65,16 @@ pub fn ai_construction_workflow_system(
                     commands.entity(site_entity).despawn();
                     commands.entity(worker_entity).remove::<ConstructionTask>();
                     
-                    info!("AI Player {} completed construction of {:?}", unit.player_id, task.building_type);
+                    info!("🏗️ AI Player {} completed construction of {:?} - building spawned and site cleaned up", unit.player_id, task.building_type);
+                } else {
+                    warn!("⚠️ Construction task completed but building site not found - possible cleanup issue");
+                }
+            } else {
+                // Log construction progress occasionally
+                if task.construction_progress % 20.0 < 5.0 { // Log every ~20 progress units
+                    info!("🔨 Construction progress: {:.1}/{:.1} ({:.0}%) for {:?}", 
+                          task.construction_progress, task.total_build_time, 
+                          (task.construction_progress / task.total_build_time * 100.0), task.building_type);
                 }
             }
         }

@@ -40,19 +40,25 @@ impl Plugin for AIPlugin {
                 ai_resource_initialization_system,
                 setup_ai_intelligence,
             ))
-            // Core AI systems - run in order
+            // Core AI systems - split into smaller groups to avoid parameter limits
             .add_systems(Update, (
                 // Intelligence and reconnaissance phase
                 intelligence_update_system,
                 scouting_system,
                 scout_survival_system,
+            ).chain())
+            .add_systems(Update, (
                 // Tactical planning phase
                 tactical_decision_system,
                 economy_optimization_system,
                 worker_idle_detection_system,
+            ).chain())
+            .add_systems(Update, (
                 // Decision making phase
                 ai_decision_system,
                 ai_strategy_system,
+            ).chain())
+            .add_systems(Update, (
                 // Execution phase
                 ai_unit_management_system,
                 ai_resource_management_system,

@@ -22,7 +22,7 @@ pub struct PlacementStatusText;
 pub struct CollisionQueries<'w, 's> {
     pub buildings: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<Building>, Without<PlacementPreview>)>,
     pub units: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<RTSUnit>, Without<PlacementPreview>)>,
-    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<EnvironmentObject>, Without<PlacementPreview>)>,
+    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius, &'static EnvironmentObject), (With<EnvironmentObject>, Without<PlacementPreview>)>,
 }
 
 /// System parameter grouping preview-related queries to reduce parameter count
@@ -261,7 +261,22 @@ fn attempt_building_placement(
     let building_cost = get_building_cost(&building_type);
     if can_afford_building(&building_cost, player_resources) {
         deduct_building_cost(&building_cost, player_resources, main_resources);
-        place_building(commands, meshes, materials, building_type.clone(), placement_pos, model_assets);
+        
+        // Create a building site for player 1 (requires worker to complete)
+        let placeholder_visual = create_placeholder_building_visual(meshes, materials, &building_type, placement_pos);
+        let building_site = commands.spawn((
+            BuildingSite {
+                building_type: building_type.clone(),
+                position: placement_pos,
+                player_id: 1, // Player 1
+                assigned_worker: None,
+                construction_started: false,
+                site_reserved: false,
+            },
+            placeholder_visual.0, // Transform
+            placeholder_visual.1, // Mesh3d
+            placeholder_visual.2, // MeshMaterial3d
+        ));
 
         // Clear placement
         placement.active_building = None;
@@ -269,7 +284,7 @@ fn attempt_building_placement(
             commands.entity(preview_entity).despawn();
         }
 
-        info!("Placed building: {:?} at {:?}", building_type, placement_pos);
+        info!("Created building site for player 1: {:?} at {:?}", building_type, placement_pos);
     } else {
         warn!("Cannot place building: insufficient resources");
     }
@@ -337,6 +352,39 @@ pub fn create_building_preview(
         Transform::from_translation(position + Vec3::new(0.0, size.y / 2.0, 0.0)),
         PlacementPreview,
     )).id()
+}
+
+/// Create a placeholder visual for a building under construction
+fn create_placeholder_building_visual(
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    building_type: &BuildingType,
+    position: Vec3,
+) -> (Transform, Mesh3d, MeshMaterial3d<StandardMaterial>) {
+    use crate::constants::buildings::*;
+    use crate::constants::building_placement::*;
+
+    // Get building size for placeholder
+    let (mesh, size) = match building_type {
+        BuildingType::Nursery => (meshes.add(Cuboid::from_size(NURSERY_SIZE)), NURSERY_SIZE),
+        BuildingType::WarriorChamber => (meshes.add(Cuboid::from_size(WARRIOR_CHAMBER_SIZE)), WARRIOR_CHAMBER_SIZE),
+        BuildingType::HunterChamber => (meshes.add(Cuboid::from_size(HUNTER_CHAMBER_SIZE)), HUNTER_CHAMBER_SIZE),
+        BuildingType::FungalGarden => (meshes.add(Cuboid::from_size(FUNGAL_GARDEN_SIZE)), FUNGAL_GARDEN_SIZE),
+        _ => (meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)), DEFAULT_BUILDING_SIZE),
+    };
+
+    // Create a semi-transparent placeholder material
+    let placeholder_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.8, 0.8, 0.6, 0.6), // Yellow-ish semi-transparent
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+
+    (
+        Transform::from_translation(position + Vec3::new(0.0, size.y / 2.0, 0.0)),
+        Mesh3d(mesh),
+        MeshMaterial3d(placeholder_material),
+    )
 }
 
 fn place_building(

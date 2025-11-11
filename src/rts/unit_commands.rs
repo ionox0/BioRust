@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::ecs::system::ParamSet;
 use crate::core::components::*;
 
 pub struct CommandContext<'a> {
@@ -17,6 +18,10 @@ pub fn unit_command_system(
     all_units: Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
     resources: Query<(Entity, &Transform), With<ResourceSource>>,
     buildings: Query<(Entity, &Transform), With<Building>>,
+    mut building_sites: ParamSet<(
+        Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+        Query<&mut BuildingSite, With<BuildingSite>>,
+    )>,
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
     terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     mut commands: Commands,
@@ -40,8 +45,12 @@ pub fn unit_command_system(
     
     let target_enemy = find_enemy_target(ray, &units, &all_units);
     let target_resource = find_resource_target(ray, &resources);
+    let target_building_site = find_building_site_target(ray, &building_sites.p0());
+    
     let target_point = if let Some((_, resource_pos)) = target_resource {
         resource_pos
+    } else if let Some((_, building_site_pos)) = target_building_site {
+        building_site_pos
     } else {
         calculate_target_position(ray, &context)
     };
@@ -51,7 +60,7 @@ pub fn unit_command_system(
         return;
     }
 
-    execute_commands_for_selected_units(&mut units, &buildings, &mut commands, &keyboard, target_enemy, target_resource, target_point);
+    execute_commands_for_selected_units(&mut units, &buildings, &mut building_sites, &mut commands, &keyboard, target_enemy, target_resource, target_building_site, target_point);
 }
 
 fn find_enemy_target(
@@ -134,6 +143,26 @@ fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With
     None
 }
 
+fn find_building_site_target(
+    ray: Ray3d,
+    building_sites: &Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+) -> Option<(Entity, Vec3)> {
+    for (entity, transform, site) in building_sites.iter() {
+        // Only allow player 1 to target player 1 building sites
+        if site.player_id != 1 {
+            continue;
+        }
+        
+        let projected_distance = calculate_projected_distance(ray, transform.translation)?;
+        let distance_to_ray = calculate_distance_to_ray(ray, transform.translation, projected_distance);
+
+        if distance_to_ray < 12.0 { // Larger targeting area for building sites
+            return Some((entity, transform.translation));
+        }
+    }
+    None
+}
+
 fn calculate_target_position(ray: Ray3d, context: &CommandContext) -> Vec3 {
     let horizontal_intersection = calculate_horizontal_intersection(ray);
     let terrain_height = sample_terrain_height_safe(horizontal_intersection, context);
@@ -192,10 +221,15 @@ fn is_valid_target_point(target_point: Vec3) -> bool {
 fn execute_commands_for_selected_units(
     units: &mut Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
     buildings: &Query<(Entity, &Transform), With<Building>>,
+    building_sites: &mut ParamSet<(
+        Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+        Query<&mut BuildingSite, With<BuildingSite>>,
+    )>,
     commands: &mut Commands,
     keyboard: &Res<ButtonInput<KeyCode>>,
     target_enemy: Option<Entity>,
     target_resource: Option<(Entity, Vec3)>,
+    target_building_site: Option<(Entity, Vec3)>,
     target_point: Vec3,
 ) {
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
@@ -220,20 +254,35 @@ fn execute_commands_for_selected_units(
             target_point
         };
 
-        execute_unit_command(
-            unit_entity,
-            transform.translation,
-            &mut movement,
-            &mut combat,
-            gatherer,
-            unit,
-            buildings,
-            commands,
-            target_enemy,
-            target_resource,
-            adjusted_target,
-            shift_held
-        );
+        // Handle building site command separately to avoid ParamSet borrowing conflicts
+        if let Some((site_entity, _site_pos)) = target_building_site {
+            handle_building_site_command(
+                unit_entity,
+                unit,
+                gatherer,
+                &mut movement,
+                &mut combat,
+                building_sites,
+                commands,
+                site_entity,
+                adjusted_target,
+            );
+        } else {
+            execute_unit_command(
+                unit_entity,
+                transform.translation,
+                &mut movement,
+                &mut combat,
+                gatherer,
+                unit,
+                buildings,
+                commands,
+                target_enemy,
+                target_resource,
+                adjusted_target,
+                shift_held
+            );
+        }
         index += 1;
     }
 }
@@ -276,14 +325,14 @@ fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_uni
 }
 
 fn execute_unit_command(
-    _unit_entity: Entity,
+    unit_entity: Entity,
     unit_pos: Vec3,
     movement: &mut Movement,
     combat: &mut Combat,
     gatherer: Option<Mut<ResourceGatherer>>,
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform), With<Building>>,
-    _commands: &mut Commands,
+    commands: &mut Commands,
     target_enemy: Option<Entity>,
     target_resource: Option<(Entity, Vec3)>,
     target_point: Vec3,
@@ -317,6 +366,81 @@ fn execute_unit_command(
         movement.target_position = Some(target_point);
         combat.target = None;
         info!("🚶 Unit {:?} moving to position: {:?}", unit.unit_id, target_point);
+    }
+}
+
+/// Handle building site construction command
+fn handle_building_site_command(
+    unit_entity: Entity,
+    unit: &RTSUnit,
+    gatherer: Option<Mut<ResourceGatherer>>,
+    movement: &mut Movement,
+    combat: &mut Combat,
+    building_sites: &mut ParamSet<(
+        Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+        Query<&mut BuildingSite, With<BuildingSite>>,
+    )>,
+    commands: &mut Commands,
+    site_entity: Entity,
+    target_point: Vec3,
+) {
+    // Construction command - only for player 1 workers
+    if unit.player_id == 1 && gatherer.is_some() {
+        // Get building site information
+        if let Ok((_, _, site)) = building_sites.p0().get(site_entity) {
+            let building_type = site.building_type.clone();
+            let position = site.position;
+            
+            // Mark the site as assigned to prevent double assignment
+            if let Ok(mut site_mut) = building_sites.p1().get_mut(site_entity) {
+                if site_mut.assigned_worker.is_none() {
+                    site_mut.assigned_worker = Some(unit_entity);
+                    site_mut.site_reserved = true;
+                    
+                    // Get construction time based on building type
+                    let total_build_time = match building_type {
+                        BuildingType::Queen => 120.0,
+                        BuildingType::Nursery => 80.0,
+                        BuildingType::WarriorChamber => 100.0,
+                        BuildingType::HunterChamber => 100.0,
+                        BuildingType::FungalGarden => 90.0,
+                        BuildingType::StorageChamber => 60.0,
+                        _ => 100.0,
+                    };
+                    
+                    // Assign worker to construction task
+                    commands.entity(unit_entity).insert(ConstructionTask {
+                        building_site: site_entity,
+                        building_type: building_type.clone(),
+                        target_position: position,
+                        is_moving_to_site: true,
+                        construction_progress: 0.0,
+                        total_build_time,
+                    });
+                    
+                    movement.target_position = Some(position);
+                    combat.target = None;
+                    
+                    info!("🔨 Player 1 worker {:?} assigned to construct {:?} at {:?}!", 
+                          unit.unit_id, building_type, position);
+                } else {
+                    // Site already has a worker assigned
+                    movement.target_position = Some(target_point);
+                    combat.target = None;
+                    info!("⚠️ Building site already has worker assigned, moving to location instead");
+                }
+            }
+        } else {
+            // Site not found, just move
+            movement.target_position = Some(target_point);
+            combat.target = None;
+            warn!("Building site not found for entity {:?}", site_entity);
+        }
+    } else {
+        // Not a worker or not player 1, just move to location
+        movement.target_position = Some(target_point);
+        combat.target = None;
+        info!("🚶 Unit {:?} moving to construction site: {:?}", unit.unit_id, target_point);
     }
 }
 

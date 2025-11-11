@@ -486,8 +486,12 @@ pub fn upgrade_to_glb_models(
         units_without_models.iter_mut(),
     );
     
-    // Handle buildings (currently kept as placeholders)
-    mark_buildings_as_processed(&mut commands, buildings_without_models.iter_mut());
+    // Handle buildings - upgrade to GLB models
+    upgrade_buildings_to_glb(
+        &mut commands,
+        &model_assets,
+        buildings_without_models.iter_mut(),
+    );
 }
 
 /// Upgrades units from primitive shapes to GLB models.
@@ -612,10 +616,51 @@ fn adjust_movement_for_scale(movement: &mut Movement, scale_factor: f32) {
     );
 }
 
+/// Upgrades buildings from primitive shapes to GLB models.
+/// 
+/// This function processes the actual model upgrade for buildings,
+/// similar to units but handling building-specific logic.
+fn upgrade_buildings_to_glb<'a>(
+    commands: &mut Commands,
+    model_assets: &ModelAssets,
+    buildings_iter: impl Iterator<Item = (Entity, &'a Building, &'a RTSUnit, Mut<'a, Transform>)>,
+) {
+    for (entity, building, unit, mut transform) in buildings_iter {
+        // Get the appropriate model for this building type
+        let model_type = get_building_insect_model(&building.building_type);
+        let model_handle = model_assets.get_model_handle(&model_type);
+        
+        // Get the appropriate scale for this model
+        let model_scale = get_model_scale(&model_type);
+        
+        // Remove existing primitive mesh and material
+        commands.entity(entity)
+            .remove::<Mesh3d>()
+            .remove::<MeshMaterial3d<StandardMaterial>>()
+            .insert((
+                // Add GLB model
+                SceneRoot(model_handle),
+                // Scale the model appropriately
+                Transform::from_translation(transform.translation)
+                    .with_scale(Vec3::splat(model_scale))
+                    .with_rotation(transform.rotation),
+                // Mark as using GLB model
+                UseGLBModel,
+            ));
+        
+        // Update the transform to match the new scale
+        transform.scale = Vec3::splat(model_scale);
+        
+        info!("Upgraded building {:?} (player {}) to GLB model {:?} with scale {:.1}", 
+              building.building_type, unit.player_id, model_type, model_scale);
+    }
+}
+
 /// Marks buildings as processed without upgrading to GLB models.
 /// 
 /// Buildings are currently kept as placeholder models due to placement issues.
 /// This function marks them with `UseGLBModel` to prevent re-processing.
+#[allow(dead_code)]
 fn mark_buildings_as_processed<'a>(
     commands: &mut Commands,
     buildings_iter: impl Iterator<Item = (Entity, &'a Building, &'a RTSUnit, Mut<'a, Transform>)>,
@@ -846,7 +891,7 @@ pub fn get_building_insect_model(building_type: &crate::core::components::Buildi
         BuildingType::Stable => InsectModelType::Anthill,
 
         // Resource buildings
-        BuildingType::FungalGarden => InsectModelType::Mushrooms,  // Perfect match!
+        BuildingType::FungalGarden => InsectModelType::Anthill,  // Changed to anthill model
         BuildingType::WoodProcessor => InsectModelType::Anthill,
         BuildingType::MineralProcessor => InsectModelType::Anthill,
         BuildingType::StorageChamber => InsectModelType::Anthill,

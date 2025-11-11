@@ -340,7 +340,7 @@ pub fn validate_building_placement<BF, UF, EF>(
     building_radius: f32,
     existing_buildings: &Query<(&Transform, &CollisionRadius), BF>,
     units: &Query<(&Transform, &CollisionRadius), UF>,
-    environment_objects: &Query<(&Transform, &CollisionRadius), EF>,
+    environment_objects: &Query<(&Transform, &CollisionRadius, &EnvironmentObject), EF>,
 ) -> bool
 where
     BF: bevy::ecs::query::QueryFilter,
@@ -370,9 +370,15 @@ where
     }
 
     // Check against environment objects - avoid placing buildings on obstacles
-    for (transform, collision_radius) in environment_objects.iter() {
+    for (transform, collision_radius, env_object) in environment_objects.iter() {
         let distance = position.distance(transform.translation);
-        let min_distance = building_radius + collision_radius.radius + MIN_SPACING_FROM_ENVIRONMENT;
+        
+        // Apply larger spacing for mushrooms to prevent buildings from being placed too close
+        let extra_spacing = match env_object.object_type {
+            EnvironmentObjectType::Mushrooms => 80.0, // Much wider radius for mushrooms (10x increased)
+            _ => MIN_SPACING_FROM_ENVIRONMENT, // Normal spacing for other objects
+        };
+        let min_distance = building_radius + collision_radius.radius + extra_spacing;
 
         if distance < min_distance {
             return false; // Too close to environment object

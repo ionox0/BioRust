@@ -296,15 +296,16 @@ impl GameCosts {
         costs.unit_costs.insert(UnitType::WolfSpider, vec![(ResourceType::Chitin, 70.0), (ResourceType::Pheromones, 50.0)]);
         costs.unit_costs.insert(UnitType::TermiteWarrior, vec![(ResourceType::Nectar, 90.0), (ResourceType::Chitin, 60.0), (ResourceType::Minerals, 40.0)]);
 
-        // Building costs
-        costs.building_costs.insert(BuildingType::Nursery, vec![(ResourceType::Chitin, 25.0)]);
-        costs.building_costs.insert(BuildingType::WarriorChamber, vec![(ResourceType::Chitin, 175.0)]);
-        costs.building_costs.insert(BuildingType::HunterChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Pheromones, 50.0)]);
-        costs.building_costs.insert(BuildingType::Queen, vec![(ResourceType::Chitin, 275.0), (ResourceType::Minerals, 100.0)]);
-        costs.building_costs.insert(BuildingType::WoodProcessor, vec![(ResourceType::Chitin, 100.0)]);
-        costs.building_costs.insert(BuildingType::MineralProcessor, vec![(ResourceType::Chitin, 100.0)]);
-        costs.building_costs.insert(BuildingType::StorageChamber, vec![(ResourceType::Chitin, 100.0)]);
-        costs.building_costs.insert(BuildingType::EvolutionChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 50.0)]);
+        // Building costs (increased to ~250 for economic balance)
+        costs.building_costs.insert(BuildingType::Nursery, vec![(ResourceType::Chitin, 250.0)]);
+        costs.building_costs.insert(BuildingType::WarriorChamber, vec![(ResourceType::Chitin, 200.0), (ResourceType::Minerals, 50.0)]);
+        costs.building_costs.insert(BuildingType::HunterChamber, vec![(ResourceType::Chitin, 180.0), (ResourceType::Pheromones, 70.0)]);
+        costs.building_costs.insert(BuildingType::Queen, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 100.0)]);
+        costs.building_costs.insert(BuildingType::FungalGarden, vec![(ResourceType::Chitin, 250.0)]);
+        costs.building_costs.insert(BuildingType::WoodProcessor, vec![(ResourceType::Chitin, 250.0)]);
+        costs.building_costs.insert(BuildingType::MineralProcessor, vec![(ResourceType::Chitin, 250.0)]);
+        costs.building_costs.insert(BuildingType::StorageChamber, vec![(ResourceType::Chitin, 250.0)]);
+        costs.building_costs.insert(BuildingType::EvolutionChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 100.0)]);
         
         // Technology costs
         costs.tech_costs.insert(TechnologyType::ChitinWeaving, vec![(ResourceType::Nectar, 50.0), (ResourceType::Pheromones, 50.0)]);
