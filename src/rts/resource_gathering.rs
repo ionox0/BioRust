@@ -97,12 +97,12 @@ fn process_resource_gathering(
     if distance > 5.0 {
         return;
     }
-    
+
+    // If at full capacity, stop gathering but keep target_resource so we can return after delivery
     if gatherer.carried_amount >= gatherer.capacity {
-        gatherer.target_resource = None;
         return;
     }
-    
+
     let gather_amount = calculate_gather_amount(gatherer, &resource, delta_time);
     apply_gathering(gatherer, &mut resource, gather_amount);
     
@@ -136,8 +136,14 @@ fn process_resource_delivery(
     player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
-    // Check if carrying full load
-    if gatherer.carried_amount < gatherer.capacity {
+    // Check if carrying any resources AND no active resource target
+    // This ensures units return to base even if resource depletes before reaching full capacity
+    if gatherer.carried_amount <= 0.0 {
+        return;
+    }
+
+    // If still gathering from a resource, don't return yet (unless at full capacity)
+    if gatherer.target_resource.is_some() && gatherer.carried_amount < gatherer.capacity {
         return;
     }
 
@@ -171,12 +177,21 @@ fn process_resource_delivery(
         deliver_resources_to_player(unit.player_id, resource_type, gatherer.carried_amount, player_resources, ai_resources);
         reset_gatherer_cargo(gatherer);
 
-        // Automatically return to resource gathering
+        // Automatically return to resource gathering if target still exists
         if let Some(resource_entity) = gatherer.target_resource {
             if let Ok((_, _, resource_transform)) = resources.get(resource_entity) {
                 movement.target_position = Some(resource_transform.translation);
                 info!("🔄 Worker {:?} returning to gather more resources", unit.unit_id);
+            } else {
+                // Resource no longer exists, clear target and movement so AI can assign new resource
+                gatherer.target_resource = None;
+                movement.target_position = None;
+                info!("🏁 Worker {:?} completed delivery, resource depleted, becoming idle", unit.unit_id);
             }
+        } else {
+            // No target resource (was depleted before delivery), clear movement so AI can assign new resource
+            movement.target_position = None;
+            info!("🏁 Worker {:?} completed delivery, becoming idle", unit.unit_id);
         }
     }
 }

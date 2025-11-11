@@ -349,17 +349,11 @@ pub fn spawn_test_units_system(
     camera_q: Query<&Transform, With<crate::core::components::RTSCamera>>,
 ) {
     let Ok(camera_transform) = camera_q.get_single() else { return };
-    
+
     let camera_ground_pos = Vec3::new(camera_transform.translation.x, 0.0, camera_transform.translation.z);
-    
-    if keyboard.just_pressed(KeyCode::KeyM) {
-        spawn_test_unit(&mut commands, &mut meshes, &mut materials, camera_ground_pos, UnitType::SoldierAnt, 1, crate::constants::combat::UNIT_SPAWN_OFFSET);
-    }
-    
-    if keyboard.just_pressed(KeyCode::KeyA) {
-        spawn_test_unit(&mut commands, &mut meshes, &mut materials, camera_ground_pos, UnitType::HunterWasp, 1, -crate::constants::combat::UNIT_SPAWN_OFFSET);
-    }
-    
+
+    // Removed KeyCode::KeyM and KeyCode::KeyA spawn shortcuts to prevent random unit spawning
+
     if keyboard.just_pressed(KeyCode::KeyE) {
         let spawn_pos = camera_ground_pos + Vec3::new(0.0, 1.0, crate::constants::combat::UNIT_SPAWN_RANGE);
         
