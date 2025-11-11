@@ -51,7 +51,7 @@ pub fn economy_optimization_system(
     ai_resources: Res<AIResources>,
     mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
-    buildings: Query<(Entity, &Transform), With<Building>>,
+    buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
@@ -151,8 +151,23 @@ fn reassign_workers(
     allocations: &[ResourceAllocation],
     workers: &mut Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
-    buildings: &Query<(Entity, &Transform), With<Building>>,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
+    use crate::core::components::BuildingType;
+
+    // First, check if player has any suitable drop-off buildings
+    let has_dropoff_building = buildings
+        .iter()
+        .any(|(_, _, building, building_unit)| {
+            building_unit.player_id == player_id &&
+            building.is_complete &&
+            matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
+        });
+
+    // Don't reassign workers if no buildings can accept resources
+    if !has_dropoff_building {
+        return;
+    }
     // First, check resource availability for each allocation
     let mut available_resources: HashMap<ResourceType, usize> = HashMap::new();
     for (_, source, _) in resource_sources.iter() {
@@ -214,22 +229,30 @@ fn reassign_workers(
 
                     if let Some((source_entity, _)) = sources.first() {
                         if let Ok((_, mut gatherer, unit, worker_transform)) = workers.get_mut(worker_entity) {
-                            // Find nearest building for drop-off
+                            // Find nearest suitable drop-off building
+                            // Only complete Queens, StorageChambers, and Nurseries can accept resources
                             let nearest_building = buildings
                                 .iter()
-                                .filter(|(_, _)| unit.player_id == player_id) // Only player's own buildings
+                                .filter(|(_, _, building, building_unit)| {
+                                    building_unit.player_id == player_id &&
+                                    building.is_complete &&
+                                    matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
+                                })
                                 .min_by(|a, b| {
                                     let dist_a = worker_transform.translation.distance(a.1.translation);
                                     let dist_b = worker_transform.translation.distance(b.1.translation);
                                     dist_a.partial_cmp(&dist_b).unwrap()
                                 })
-                                .map(|(entity, _)| entity);
+                                .map(|(entity, _, _, _)| entity);
 
-                            gatherer.target_resource = Some(*source_entity);
-                            gatherer.resource_type = Some(allocation.resource_type.clone());
-                            gatherer.carried_amount = 0.0;
-                            gatherer.drop_off_building = nearest_building;
-                            info!("Reassigning AI worker to {:?} with dropoff: {:?}", allocation.resource_type, nearest_building);
+                            // Only reassign if we found a suitable drop-off building
+                            if let Some(building) = nearest_building {
+                                gatherer.target_resource = Some(*source_entity);
+                                gatherer.resource_type = Some(allocation.resource_type.clone());
+                                gatherer.carried_amount = 0.0;
+                                gatherer.drop_off_building = Some(building);
+                                info!("Reassigning AI worker to {:?} with dropoff: {:?}", allocation.resource_type, Some(building));
+                            }
                         }
                     }
                 }
@@ -243,9 +266,26 @@ pub fn worker_idle_detection_system(
     economy_manager: Res<EconomyManager>,
     mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
-    buildings: Query<(Entity, &Transform), With<Building>>,
+    buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
+    use crate::core::components::BuildingType;
+
     for (player_id, economy) in &economy_manager.player_economy {
+        // First, check if player has any suitable drop-off buildings
+        // Only Queens, StorageChambers, and Nurseries can accept resources
+        let has_dropoff_building = buildings
+            .iter()
+            .any(|(_, _, building, building_unit)| {
+                building_unit.player_id == *player_id &&
+                building.is_complete &&
+                matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
+            });
+
+        // Don't assign workers to gather if no buildings can accept resources
+        if !has_dropoff_building {
+            continue;
+        }
+
         // Try to find an available resource type from priorities
         let mut assigned_resource_type = None;
 
@@ -281,20 +321,28 @@ pub fn worker_idle_detection_system(
                         dist_a.partial_cmp(&dist_b).unwrap()
                     })
                 {
-                    // Find nearest building for drop-off
+                    // Find nearest suitable drop-off building
+                    // Only complete Queens, StorageChambers, and Nurseries can accept resources
                     let nearest_building = buildings
                         .iter()
-                        .filter(|(_, _)| unit.player_id == *player_id) // Only player's own buildings
+                        .filter(|(_, _, building, building_unit)| {
+                            building_unit.player_id == *player_id &&
+                            building.is_complete &&
+                            matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
+                        })
                         .min_by(|a, b| {
                             let dist_a = worker_transform.translation.distance(a.1.translation);
                             let dist_b = worker_transform.translation.distance(b.1.translation);
                             dist_a.partial_cmp(&dist_b).unwrap()
                         })
-                        .map(|(entity, _)| entity);
+                        .map(|(entity, _, _, _)| entity);
 
-                    gatherer.target_resource = Some(source_entity);
-                    gatherer.resource_type = Some(target_resource_type.clone());
-                    gatherer.drop_off_building = nearest_building;
+                    // Only assign if we found a suitable drop-off building
+                    if let Some(building) = nearest_building {
+                        gatherer.target_resource = Some(source_entity);
+                        gatherer.resource_type = Some(target_resource_type.clone());
+                        gatherer.drop_off_building = Some(building);
+                    }
                 }
             }
         }

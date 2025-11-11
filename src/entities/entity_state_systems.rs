@@ -83,14 +83,33 @@ fn determine_entity_state(
             return UnitState::Fighting;
         }
     }
-    
-    // Check for resource gathering
+
+    // Check for resource gathering/delivery
     if let Some(gatherer) = gatherer {
+        // Check if returning to base with resources
+        // Unit is returning if: carrying resources AND (at capacity OR no target resource OR moving to dropoff)
+        if gatherer.carried_amount > 0.0 {
+            // If at full capacity or resource depleted, definitely returning
+            if gatherer.carried_amount >= gatherer.capacity || gatherer.target_resource.is_none() {
+                return UnitState::ReturningWithResources;
+            }
+            // If has partial resources and a target, check if moving away from target (returning to base)
+            // This catches the case where resource depleted while gathering
+            if let Some(movement) = movement {
+                if movement.target_position.is_some() && gatherer.drop_off_building.is_some() {
+                    // If has both target and movement, assume returning to dropoff for now
+                    // The gathering system will set movement toward resource or dropoff appropriately
+                    return UnitState::ReturningWithResources;
+                }
+            }
+        }
+
+        // Check if actively gathering at a resource
         if gatherer.target_resource.is_some() {
             return UnitState::Gathering;
         }
     }
-    
+
     // Check for movement
     if let Some(movement) = movement {
         if movement.target_position.is_some() {
@@ -121,6 +140,7 @@ pub fn sync_animation_with_entity_state(
                 },
                 UnitState::Fighting => AnimationState::Attacking,
                 UnitState::Gathering => AnimationState::Special, // Use special animation for gathering
+                UnitState::ReturningWithResources => AnimationState::Walking, // Walking back with resources
                 UnitState::Building => AnimationState::Special,  // Use special animation for building
                 UnitState::Dead => AnimationState::Death,
                 UnitState::Following => AnimationState::Walking,
