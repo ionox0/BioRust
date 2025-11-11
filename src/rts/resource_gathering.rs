@@ -35,95 +35,118 @@ fn ensure_dropoff_building_assigned(
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
-    // If gatherer already has a drop-off building, verify it still exists and is valid
-    if let Some(current_dropoff) = gatherer.drop_off_building {
-        if let Ok((_, building_transform, building, building_unit)) = buildings.get(current_dropoff) {
-            // Check if building is still valid (same player, complete, can accept resources)
-            let is_correct_type = matches!(building.building_type,
-                BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
-            let is_valid = building_unit.player_id == unit.player_id &&
-                          building.is_complete &&
-                          is_correct_type;
+    // Validate existing assignment
+    if is_current_dropoff_valid(gatherer, unit, buildings) {
+        return;
+    }
 
-            if is_valid {
-                // Building is valid - keep it assigned!
-                // Workers can be thousands of units away while gathering - that's totally fine
-                return; // Current drop-off is valid, keep it
-            }
-        }
-
-        // Only clear if building is invalid (destroyed, wrong player, incomplete, wrong type)
-        // Do NOT clear just because worker is far away!
+    // Clear invalid assignment
+    if gatherer.drop_off_building.is_some() {
         gatherer.drop_off_building = None;
     }
 
-    // Find the closest suitable building for this worker's player
+    // Find and assign new building
+    if let Some((building_entity, distance)) = find_closest_dropoff_building(worker_transform, unit, buildings) {
+        assign_new_dropoff_building(gatherer, unit, building_entity, distance);
+    } else {
+        log_no_dropoff_available(gatherer, unit, buildings);
+    }
+}
+
+/// Check if current dropoff building is still valid
+fn is_current_dropoff_valid(
+    gatherer: &ResourceGatherer,
+    unit: &RTSUnit,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
+) -> bool {
+    let Some(current_dropoff) = gatherer.drop_off_building else {
+        return false;
+    };
+
+    let Ok((_, _, building, building_unit)) = buildings.get(current_dropoff) else {
+        return false;
+    };
+
+    let is_correct_type = matches!(building.building_type,
+        BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
+
+    building_unit.player_id == unit.player_id && building.is_complete && is_correct_type
+}
+
+/// Find the closest suitable dropoff building for a worker
+fn find_closest_dropoff_building(
+    worker_transform: &Transform,
+    unit: &RTSUnit,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
+) -> Option<(Entity, f32)> {
     let mut closest_building: Option<Entity> = None;
     let mut closest_distance = f32::MAX;
 
-    // DEBUG: Count buildings to diagnose the issue
-    let total_buildings = buildings.iter().count();
-    let player_buildings = buildings.iter().filter(|(_, _, _, b)| b.player_id == unit.player_id).count();
-    let complete_buildings = buildings.iter().filter(|(_, _, b, u)| u.player_id == unit.player_id && b.is_complete).count();
-
-    if player_buildings == 0 && gatherer.drop_off_building.is_none() {
-        warn!("🏛️ DEBUG: Player {} - Total buildings on map: {}, Player's buildings: {}, Complete: {}",
-              unit.player_id, total_buildings, player_buildings, complete_buildings);
-    }
-
     for (building_entity, building_transform, building, building_unit) in buildings.iter() {
         // Only consider buildings owned by the same player
-        if building_unit.player_id != unit.player_id {
-            continue;
-        }
-
-        // Only consider completed buildings that can accept resources
-        if !building.is_complete {
+        if building_unit.player_id != unit.player_id || !building.is_complete {
             continue;
         }
 
         // Check if building type can accept resources
-        match building.building_type {
-            BuildingType::Queen |
-            BuildingType::StorageChamber |
-            BuildingType::Nursery => {
-                let distance = worker_transform.translation.distance(building_transform.translation);
+        let is_resource_building = matches!(building.building_type,
+            BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
 
-                // Find the closest building
-                if distance < closest_distance {
-                    closest_distance = distance;
-                    closest_building = Some(building_entity);
-                }
+        if is_resource_building {
+            let distance = worker_transform.translation.distance(building_transform.translation);
+            if distance < closest_distance {
+                closest_distance = distance;
+                closest_building = Some(building_entity);
             }
-            _ => continue,
         }
     }
 
-    // Assign the closest building if we found a significantly better option
-    if let Some(building) = closest_building {
-        gatherer.drop_off_building = Some(building);
-        // Only log if worker has resources or is actively gathering (not at startup)
-        if gatherer.carried_amount > 0.0 || gatherer.target_resource.is_some() {
-            info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
-                  unit.unit_id, unit.player_id, closest_distance);
-        }
-    } else if gatherer.drop_off_building.is_none() {
-        // Worker needs dropoff but none found - log this as it's a problem
-        // Only log once per second to avoid spam
-        static LAST_WARNING_TIME: LazyLock<Mutex<f32>> = LazyLock::new(|| Mutex::new(0.0));
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs_f32();
+    closest_building.map(|building| (building, closest_distance))
+}
 
-        let mut last_time = LAST_WARNING_TIME.lock().unwrap();
-        if current_time - *last_time > 1.0 {
-            warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
-                  unit.unit_id, unit.player_id);
-            warn!("   Buildings check: {} total, {} for player {}, {} complete",
-                  total_buildings, player_buildings, unit.player_id, complete_buildings);
-            *last_time = current_time;
-        }
+/// Assign a new dropoff building to a worker
+fn assign_new_dropoff_building(
+    gatherer: &mut ResourceGatherer,
+    unit: &RTSUnit,
+    building_entity: Entity,
+    distance: f32,
+) {
+    gatherer.drop_off_building = Some(building_entity);
+    // Only log if worker has resources or is actively gathering (not at startup)
+    if gatherer.carried_amount > 0.0 || gatherer.target_resource.is_some() {
+        info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
+              unit.unit_id, unit.player_id, distance);
+    }
+}
+
+/// Log warning when no dropoff building is available
+fn log_no_dropoff_available(
+    gatherer: &ResourceGatherer,
+    unit: &RTSUnit,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
+) {
+    if gatherer.drop_off_building.is_some() {
+        return; // Already has a building, no need to log
+    }
+
+    // Only log once per second to avoid spam
+    static LAST_WARNING_TIME: LazyLock<Mutex<f32>> = LazyLock::new(|| Mutex::new(0.0));
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f32();
+
+    let mut last_time = LAST_WARNING_TIME.lock().unwrap();
+    if current_time - *last_time > 1.0 {
+        let total_buildings = buildings.iter().count();
+        let player_buildings = buildings.iter().filter(|(_, _, _, b)| b.player_id == unit.player_id).count();
+        let complete_buildings = buildings.iter().filter(|(_, _, b, u)| u.player_id == unit.player_id && b.is_complete).count();
+
+        warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
+              unit.unit_id, unit.player_id);
+        warn!("   Buildings check: {} total, {} for player {}, {} complete",
+              total_buildings, player_buildings, unit.player_id, complete_buildings);
+        *last_time = current_time;
     }
 }
 
@@ -236,19 +259,50 @@ fn process_resource_delivery(
     player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
-    // Check if carrying any resources AND no active resource target
-    // This ensures units return to base even if resource depletes before reaching full capacity
+    // Check if worker is ready to return to base
+    if !should_worker_return_to_base(gatherer, unit) {
+        return;
+    }
+
+    // Ensure worker has a dropoff building
+    let Some(dropoff_entity) = gatherer.drop_off_building else {
+        handle_no_dropoff_building(gatherer, movement, unit);
+        return;
+    };
+
+    // Get building location
+    let Ok((_, building_transform, _, _)) = buildings.get(dropoff_entity) else {
+        warn!("Drop-off building not found for worker {} (player {})!", unit.unit_id, unit.player_id);
+        gatherer.drop_off_building = None;
+        return;
+    };
+
+    let distance = gatherer_transform.translation.distance(building_transform.translation);
+    log_dropoff_distance(unit, distance);
+
+    // If far from dropoff, move towards it
+    if distance > DROPOFF_TRAVEL_DISTANCE {
+        move_worker_to_dropoff(gatherer, movement, unit, building_transform, distance);
+        return;
+    }
+
+    // Close enough to deliver resources
+    complete_resource_delivery(gatherer, movement, unit, resources, player_resources, ai_resources);
+}
+
+/// Check if worker should return to base with resources
+fn should_worker_return_to_base(gatherer: &ResourceGatherer, unit: &RTSUnit) -> bool {
+    // No resources to deliver
     if gatherer.carried_amount <= 0.0 {
-        return;
+        return false;
     }
 
-    // If still gathering from a resource, don't return yet (unless at full capacity)
+    // Still gathering from a resource, don't return yet (unless at full capacity)
     if gatherer.target_resource.is_some() && gatherer.carried_amount < gatherer.capacity {
-        // Still gathering, not ready to return yet
-        return;
+        return false;
     }
 
-    // Log when worker decides to return
+    // Log when worker decides to return (once per worker)
     static DELIVERY_DECISION_LOGGED: LazyLock<Mutex<HashSet<u32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
     let mut logged = DELIVERY_DECISION_LOGGED.lock().unwrap();
     if !logged.contains(&unit.unit_id) {
@@ -264,33 +318,28 @@ fn process_resource_delivery(
         logged.insert(unit.unit_id);
     }
 
-    let Some(dropoff_entity) = gatherer.drop_off_building else {
-        // Worker has resources but no drop-off building (likely no buildings built yet)
-        // Clear target_resource and movement so worker waits idle until a building is assigned
-        if gatherer.target_resource.is_some() || movement.target_position.is_some() {
-            gatherer.target_resource = None;
-            movement.target_position = None;
-            warn!("Worker {} (player {}) has {:.1} resources but no drop-off building available - waiting for building to be constructed",
-                  unit.unit_id, unit.player_id, gatherer.carried_amount);
-        }
-        return;
-    };
+    true
+}
 
-    // Get building transform
-    let Ok((_, building_transform, _, _)) = buildings.get(dropoff_entity) else {
-        warn!("Drop-off building not found for worker {} (player {})!", unit.unit_id, unit.player_id);
-        gatherer.drop_off_building = None;
-        return;
-    };
+/// Handle case where worker has resources but no dropoff building
+fn handle_no_dropoff_building(gatherer: &mut ResourceGatherer, movement: &mut Movement, unit: &RTSUnit) {
+    // Clear target_resource and movement so worker waits idle until a building is assigned
+    if gatherer.target_resource.is_some() || movement.target_position.is_some() {
+        gatherer.target_resource = None;
+        movement.target_position = None;
+        warn!("Worker {} (player {}) has {:.1} resources but no drop-off building available - waiting for building to be constructed",
+              unit.unit_id, unit.player_id, gatherer.carried_amount);
+    }
+}
 
-    let distance = gatherer_transform.translation.distance(building_transform.translation);
-
-    // Log distance to dropoff for debugging
+/// Log the distance to dropoff building for debugging
+fn log_dropoff_distance(unit: &RTSUnit, distance: f32) {
     static DROPOFF_DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs_f32();
+
     let mut log = DROPOFF_DISTANCE_LOG.lock().unwrap();
     let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
     if current_time - last_time > 2.0 {
@@ -298,40 +347,57 @@ fn process_resource_delivery(
               unit.unit_id, unit.player_id, distance, DROPOFF_TRAVEL_DISTANCE);
         log.insert(unit.unit_id, current_time);
     }
+}
 
-    // If far from dropoff, move towards it
-    if distance > DROPOFF_TRAVEL_DISTANCE {
-        // Set movement target to building if not already moving there
-        if movement.target_position.is_none() ||
-           movement.target_position.unwrap().distance(building_transform.translation) > 5.0 {
-            movement.target_position = Some(building_transform.translation);
-            info!("🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
-                  unit.unit_id, unit.player_id, gatherer.carried_amount, distance);
-        }
-        return;
+/// Move worker towards the dropoff building
+fn move_worker_to_dropoff(
+    gatherer: &ResourceGatherer,
+    movement: &mut Movement,
+    unit: &RTSUnit,
+    building_transform: &Transform,
+    distance: f32,
+) {
+    // Set movement target to building if not already moving there
+    if movement.target_position.is_none() ||
+       movement.target_position.unwrap().distance(building_transform.translation) > 5.0 {
+        movement.target_position = Some(building_transform.translation);
+        info!("🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
+              unit.unit_id, unit.player_id, gatherer.carried_amount, distance);
     }
+}
 
-    // Close enough to deliver
-    if let Some(resource_type) = gatherer.resource_type.clone() {
-        deliver_resources_to_player(unit.player_id, resource_type, gatherer.carried_amount, player_resources, ai_resources);
-        reset_gatherer_cargo(gatherer);
+/// Complete the resource delivery and decide next action
+fn complete_resource_delivery(
+    gatherer: &mut ResourceGatherer,
+    movement: &mut Movement,
+    unit: &RTSUnit,
+    resources: &Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
+    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
+) {
+    let Some(resource_type) = gatherer.resource_type.clone() else {
+        return;
+    };
 
-        // Automatically return to resource gathering if target still exists
-        if let Some(resource_entity) = gatherer.target_resource {
-            if let Ok((_, _, resource_transform)) = resources.get(resource_entity) {
-                movement.target_position = Some(resource_transform.translation);
-                info!("🔄 Worker {:?} returning to gather more resources", unit.unit_id);
-            } else {
-                // Resource no longer exists, clear target and movement so AI can assign new resource
-                gatherer.target_resource = None;
-                movement.target_position = None;
-                info!("🏁 Worker {:?} completed delivery, resource depleted, becoming idle", unit.unit_id);
-            }
+    // Deliver resources to player
+    deliver_resources_to_player(unit.player_id, resource_type, gatherer.carried_amount, player_resources, ai_resources);
+    reset_gatherer_cargo(gatherer);
+
+    // Decide next action: return to gathering or become idle
+    if let Some(resource_entity) = gatherer.target_resource {
+        if let Ok((_, _, resource_transform)) = resources.get(resource_entity) {
+            movement.target_position = Some(resource_transform.translation);
+            info!("🔄 Worker {:?} returning to gather more resources", unit.unit_id);
         } else {
-            // No target resource (was depleted before delivery), clear movement so AI can assign new resource
+            // Resource no longer exists, clear target and movement so AI can assign new resource
+            gatherer.target_resource = None;
             movement.target_position = None;
-            info!("🏁 Worker {:?} completed delivery, becoming idle", unit.unit_id);
+            info!("🏁 Worker {:?} completed delivery, resource depleted, becoming idle", unit.unit_id);
         }
+    } else {
+        // No target resource (was depleted before delivery), clear movement so AI can assign new resource
+        movement.target_position = None;
+        info!("🏁 Worker {:?} completed delivery, becoming idle", unit.unit_id);
     }
 }
 

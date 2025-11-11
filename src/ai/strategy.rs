@@ -2,6 +2,32 @@ use bevy::prelude::*;
 use crate::core::components::*;
 use crate::core::resources::*;
 
+/// Context for executing AI strategy operations
+pub struct StrategyExecutionContext<'a> {
+    pub commands: &'a mut Commands,
+    pub meshes: &'a mut ResMut<'a, Assets<Mesh>>,
+    pub materials: &'a mut ResMut<'a, Assets<StandardMaterial>>,
+    pub game_costs: &'a Res<'a, GameCosts>,
+    pub units: &'a Query<'a, 'a, &'a RTSUnit>,
+    pub buildings: &'a Query<'a, 'a, (&'a Building, &'a RTSUnit), With<Building>>,
+    pub terrain_manager: &'a Res<'a, crate::world::terrain_v2::TerrainChunkManager>,
+    pub terrain_settings: &'a Res<'a, crate::world::terrain_v2::TerrainSettings>,
+}
+
+/// Get the building type required to produce a given unit type
+fn get_production_building_for_unit(unit_type: &UnitType) -> BuildingType {
+    match unit_type {
+        // Ant units from Queen (Ant Hill)
+        UnitType::WorkerAnt | UnitType::SoldierAnt | UnitType::ScoutAnt | UnitType::SpearMantis => BuildingType::Queen,
+        // Bee/Flying units from Nursery (Bee Hive)
+        UnitType::HunterWasp | UnitType::DragonFly | UnitType::AcidSpitter => BuildingType::Nursery,
+        // Beetle/Heavy units from WarriorChamber (Pine Cone)
+        UnitType::BeetleKnight | UnitType::BatteringBeetle => BuildingType::WarriorChamber,
+        // Default to Queen for other unit types
+        _ => BuildingType::Queen,
+    }
+}
+
 // System to spawn initial resources for AI strategy testing
 pub fn ai_resource_initialization_system(
     mut commands: Commands,
@@ -147,21 +173,26 @@ pub fn ai_strategy_system(
     
     for (&player_id, strategy) in ai_strategy.strategies.iter_mut() {
         if let Some(player_resources) = ai_resources.resources.get(&player_id) {
+            // Create execution context
+            let mut context = StrategyExecutionContext {
+                commands: &mut commands,
+                meshes: &mut meshes,
+                materials: &mut materials,
+                game_costs: &game_costs,
+                units: &units,
+                buildings: &buildings,
+                terrain_manager: &terrain_manager,
+                terrain_settings: &terrain_settings,
+            };
+
             execute_strategy(
                 player_id,
                 strategy,
                 player_resources,
-                &game_costs,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &units,
-                &buildings,
-                &terrain_manager,
-                &terrain_settings,
+                &mut context,
                 current_time,
             );
-            
+
             // Assign workers to resource gathering
             assign_workers_to_resources(
                 player_id,
@@ -169,7 +200,7 @@ pub fn ai_strategy_system(
                 &mut workers,
                 &resource_sources,
             );
-            
+
             // Assign workers to construction tasks
             assign_workers_to_construction(
                 player_id,
@@ -185,39 +216,25 @@ fn execute_strategy(
     player_id: u8,
     strategy: &mut PlayerStrategy,
     resources: &PlayerResources,
-    game_costs: &GameCosts,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    units: &Query<&RTSUnit>,
-    buildings: &Query<(&Building, &RTSUnit), With<Building>>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    context: &mut StrategyExecutionContext,
     current_time: f32,
 ) {
     // Update strategy phase based on resources and units
-    update_strategy_phase(strategy, resources, units, player_id);
-    
+    update_strategy_phase(strategy, resources, context.units, player_id);
+
     // Execute next goal if enough time has passed
     if should_execute_next_goal(strategy, current_time) {
         execute_next_goal(
             player_id,
             strategy,
             resources,
-            game_costs,
-            commands,
-            meshes,
-            materials,
-            units,
-            buildings,
-            terrain_manager,
-            terrain_settings,
+            context,
             current_time,
         );
     }
-    
+
     // Add new goals based on current situation
-    add_dynamic_goals(strategy, resources, units, buildings, player_id);
+    add_dynamic_goals(strategy, resources, context.units, context.buildings, player_id);
 }
 
 fn update_strategy_phase(
@@ -250,39 +267,32 @@ fn execute_next_goal(
     player_id: u8,
     strategy: &mut PlayerStrategy,
     resources: &PlayerResources,
-    game_costs: &GameCosts,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    units: &Query<&RTSUnit>,
-    buildings: &Query<(&Building, &RTSUnit), With<Building>>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    context: &mut StrategyExecutionContext,
     current_time: f32,
 ) {
     if strategy.priority_queue.is_empty() {
         return;
     }
-    
+
     let goal = strategy.priority_queue[0].clone();
-    
+
     match goal {
         StrategyGoal::BuildWorker => {
-            if try_build_unit(player_id, UnitType::WorkerAnt, resources, game_costs, commands, meshes, materials, buildings) {
+            if try_build_unit(player_id, UnitType::WorkerAnt, resources, context) {
                 strategy.priority_queue.remove(0);
                 strategy.last_unit_time = current_time;
                 info!("AI Player {} built WorkerAnt", player_id);
             }
         },
         StrategyGoal::BuildMilitaryUnit(unit_type) => {
-            if try_build_unit(player_id, unit_type.clone(), resources, game_costs, commands, meshes, materials, buildings) {
+            if try_build_unit(player_id, unit_type.clone(), resources, context) {
                 strategy.priority_queue.remove(0);
                 strategy.last_unit_time = current_time;
                 info!("AI Player {} built {:?}", player_id, unit_type);
             }
         },
         StrategyGoal::ConstructBuilding(building_type) => {
-            if try_build_building(player_id, building_type.clone(), resources, game_costs, commands, meshes, materials, terrain_manager, terrain_settings) {
+            if try_build_building(player_id, building_type.clone(), resources, context) {
                 strategy.priority_queue.remove(0);
                 strategy.last_building_time = current_time;
                 info!("AI Player {} started building {:?}", player_id, building_type);
@@ -299,69 +309,51 @@ fn try_build_unit(
     player_id: u8,
     unit_type: UnitType,
     resources: &PlayerResources,
-    game_costs: &GameCosts,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    buildings: &Query<(&Building, &RTSUnit), With<Building>>,
+    context: &mut StrategyExecutionContext,
 ) -> bool {
     // Check if we can afford the unit
-    if let Some(cost) = game_costs.unit_costs.get(&unit_type) {
+    if let Some(cost) = context.game_costs.unit_costs.get(&unit_type) {
         if !resources.can_afford(cost) || !resources.has_population_space() {
             return false;
         }
     }
-    
-    // Find a suitable production building
-    let required_building = match unit_type {
-        // Ant units from Queen (Ant Hill)
-        UnitType::WorkerAnt => BuildingType::Queen,
-        UnitType::SoldierAnt => BuildingType::Queen,
-        UnitType::ScoutAnt => BuildingType::Queen,
-        UnitType::SpearMantis => BuildingType::Queen,
-        // Bee/Flying units from Nursery (Bee Hive)
-        UnitType::HunterWasp => BuildingType::Nursery,
-        UnitType::DragonFly => BuildingType::Nursery,
-        UnitType::AcidSpitter => BuildingType::Nursery,
-        // Beetle/Heavy units from WarriorChamber (Pine Cone)
-        UnitType::BeetleKnight => BuildingType::WarriorChamber,
-        UnitType::BatteringBeetle => BuildingType::WarriorChamber,
-        _ => return false,
-    };
-    
+
+    // Get the required production building for this unit type
+    let required_building = get_production_building_for_unit(&unit_type);
+
     // Check if we have the required building
-    let has_building = buildings.iter().any(|(building, unit)| {
-        unit.player_id == player_id && 
-        building.building_type == required_building && 
+    let has_building = context.buildings.iter().any(|(building, unit)| {
+        unit.player_id == player_id &&
+        building.building_type == required_building &&
         building.is_complete
     });
-    
+
     if !has_building {
         return false;
     }
-    
-    // Find the appropriate building to spawn from
-    let spawn_building_type = match unit_type {
-        // Ant units from Queen (Ant Hill)
-        UnitType::WorkerAnt => BuildingType::Queen,
-        UnitType::SoldierAnt => BuildingType::Queen,
-        UnitType::ScoutAnt => BuildingType::Queen,
-        UnitType::SpearMantis => BuildingType::Queen,
-        // Bee/Flying units from Nursery (Bee Hive)
-        UnitType::HunterWasp => BuildingType::Nursery,
-        UnitType::DragonFly => BuildingType::Nursery,
-        UnitType::AcidSpitter => BuildingType::Nursery,
-        // Beetle/Heavy units from WarriorChamber (Pine Cone)
-        UnitType::BeetleKnight => BuildingType::WarriorChamber,
-        UnitType::BatteringBeetle => BuildingType::WarriorChamber,
-        _ => BuildingType::Queen, // Default fallback
-    };
-    
-    // Find a suitable building to spawn from
-    let spawn_position = if let Some((building, _)) = buildings.iter()
+
+    // Find spawn position from the production building
+    let spawn_position = find_unit_spawn_position(player_id, &required_building, context.buildings);
+
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+
+    let config = SpawnConfig::unit(EntityType::Unit(unit_type), spawn_position, player_id);
+    EntityFactory::spawn(context.commands, context.meshes, context.materials, config, None);
+
+    true
+}
+
+/// Find the spawn position for a unit from its production building
+fn find_unit_spawn_position(
+    player_id: u8,
+    building_type: &BuildingType,
+    buildings: &Query<(&Building, &RTSUnit), With<Building>>,
+) -> Vec3 {
+    // Try to find the building and use its rally point
+    if let Some((building, _)) = buildings.iter()
         .find(|(building, unit)| {
-            unit.player_id == player_id && 
-            building.building_type == spawn_building_type && 
+            unit.player_id == player_id &&
+            building.building_type == *building_type &&
             building.is_complete
         }) {
         building.rally_point.unwrap_or_else(|| {
@@ -369,61 +361,32 @@ fn try_build_unit(
             Vec3::new(200.0 * player_id as f32, 10.0, 0.0)
         })
     } else {
-        // Fallback: spawn near player base (simplified for now)
-        let base_x = (player_id as f32 - 1.5) * 400.0; // Player 2 at x=200, etc.
-        let base_z = 0.0;
-        let spawn_x = base_x + (rand::random::<f32>() - 0.5) * 60.0; // Random offset within 60 units
-        let spawn_z = base_z + (rand::random::<f32>() - 0.5) * 60.0;
-        
-        // Use fixed height for now (terrain awareness can be added later)
+        // Fallback: spawn near player base
+        let base_x = (player_id as f32 - 1.5) * 400.0;
+        let spawn_x = base_x + (rand::random::<f32>() - 0.5) * 60.0;
+        let spawn_z = (rand::random::<f32>() - 0.5) * 60.0;
         Vec3::new(spawn_x, 10.0, spawn_z)
-    };
-    
-    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-
-    let config = SpawnConfig::unit(EntityType::Unit(unit_type), spawn_position, player_id);
-    EntityFactory::spawn(commands, meshes, materials, config, None);
-
-    true
+    }
 }
 
 fn try_build_building(
     player_id: u8,
     building_type: BuildingType,
     resources: &PlayerResources,
-    game_costs: &GameCosts,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    context: &mut StrategyExecutionContext,
 ) -> bool {
     // Check if we can afford the building
-    if let Some(cost) = game_costs.building_costs.get(&building_type) {
+    if let Some(cost) = context.game_costs.building_costs.get(&building_type) {
         if !resources.can_afford(cost) {
             return false;
         }
     }
-    
-    // Helper function to get terrain-aware position
-    let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-            x, z, &terrain_manager.noise_generator, &terrain_settings
-        );
-        Vec3::new(x, terrain_height + height_offset, z)
-    };
-    
-    // Calculate building position based on player ID and add some randomness
-    let base_x = (player_id as f32 - 1.0) * 200.0; // Use same spacing as in systems.rs
-    let base_z = 0.0;
-    let building_x = base_x + rand::random::<f32>() * 40.0 - 20.0; // Random offset within 40x40 area
-    let building_z = base_z + rand::random::<f32>() * 40.0 - 20.0;
-    
-    // Get the building position using terrain-aware positioning
-    let building_position = get_terrain_position(building_x, building_z, 0.0); // Buildings use height offset 0.0
-    
+
+    // Calculate building position with terrain awareness
+    let building_position = calculate_building_position(player_id, context.terrain_manager, context.terrain_settings);
+
     // Create a building site instead of directly spawning the building
-    let building_site = commands.spawn(BuildingSite {
+    let _building_site = context.commands.spawn(BuildingSite {
         building_type: building_type.clone(),
         position: building_position,
         player_id,
@@ -431,10 +394,35 @@ fn try_build_building(
         construction_started: false,
         site_reserved: false,
     }).id();
-    
+
     info!("AI Player {} created building site for {:?} at {:?}", player_id, building_type, building_position);
-    
+
     true
+}
+
+/// Calculate a building position with terrain awareness
+fn calculate_building_position(
+    player_id: u8,
+    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+) -> Vec3 {
+    // Calculate base position for player
+    let base_x = (player_id as f32 - 1.0) * 200.0;
+    let base_z = 0.0;
+
+    // Add random offset within 40x40 area
+    let building_x = base_x + rand::random::<f32>() * 40.0 - 20.0;
+    let building_z = base_z + rand::random::<f32>() * 40.0 - 20.0;
+
+    // Get terrain height at position
+    let terrain_height = crate::world::terrain_v2::sample_terrain_height(
+        building_x,
+        building_z,
+        &terrain_manager.noise_generator,
+        terrain_settings
+    );
+
+    Vec3::new(building_x, terrain_height, building_z)
 }
 
 fn add_dynamic_goals(
