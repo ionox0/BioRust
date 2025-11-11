@@ -1,12 +1,13 @@
 use bevy::prelude::*;
+use bevy::ecs::system::SystemParam;
 use crate::core::components::*;
 use crate::ui::resource_display::PlayerResources;
+use crate::collision::validate_building_placement;
 
 #[derive(Resource, Default)]
 pub struct BuildingPlacement {
     pub active_building: Option<BuildingType>,
     pub placement_preview: Option<Entity>,
-    #[allow(dead_code)]
     pub is_valid_placement: bool,
 }
 
@@ -16,7 +17,42 @@ pub struct PlacementPreview;
 #[derive(Component)]
 pub struct PlacementStatusText;
 
-// Removed PlacementContext to avoid lifetime issues - using direct parameters instead
+/// System parameter grouping collision-related queries to reduce parameter count
+#[derive(SystemParam)]
+pub struct CollisionQueries<'w, 's> {
+    pub buildings: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<Building>, Without<PlacementPreview>)>,
+    pub units: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<RTSUnit>, Without<PlacementPreview>)>,
+    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<EnvironmentObject>, Without<PlacementPreview>)>,
+}
+
+/// System parameter grouping preview-related queries to reduce parameter count
+#[derive(SystemParam)]
+pub struct PreviewQueries<'w, 's> {
+    pub transforms: Query<'w, 's, &'static mut Transform, With<PlacementPreview>>,
+    pub materials: Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>, With<PlacementPreview>>,
+}
+
+/// System parameter grouping rendering resources to reduce parameter count
+#[derive(SystemParam)]
+pub struct RenderingResources<'w> {
+    pub meshes: ResMut<'w, Assets<Mesh>>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+    pub model_assets: Option<Res<'w, crate::rendering::model_loader::ModelAssets>>,
+}
+
+/// System parameter grouping terrain resources to reduce parameter count
+#[derive(SystemParam)]
+pub struct TerrainResources<'w> {
+    pub manager: Res<'w, crate::world::terrain_v2::TerrainChunkManager>,
+    pub settings: Res<'w, crate::world::terrain_v2::TerrainSettings>,
+}
+
+/// System parameter grouping player resources to reduce parameter count
+#[derive(SystemParam)]
+pub struct PlayerResourcesMut<'w> {
+    pub ui_resources: ResMut<'w, PlayerResources>,
+    pub main_resources: ResMut<'w, crate::core::resources::PlayerResources>,
+}
 
 pub fn handle_building_placement(
     mut placement: ResMut<BuildingPlacement>,
@@ -25,14 +61,11 @@ pub fn handle_building_placement(
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
-    mut player_resources: ResMut<PlayerResources>,
-    mut main_resources: ResMut<crate::core::resources::PlayerResources>,
-    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
-    mut preview_transforms: Query<&mut Transform, With<PlacementPreview>>,
+    mut rendering_resources: RenderingResources,
+    terrain_resources: TerrainResources,
+    mut player_resources: PlayerResourcesMut,
+    collision_queries: CollisionQueries,
+    mut preview_queries: PreviewQueries,
 ) {
     // Cancel building placement with ESC
     if keyboard.just_pressed(crate::constants::hotkeys::CANCEL_BUILD) {
@@ -44,18 +77,15 @@ pub fn handle_building_placement(
         handle_active_placement(
             &mut placement,
             &mut commands,
-            &mut meshes,
-            &mut materials,
+            &mut rendering_resources,
             &mut player_resources,
-            &mut main_resources,
             building_type,
             &windows,
             &camera_q,
-            &terrain_manager,
-            &terrain_settings,
+            &terrain_resources,
             &mouse_button,
-            &model_assets,
-            &mut preview_transforms,
+            &collision_queries,
+            &mut preview_queries,
         );
     }
 }
@@ -72,31 +102,64 @@ fn cancel_placement(placement: &mut BuildingPlacement, commands: &mut Commands) 
 fn handle_active_placement(
     placement: &mut ResMut<BuildingPlacement>,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_resources: &mut ResMut<PlayerResources>,
-    main_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    rendering_resources: &mut RenderingResources,
+    player_resources: &mut PlayerResourcesMut,
     building_type: BuildingType,
     windows: &Query<&Window>,
     camera_q: &Query<(&Camera, &GlobalTransform)>,
-    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
+    terrain_resources: &TerrainResources,
     mouse_button: &ButtonInput<MouseButton>,
-    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
-    preview_transforms: &mut Query<&mut Transform, With<PlacementPreview>>,
+    collision_queries: &CollisionQueries,
+    preview_queries: &mut PreviewQueries,
 ) {
     let window = windows.single();
     if let Some(cursor_position) = window.cursor_position() {
         let (camera, camera_transform) = camera_q.single();
 
         if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-            let placement_pos = calculate_placement_position(ray, terrain_manager, terrain_settings);
-            
-            update_placement_preview(placement, commands, meshes, materials, building_type.clone(), placement_pos, preview_transforms);
-            
+            let placement_pos = calculate_placement_position(ray, &terrain_resources.manager, &terrain_resources.settings);
+
+            // Get collision radius for this building type
+            let building_radius = get_building_collision_radius(&building_type);
+
+            // Validate placement position
+            let is_valid = validate_building_placement(
+                placement_pos,
+                building_radius,
+                &collision_queries.buildings,
+                &collision_queries.units,
+                &collision_queries.environment_objects,
+            );
+
+            // Update validation state
+            placement.is_valid_placement = is_valid;
+
+            update_placement_preview(
+                placement,
+                commands,
+                &mut rendering_resources.meshes,
+                &mut rendering_resources.materials,
+                building_type.clone(),
+                placement_pos,
+                &mut preview_queries.transforms,
+                is_valid,
+                &mut preview_queries.materials,
+            );
+
             if mouse_button.just_pressed(MouseButton::Left) {
                 info!("Attempting to place building at: {:?}", placement_pos);
-                attempt_building_placement(placement, commands, meshes, materials, player_resources, main_resources, building_type, placement_pos, model_assets);
+                attempt_building_placement(
+                    placement,
+                    commands,
+                    &mut rendering_resources.meshes,
+                    &mut rendering_resources.materials,
+                    &mut player_resources.ui_resources,
+                    &mut player_resources.main_resources,
+                    building_type,
+                    placement_pos,
+                    &rendering_resources.model_assets,
+                    is_valid,
+                );
             }
         }
     }
@@ -145,6 +208,8 @@ fn update_placement_preview(
     building_type: BuildingType,
     placement_pos: Vec3,
     preview_transforms: &mut Query<&mut Transform, With<PlacementPreview>>,
+    is_valid: bool,
+    preview_materials: &mut Query<&MeshMaterial3d<StandardMaterial>, With<PlacementPreview>>,
 ) {
     if placement.placement_preview.is_none() {
         let preview_entity = create_building_preview(
@@ -153,11 +218,24 @@ fn update_placement_preview(
             materials,
             building_type,
             placement_pos,
+            is_valid,
         );
         placement.placement_preview = Some(preview_entity);
     } else if let Some(preview_entity) = placement.placement_preview {
+        // Update position
         if let Ok(mut transform) = preview_transforms.get_mut(preview_entity) {
             transform.translation = placement_pos;
+        }
+
+        // Update material color based on validity
+        if let Ok(material_handle) = preview_materials.get_mut(preview_entity) {
+            if let Some(material) = materials.get_mut(&material_handle.0) {
+                material.base_color = if is_valid {
+                    crate::constants::building_placement::VALID_PLACEMENT_COLOR
+                } else {
+                    crate::constants::building_placement::INVALID_PLACEMENT_COLOR
+                };
+            }
         }
     }
 }
@@ -172,12 +250,19 @@ fn attempt_building_placement(
     building_type: BuildingType,
     placement_pos: Vec3,
     model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    is_valid: bool,
 ) {
+    // Check if placement is valid (no collision)
+    if !is_valid {
+        warn!("Cannot place building: position is blocked by another building, unit, or obstacle");
+        return;
+    }
+
     let building_cost = get_building_cost(&building_type);
     if can_afford_building(&building_cost, player_resources) {
         deduct_building_cost(&building_cost, player_resources, main_resources);
         place_building(commands, meshes, materials, building_type.clone(), placement_pos, model_assets);
-        
+
         // Clear placement
         placement.active_building = None;
         if let Some(preview_entity) = placement.placement_preview.take() {
@@ -185,6 +270,8 @@ fn attempt_building_placement(
         }
 
         info!("Placed building: {:?} at {:?}", building_type, placement_pos);
+    } else {
+        warn!("Cannot place building: insufficient resources");
     }
 }
 
@@ -221,8 +308,11 @@ pub fn create_building_preview(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     building_type: BuildingType,
     position: Vec3,
+    is_valid: bool,
 ) -> Entity {
     use crate::constants::buildings::*;
+    use crate::constants::building_placement::*;
+
     let (mesh, size) = match building_type {
         BuildingType::Nursery => (meshes.add(Cuboid::from_size(NURSERY_SIZE)), NURSERY_SIZE),
         BuildingType::WarriorChamber => (meshes.add(Cuboid::from_size(WARRIOR_CHAMBER_SIZE)), WARRIOR_CHAMBER_SIZE),
@@ -231,10 +321,16 @@ pub fn create_building_preview(
         _ => (meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)), DEFAULT_BUILDING_SIZE),
     };
 
+    let preview_color = if is_valid {
+        VALID_PLACEMENT_COLOR
+    } else {
+        INVALID_PLACEMENT_COLOR
+    };
+
     commands.spawn((
         Mesh3d(mesh),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: PREVIEW_COLOR,
+            base_color: preview_color,
             alpha_mode: AlphaMode::Blend,
             ..default()
         })),
@@ -329,6 +425,16 @@ pub fn get_building_cost(building_type: &BuildingType) -> Vec<(ResourceType, f32
         BuildingType::WoodProcessor => vec![(ResourceType::Chitin, WOOD_PROCESSOR_CHITIN_COST)],
         BuildingType::MineralProcessor => vec![(ResourceType::Chitin, MINERAL_PROCESSOR_CHITIN_COST)],
         _ => vec![(ResourceType::Chitin, DEFAULT_BUILDING_CHITIN_COST)],
+    }
+}
+
+pub fn get_building_collision_radius(building_type: &BuildingType) -> f32 {
+    use crate::constants::collision::*;
+    match building_type {
+        BuildingType::Nursery => NURSERY_COLLISION_RADIUS,
+        BuildingType::WarriorChamber => WARRIOR_CHAMBER_COLLISION_RADIUS,
+        BuildingType::Queen => QUEEN_COLLISION_RADIUS,
+        _ => DEFAULT_BUILDING_COLLISION_RADIUS,
     }
 }
 
