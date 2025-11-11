@@ -57,6 +57,16 @@ fn ensure_dropoff_building_assigned(
     let mut closest_building: Option<Entity> = None;
     let mut closest_distance = f32::MAX;
 
+    // DEBUG: Count buildings to diagnose the issue
+    let total_buildings = buildings.iter().count();
+    let player_buildings = buildings.iter().filter(|(_, _, _, b)| b.player_id == unit.player_id).count();
+    let complete_buildings = buildings.iter().filter(|(_, _, b, u)| u.player_id == unit.player_id && b.is_complete).count();
+
+    if player_buildings == 0 && gatherer.drop_off_building.is_none() {
+        warn!("🏛️ DEBUG: Player {} - Total buildings on map: {}, Player's buildings: {}, Complete: {}",
+              unit.player_id, total_buildings, player_buildings, complete_buildings);
+    }
+
     for (building_entity, building_transform, building, building_unit) in buildings.iter() {
         // Only consider buildings owned by the same player
         if building_unit.player_id != unit.player_id {
@@ -94,8 +104,22 @@ fn ensure_dropoff_building_assigned(
               unit.unit_id, unit.player_id, closest_distance);
     } else if gatherer.drop_off_building.is_none() {
         // Worker needs dropoff but none found - log this as it's a problem
-        warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
-              unit.unit_id, unit.player_id);
+        // Only log once per second to avoid spam
+        static mut LAST_WARNING_TIME: f32 = 0.0;
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f32();
+
+        unsafe {
+            if current_time - LAST_WARNING_TIME > 1.0 {
+                warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
+                      unit.unit_id, unit.player_id);
+                warn!("   Buildings check: {} total, {} for player {}, {} complete",
+                      total_buildings, player_buildings, unit.player_id, complete_buildings);
+                LAST_WARNING_TIME = current_time;
+            }
+        }
     }
 }
 
