@@ -522,6 +522,8 @@ pub enum UnitState {
     Fighting,
     /// Entity is gathering resources
     Gathering,
+    /// Entity is returning to base with gathered resources
+    ReturningWithResources,
     /// Entity is constructing a building
     #[allow(dead_code)]
     Building,

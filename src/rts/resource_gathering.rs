@@ -1,9 +1,11 @@
 use bevy::prelude::*;
 use crate::core::components::*;
+use std::sync::{LazyLock, Mutex};
+use std::collections::{HashMap, HashSet};
 
 // Configurable gathering parameters
-const GATHERING_DISTANCE: f32 = 5.0;  // Distance within which gathering occurs
-const DROPOFF_TRAVEL_DISTANCE: f32 = 10.0;  // Distance threshold for traveling to dropoff
+const GATHERING_DISTANCE: f32 = 20.0;  // Distance within which gathering occurs (increased for collision constraints)
+const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0;  // Distance threshold for delivering resources (increased for building collision radii)
 const DROPOFF_REASSIGNMENT_THRESHOLD: f32 = 50.0;  // Only reassign if new building is this much closer
 
 pub fn resource_gathering_system(
@@ -33,29 +35,41 @@ fn ensure_dropoff_building_assigned(
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
-    let mut current_distance = f32::MAX;
-
     // If gatherer already has a drop-off building, verify it still exists and is valid
     if let Some(current_dropoff) = gatherer.drop_off_building {
         if let Ok((_, building_transform, building, building_unit)) = buildings.get(current_dropoff) {
             // Check if building is still valid (same player, complete, can accept resources)
-            if building_unit.player_id == unit.player_id && building.is_complete {
-                current_distance = worker_transform.translation.distance(building_transform.translation);
+            let is_correct_type = matches!(building.building_type,
+                BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
+            let is_valid = building_unit.player_id == unit.player_id &&
+                          building.is_complete &&
+                          is_correct_type;
 
-                // Keep current assignment if it's reasonably close (within reassignment threshold)
-                // This provides load balancing by reducing reassignment churn
-                if current_distance < DROPOFF_REASSIGNMENT_THRESHOLD {
-                    return; // Current drop-off is still valid and close enough
-                }
+            if is_valid {
+                // Building is valid - keep it assigned!
+                // Workers can be thousands of units away while gathering - that's totally fine
+                return; // Current drop-off is valid, keep it
             }
         }
-        // Current drop-off is invalid or too far, clear it
+
+        // Only clear if building is invalid (destroyed, wrong player, incomplete, wrong type)
+        // Do NOT clear just because worker is far away!
         gatherer.drop_off_building = None;
     }
 
     // Find the closest suitable building for this worker's player
     let mut closest_building: Option<Entity> = None;
     let mut closest_distance = f32::MAX;
+
+    // DEBUG: Count buildings to diagnose the issue
+    let total_buildings = buildings.iter().count();
+    let player_buildings = buildings.iter().filter(|(_, _, _, b)| b.player_id == unit.player_id).count();
+    let complete_buildings = buildings.iter().filter(|(_, _, b, u)| u.player_id == unit.player_id && b.is_complete).count();
+
+    if player_buildings == 0 && gatherer.drop_off_building.is_none() {
+        warn!("🏛️ DEBUG: Player {} - Total buildings on map: {}, Player's buildings: {}, Complete: {}",
+              unit.player_id, total_buildings, player_buildings, complete_buildings);
+    }
 
     for (building_entity, building_transform, building, building_unit) in buildings.iter() {
         // Only consider buildings owned by the same player
@@ -75,12 +89,10 @@ fn ensure_dropoff_building_assigned(
             BuildingType::Nursery => {
                 let distance = worker_transform.translation.distance(building_transform.translation);
 
-                // Only consider this building if it's significantly closer than current assignment
-                if current_distance == f32::MAX || distance < current_distance - DROPOFF_REASSIGNMENT_THRESHOLD {
-                    if distance < closest_distance {
-                        closest_distance = distance;
-                        closest_building = Some(building_entity);
-                    }
+                // Find the closest building
+                if distance < closest_distance {
+                    closest_distance = distance;
+                    closest_building = Some(building_entity);
                 }
             }
             _ => continue,
@@ -90,27 +102,62 @@ fn ensure_dropoff_building_assigned(
     // Assign the closest building if we found a significantly better option
     if let Some(building) = closest_building {
         gatherer.drop_off_building = Some(building);
-        info!("Assigned drop-off building to worker {} (player {}) at distance {:.1}",
-              unit.unit_id, unit.player_id, closest_distance);
+        // Only log if worker has resources or is actively gathering (not at startup)
+        if gatherer.carried_amount > 0.0 || gatherer.target_resource.is_some() {
+            info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
+                  unit.unit_id, unit.player_id, closest_distance);
+        }
+    } else if gatherer.drop_off_building.is_none() {
+        // Worker needs dropoff but none found - log this as it's a problem
+        // Only log once per second to avoid spam
+        static LAST_WARNING_TIME: LazyLock<Mutex<f32>> = LazyLock::new(|| Mutex::new(0.0));
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f32();
+
+        let mut last_time = LAST_WARNING_TIME.lock().unwrap();
+        if current_time - *last_time > 1.0 {
+            warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
+                  unit.unit_id, unit.player_id);
+            warn!("   Buildings check: {} total, {} for player {}, {} complete",
+                  total_buildings, player_buildings, unit.player_id, complete_buildings);
+            *last_time = current_time;
+        }
     }
 }
 
 fn process_resource_gathering(
     gatherer: &mut ResourceGatherer,
     gatherer_transform: &Transform,
-    _unit: &RTSUnit,
+    unit: &RTSUnit,
     resources: &mut Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
     delta_time: f32,
     commands: &mut Commands,
 ) {
     let Some(resource_entity) = gatherer.target_resource else { return };
-    
+
     let Ok((_, mut resource, resource_transform)) = resources.get_mut(resource_entity) else {
         gatherer.target_resource = None;
         return;
     };
-    
+
     let distance = gatherer_transform.translation.distance(resource_transform.translation);
+
+    // Log distance for debugging collision issues
+    static DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f32();
+
+    let mut log = DISTANCE_LOG.lock().unwrap();
+    let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+    if current_time - last_time > 2.0 {
+        info!("🎯 Worker {} (player {}) distance to resource: {:.1} units (need < {:.1})",
+              unit.unit_id, unit.player_id, distance, GATHERING_DISTANCE);
+        log.insert(unit.unit_id, current_time);
+    }
 
     if distance > GATHERING_DISTANCE {
         return;
@@ -118,13 +165,48 @@ fn process_resource_gathering(
 
     // If at full capacity, stop gathering but keep target_resource so we can return after delivery
     if gatherer.carried_amount >= gatherer.capacity {
+        // Log when worker reaches full capacity and stops gathering
+        static LAST_FULL_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f32();
+
+        let mut log = LAST_FULL_LOG.lock().unwrap();
+        let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+        if current_time - last_time > 2.0 {
+            info!("📦 Worker {} (player {}) FULL: {:.1}/{:.1} - waiting to return",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
+            log.insert(unit.unit_id, current_time);
+        }
         return;
     }
 
     let gather_amount = calculate_gather_amount(gatherer, &resource, delta_time);
+
+    // Log gathering progress periodically
+    if gather_amount > 0.0 {
+        static LAST_GATHER_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f32();
+
+        let mut log = LAST_GATHER_LOG.lock().unwrap();
+        let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+        if current_time - last_time > 1.0 {
+            info!("⛏️  Worker {} (player {}) gathering {:?}: {:.1}/{:.1} (resource has {:.1} left)",
+                  unit.unit_id, unit.player_id, gatherer.resource_type,
+                  gatherer.carried_amount, gatherer.capacity, resource.amount);
+            log.insert(unit.unit_id, current_time);
+        }
+    }
+
     apply_gathering(gatherer, &mut resource, gather_amount);
-    
+
     if resource.amount <= 0.0 {
+        info!("🔴 Resource depleted! Worker {} (player {}) has {:.1}/{:.1} resources",
+              unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
         commands.entity(resource_entity).despawn();
         gatherer.target_resource = None;
     }
@@ -162,11 +244,35 @@ fn process_resource_delivery(
 
     // If still gathering from a resource, don't return yet (unless at full capacity)
     if gatherer.target_resource.is_some() && gatherer.carried_amount < gatherer.capacity {
+        // Still gathering, not ready to return yet
         return;
     }
 
+    // Log when worker decides to return
+    static DELIVERY_DECISION_LOGGED: LazyLock<Mutex<HashSet<u32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+    let mut logged = DELIVERY_DECISION_LOGGED.lock().unwrap();
+    if !logged.contains(&unit.unit_id) {
+        let reason = if gatherer.carried_amount >= gatherer.capacity {
+            "FULL CAPACITY"
+        } else if gatherer.target_resource.is_none() {
+            "RESOURCE DEPLETED"
+        } else {
+            "UNKNOWN"
+        };
+        info!("🔵 Worker {} (player {}) READY TO RETURN: {:.1}/{:.1} resources (reason: {})",
+              unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity, reason);
+        logged.insert(unit.unit_id);
+    }
+
     let Some(dropoff_entity) = gatherer.drop_off_building else {
-        warn!("Worker {} (player {}) has full load but no drop-off building assigned!", unit.unit_id, unit.player_id);
+        // Worker has resources but no drop-off building (likely no buildings built yet)
+        // Clear target_resource and movement so worker waits idle until a building is assigned
+        if gatherer.target_resource.is_some() || movement.target_position.is_some() {
+            gatherer.target_resource = None;
+            movement.target_position = None;
+            warn!("Worker {} (player {}) has {:.1} resources but no drop-off building available - waiting for building to be constructed",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount);
+        }
         return;
     };
 
@@ -179,13 +285,28 @@ fn process_resource_delivery(
 
     let distance = gatherer_transform.translation.distance(building_transform.translation);
 
+    // Log distance to dropoff for debugging
+    static DROPOFF_DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f32();
+    let mut log = DROPOFF_DISTANCE_LOG.lock().unwrap();
+    let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+    if current_time - last_time > 2.0 {
+        info!("🏠 Worker {} (player {}) distance to dropoff: {:.1} units (need < {:.1} to deliver)",
+              unit.unit_id, unit.player_id, distance, DROPOFF_TRAVEL_DISTANCE);
+        log.insert(unit.unit_id, current_time);
+    }
+
     // If far from dropoff, move towards it
     if distance > DROPOFF_TRAVEL_DISTANCE {
         // Set movement target to building if not already moving there
         if movement.target_position.is_none() ||
            movement.target_position.unwrap().distance(building_transform.translation) > 5.0 {
             movement.target_position = Some(building_transform.translation);
-            info!("🚚 Worker {:?} returning to base with resources", unit.unit_id);
+            info!("🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount, distance);
         }
         return;
     }

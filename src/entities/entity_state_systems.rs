@@ -83,14 +83,35 @@ fn determine_entity_state(
             return UnitState::Fighting;
         }
     }
-    
-    // Check for resource gathering
+
+    // Check for resource gathering/delivery
     if let Some(gatherer) = gatherer {
+        // Check if returning to base with resources
+        // Unit is returning if: carrying resources AND (at capacity OR no target resource) AND actually moving
+        if gatherer.carried_amount > 0.0 {
+            let should_be_returning = gatherer.carried_amount >= gatherer.capacity ||
+                                     gatherer.target_resource.is_none();
+
+            if should_be_returning {
+                // Only mark as "returning" if actually moving toward dropoff
+                if let Some(movement) = movement {
+                    if movement.target_position.is_some() {
+                        return UnitState::ReturningWithResources;
+                    }
+                }
+                // Has resources and should return, but no movement = waiting idle for building
+                // Fall through to Idle state below
+                return UnitState::Idle;
+            }
+        }
+
+        // Check if actively gathering at a resource
+        // This includes traveling TO the resource and gathering AT the resource
         if gatherer.target_resource.is_some() {
             return UnitState::Gathering;
         }
     }
-    
+
     // Check for movement
     if let Some(movement) = movement {
         if movement.target_position.is_some() {
@@ -121,6 +142,7 @@ pub fn sync_animation_with_entity_state(
                 },
                 UnitState::Fighting => AnimationState::Attacking,
                 UnitState::Gathering => AnimationState::Special, // Use special animation for gathering
+                UnitState::ReturningWithResources => AnimationState::Walking, // Walking back with resources
                 UnitState::Building => AnimationState::Special,  // Use special animation for building
                 UnitState::Dead => AnimationState::Death,
                 UnitState::Following => AnimationState::Walking,

@@ -347,11 +347,12 @@ fn spawn_minimal_environment_objects(
                 let position = get_terrain_position(x, z, 1.0);
                 let rotation = Quat::from_rotation_y(i as f32 * 1.2); // Slight rotation variation
                 
-                // Alternate between different object types
-                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 3 {
+                // Alternate between different resource types (cycle through all 4)
+                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 4 {
                     0 => (InsectModelType::Mushrooms, EnvironmentObjectType::Mushrooms, &models.mushrooms, "Mushroom Cluster"),
                     1 => (InsectModelType::RiverRock, EnvironmentObjectType::Rocks, &models.river_rock, "Rock Formation"),
-                    _ => (InsectModelType::Grass, EnvironmentObjectType::Grass, &models.grass, "Grass Patch"),
+                    2 => (InsectModelType::WoodStick, EnvironmentObjectType::WoodStick, &models.wood_stick, "Wood Debris"),
+                    _ => (InsectModelType::Hive, EnvironmentObjectType::Hive, &models.hive, "Hive Structure"),
                 };
                 
                 // Skip if model handle is invalid
@@ -376,8 +377,8 @@ fn spawn_minimal_environment_objects(
                     EnvironmentObject {
                         object_type: env_obj_type.clone(),
                     },
-                    CollisionRadius { 
-                        radius: base_scale * 1.5 // Reasonable collision for navigation
+                    CollisionRadius {
+                        radius: 3.0 // Small fixed radius so workers can get within GATHERING_DISTANCE (5.0)
                     },
                     Position {
                         translation: position,
@@ -413,7 +414,31 @@ fn spawn_minimal_environment_objects(
                             selection_radius: base_scale * 2.0,
                         });
                     },
-                    _ => {} // Grass is not harvestable
+                    EnvironmentObjectType::WoodStick => {
+                        entity_commands.insert(ResourceSource {
+                            resource_type: ResourceType::Chitin,
+                            amount: 400.0,
+                            max_gatherers: 3,
+                            current_gatherers: 0,
+                        });
+                        entity_commands.insert(Selectable {
+                            is_selected: false,
+                            selection_radius: base_scale * 2.0,
+                        });
+                    },
+                    EnvironmentObjectType::Hive => {
+                        entity_commands.insert(ResourceSource {
+                            resource_type: ResourceType::Pheromones,
+                            amount: 350.0,
+                            max_gatherers: 3,
+                            current_gatherers: 0,
+                        });
+                        entity_commands.insert(Selectable {
+                            is_selected: false,
+                            selection_radius: base_scale * 2.0,
+                        });
+                    },
+                    _ => {} // Other objects (Grass, etc.) are not harvestable
                 }
                 
                 info!("Spawned {} at {:?} (scale: {:.1})", object_name.to_lowercase(), position, base_scale);
