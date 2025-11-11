@@ -227,9 +227,9 @@ pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
         auto_attack: true,
     },
     movement: MovementStats {
-        max_speed: 2000.0,  // Increased to compensate for double scale division (2000 / 25 / 2 = 40 final speed)
-        acceleration: 2000.0,  // Fast acceleration while avoiding oscillation
-        turning_speed: 3.5,  // Much faster turning for elite maneuverability
+        max_speed: 1200.0,  // Balanced speed for smooth collision handling (1200 / 25 / 2 = 24 final speed)
+        acceleration: 1200.0,  // Matched acceleration for smooth movement
+        turning_speed: 3.0,  // Fast turning without jitter
     },
     vision: VisionStats {
         sight_range: 250.0,
