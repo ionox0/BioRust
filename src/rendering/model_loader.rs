@@ -304,6 +304,7 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("common_housefly", "models/insects/common_housefly.glb#Scene0", "Common housefly"),
     ModelConfig::new("giant_termite", "models/insects/giant_termite.glb#Scene0", "Giant termite"),
     ModelConfig::new("leg_beetle", "models/insects/leg_beetle.glb#Scene0", "Leg beetle"),
+    // Note: If leg_beetle doesn't show up, try changing Scene0 to just Scene in the path above
     ModelConfig::new("stinkbug", "models/insects/stinkbug.glb#Scene0", "Stinkbug"),
     ModelConfig::new("termite", "models/insects/termite.glb#Scene0", "Regular termite"),
 
@@ -405,23 +406,23 @@ pub fn load_models(
 }
 
 /// Helper function to load a single model handle.
-/// 
+///
 /// This function looks up the model configuration by name and loads the asset.
 /// It follows the DRY (Don't Repeat Yourself) principle to reduce code duplication.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `handle` - Mutable reference to the scene handle to populate
 /// * `asset_server` - Bevy's asset server for loading files
 /// * `name` - The model's internal name (e.g., "bee", "spider")
-/// 
+///
 /// # Errors
-/// 
+///
 /// Logs a warning if the model name is not found in `MODEL_DEFINITIONS`.
 fn load_model_handle(handle: &mut Handle<Scene>, asset_server: &AssetServer, name: &str) {
     if let Some(config) = MODEL_DEFINITIONS.iter().find(|c| c.name == name) {
         *handle = asset_server.load(config.path);
-        info!("Loaded {}: {}", name, config.description);
+        info!("Loading {}: {} from {}", name, config.description, config.path);
     } else {
         warn!("Model configuration not found for: {}", name);
     }
