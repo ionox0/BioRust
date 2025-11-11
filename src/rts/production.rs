@@ -71,11 +71,14 @@ fn can_afford_production(
         return true;
     };
 
-    let manager = crate::core::resources::ResourceManager::new(
-        &mut player_resources.clone(),
-        &mut ai_resources.clone()
-    );
-    manager.can_afford_unit(player_id, cost)
+    // Use direct access for read-only check (no mutation needed)
+    if player_id == 1 {
+        player_resources.can_afford(cost) && player_resources.has_population_space()
+    } else {
+        ai_resources.resources.get(&player_id)
+            .map(|resources| resources.can_afford(cost) && resources.has_population_space())
+            .unwrap_or(true)
+    }
 }
 
 fn complete_production(
