@@ -22,12 +22,18 @@ impl Plugin for CombatPlugin {
 
 // System to find and acquire targets for units with combat capability
 pub fn target_acquisition_system(
-    mut combat_query: Query<(Entity, &mut Combat, &Transform, &RTSUnit), With<Vision>>,
+    mut combat_query: Query<(Entity, &mut Combat, &Transform, &RTSUnit, &Movement), With<Vision>>,
     potential_targets: Query<(Entity, &Transform, &RTSUnit), (With<RTSHealth>, Without<DeathEvent>)>,
     vision_query: Query<&Vision>,
     _time: Res<Time>,
 ) {
-    for (entity, mut combat, transform, unit) in combat_query.iter_mut() {
+    for (entity, mut combat, transform, unit, movement) in combat_query.iter_mut() {
+        // Skip player units (player_id == 1) if they have a movement target (player gave move command)
+        // This allows player move commands to override auto-attacking
+        if unit.player_id == 1 && movement.target_position.is_some() && combat.target.is_none() {
+            continue;
+        }
+
         // Skip if already has a valid target and is not auto-attacking
         if combat.target.is_some() && !combat.auto_attack {
             continue;
@@ -154,6 +160,7 @@ pub fn combat_movement_system(
     target_query: Query<&Transform, With<RTSHealth>>,
 ) {
     for (mut movement, combat, unit_transform, unit) in unit_query.iter_mut() {
+        // Only apply combat movement if unit has a combat target
         if let Some(target_entity) = combat.target {
             if let Ok(target_transform) = target_query.get(target_entity) {
                 let distance = unit_transform.translation.distance(target_transform.translation);
@@ -164,7 +171,11 @@ pub fn combat_movement_system(
                     let direction = (target_transform.translation - unit_transform.translation).normalize();
                     let target_position = target_transform.translation - direction * (combat.attack_range * 0.7);
 
-                    movement.target_position = Some(target_position);
+                    // Only override movement for AI units or if player unit has no other movement target
+                    // This prevents overriding explicit player move commands
+                    if unit.player_id != 1 || movement.target_position.is_none() {
+                        movement.target_position = Some(target_position);
+                    }
 
                     // Moderate movement adjustment for enemies to approach targets
                     if unit.player_id != 1 { // Enemy units move slightly faster to targets
@@ -172,9 +183,11 @@ pub fn combat_movement_system(
                         movement.acceleration = 100.0; // Moderate acceleration
                     }
                 } else {
-                    // Stop moving when in range
-                    movement.target_position = None;
-                    movement.current_velocity = Vec3::ZERO;
+                    // Stop moving when in range (only for AI units, player units retain manual control)
+                    if unit.player_id != 1 {
+                        movement.target_position = None;
+                        movement.current_velocity = Vec3::ZERO;
+                    }
                 }
             }
         }

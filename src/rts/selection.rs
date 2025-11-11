@@ -91,20 +91,20 @@ pub fn drag_selection_system(
     selection_box_query: Query<Entity, With<SelectionBox>>,
 ) {
     let window = windows.single();
-    let (_camera, _camera_transform) = camera_q.single();
-    
+    let (camera, camera_transform) = camera_q.single();
+
     let Some(cursor_position) = window.cursor_position() else { return };
-    
+
     if mouse_button.just_pressed(MouseButton::Left) {
         start_drag_selection(&mut drag_selection_query, cursor_position, &mut commands);
     }
-    
+
     if mouse_button.pressed(MouseButton::Left) {
         update_drag_selection(&mut drag_selection_query, cursor_position, &selection_box_query, &mut commands, &mut meshes, &mut materials);
     }
-    
+
     if mouse_button.just_released(MouseButton::Left) {
-        finalize_selection(&mut drag_selection_query, &mut selectables, &keyboard, &selection_box_query, cursor_position, &mut commands);
+        finalize_selection(&mut drag_selection_query, &mut selectables, &keyboard, &selection_box_query, cursor_position, &mut commands, camera, camera_transform);
     }
 }
 
@@ -208,6 +208,8 @@ fn finalize_selection(
     selection_box_query: &Query<Entity, With<SelectionBox>>,
     cursor_position: Vec2,
     commands: &mut Commands,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
 ) {
     let Ok(mut drag_selection) = drag_selection_query.get_single_mut() else { return };
 
@@ -219,16 +221,15 @@ fn finalize_selection(
     let bounds = calculate_selection_bounds(&drag_selection);
     let is_drag = is_significant_drag(&bounds);
 
-    // Always clear selections if not holding shift and doing a click
-    if !shift_held {
-        clear_all_selections(selectables);
-    }
-
     if is_drag {
-        perform_box_selection(&bounds, selectables, shift_held);
+        // Clear selections before box selecting (unless shift is held)
+        if !shift_held {
+            clear_all_selections(selectables);
+        }
+        perform_box_selection(&bounds, selectables, shift_held, camera, camera_transform);
     } else {
-        // Single click - don't select anything (just deselect previous)
-        // This will be handled by a separate raycast-based selection system
+        // Single click - don't do anything here
+        // This will be handled by the separate click_selection_system which handles raycasting
     }
 
     drag_selection.is_active = false;
@@ -242,26 +243,33 @@ fn clear_all_selections(selectables: &mut Query<(Entity, &mut Selectable, &Trans
 }
 
 fn perform_box_selection(
-    _bounds: &SelectionBounds,
+    bounds: &SelectionBounds,
     selectables: &mut Query<(Entity, &mut Selectable, &Transform, &RTSUnit)>,
     shift_held: bool,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
 ) {
     let mut selected_count = 0;
-    
-    for (_entity, mut selectable, _transform, unit) in selectables.iter_mut() {
+
+    for (_entity, mut selectable, transform, unit) in selectables.iter_mut() {
         if unit.player_id != 1 {
             continue;
         }
-        
-        // TODO: Implement proper viewport/world conversion for box selection
-        // For now, just select all player 1 units for testing
-        if unit.player_id == 1 {
-            update_selection_state(&mut selectable, shift_held);
-            selected_count += 1;
+
+        // Project world position to screen space
+        if let Ok(screen_pos) = camera.world_to_viewport(camera_transform, transform.translation) {
+            // Check if the unit's screen position is within the selection box bounds
+            if screen_pos.x >= bounds.min_x && screen_pos.x <= bounds.max_x &&
+               screen_pos.y >= bounds.min_y && screen_pos.y <= bounds.max_y {
+                update_selection_state(&mut selectable, shift_held);
+                selected_count += 1;
+            }
         }
     }
-    
-    info!("📦 Box selected {} units", selected_count);
+
+    if selected_count > 0 {
+        info!("📦 Box selected {} units", selected_count);
+    }
 }
 
 fn perform_click_selection(
