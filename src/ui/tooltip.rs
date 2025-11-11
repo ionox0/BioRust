@@ -71,11 +71,8 @@ pub fn unit_hover_detection_system(
     let mut closest_distance = f32::INFINITY;
     let mut closest_entity = None;
 
-    for (entity, transform, unit, selectable) in units.iter() {
-        // Only show tooltips for player 1's units
-        if unit.player_id != 1 {
-            continue;
-        }
+    for (entity, transform, _unit, selectable) in units.iter() {
+        // Show tooltips for all units (both player and AI)
 
         // Calculate distance from ray to unit
         let to_entity = transform.translation - ray.origin;
@@ -110,6 +107,7 @@ fn get_unit_task(
     movement_query: &Query<&Movement>,
     construction_query: &Query<&ConstructionTask>,
     building_query: &Query<&Building>,
+    entity_state_query: &Query<&EntityState>,
 ) -> String {
     // Check if it's a building first
     if let Ok(building) = building_query.get(entity) {
@@ -134,6 +132,17 @@ fn get_unit_task(
             } else if gatherer.target_resource.is_some() {
                 return format!("Gathering {:?}", resource_type);
             }
+        }
+    }
+
+    // Check entity state for more accurate state information
+    if let Ok(entity_state) = entity_state_query.get(entity) {
+        match entity_state.current {
+            UnitState::Gathering => return "Gathering Resources".to_string(),
+            UnitState::Fighting => return "In Combat".to_string(),
+            UnitState::Moving => return "Moving".to_string(),
+            UnitState::Dead => return "Dead".to_string(),
+            _ => {} // Continue to other checks
         }
     }
 
@@ -167,6 +176,7 @@ pub fn update_tooltip_system(
     movement_query: Query<&Movement>,
     construction_query: Query<&ConstructionTask>,
     building_query: Query<&Building>,
+    entity_state_query: Query<&EntityState>,
     mut tooltip_query: Query<(&mut Node, &mut BackgroundColor), With<UnitTooltip>>,
     mut text_query: Query<&mut Text, With<TooltipText>>,
     windows: Query<&Window>,
@@ -184,6 +194,7 @@ pub fn update_tooltip_system(
                 &movement_query,
                 &construction_query,
                 &building_query,
+                &entity_state_query,
             );
 
             let unit_type = match unit.unit_type {
@@ -197,10 +208,17 @@ pub fn update_tooltip_system(
                 _ => "Unit",
             };
 
+            let player_name = if unit.player_id == 1 {
+                "Player".to_string()
+            } else {
+                format!("AI Player {}", unit.player_id)
+            };
+
             // Update tooltip text
             **tooltip_text = format!(
-                "{}\nHealth: {:.0}/{:.0}\nTask: {}",
+                "{} ({})\nHealth: {:.0}/{:.0}\nTask: {}",
                 unit_type,
+                player_name,
                 health.current,
                 health.max,
                 task
@@ -214,9 +232,15 @@ pub fn update_tooltip_system(
                 }
             }
 
-            // Show tooltip
+            // Show tooltip with color based on player
             tooltip_style.display = Display::Flex;
-            *tooltip_bg = BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.95));
+            if unit.player_id == 1 {
+                // Player units: friendly blue-green tint
+                *tooltip_bg = BackgroundColor(Color::srgba(0.05, 0.15, 0.15, 0.95));
+            } else {
+                // AI units: neutral or enemy red tint
+                *tooltip_bg = BackgroundColor(Color::srgba(0.15, 0.05, 0.05, 0.95));
+            }
         }
     } else {
         // Hide tooltip

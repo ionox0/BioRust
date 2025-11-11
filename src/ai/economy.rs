@@ -153,6 +153,12 @@ fn reassign_workers(
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: &Query<(Entity, &Transform), With<Building>>,
 ) {
+    // First, check resource availability for each allocation
+    let mut available_resources: HashMap<ResourceType, usize> = HashMap::new();
+    for (_, source, _) in resource_sources.iter() {
+        *available_resources.entry(source.resource_type.clone()).or_insert(0) += 1;
+    }
+
     // Find workers that need reassignment (on low priority resources)
     let mut workers_to_reassign = Vec::new();
 
@@ -176,6 +182,14 @@ fn reassign_workers(
     for allocation in allocations.iter() {
         if allocation.current_workers < allocation.ideal_workers && !workers_to_reassign.is_empty() {
             let needed = (allocation.ideal_workers - allocation.current_workers) as usize;
+
+            // Check if this resource type is actually available
+            let available_count = available_resources.get(&allocation.resource_type).copied().unwrap_or(0);
+            if available_count == 0 {
+                warn!("Player {} wants to assign workers to {:?}, but no sources available!",
+                      player_id, allocation.resource_type);
+                continue;
+            }
 
             // Find resource sources of this type
             let mut sources: Vec<(Entity, Vec3)> = resource_sources
@@ -232,38 +246,55 @@ pub fn worker_idle_detection_system(
     buildings: Query<(Entity, &Transform), With<Building>>,
 ) {
     for (player_id, economy) in &economy_manager.player_economy {
-        // Get highest priority resource
-        if let Some(highest_priority) = economy.resource_priorities.first() {
-            // Find idle workers
-            for (_worker_entity, mut gatherer, unit, worker_transform) in workers.iter_mut() {
-                if unit.player_id == *player_id &&
-                   gatherer.target_resource.is_none() &&
-                   gatherer.carried_amount == 0.0 {
-                    // Assign to highest priority resource
-                    if let Some((source_entity, _, _)) = resource_sources
+        // Try to find an available resource type from priorities
+        let mut assigned_resource_type = None;
+
+        for priority_allocation in &economy.resource_priorities {
+            // Check if this resource type has available sources
+            let has_sources = resource_sources
+                .iter()
+                .any(|(_, source, _)| source.resource_type == priority_allocation.resource_type);
+
+            if has_sources {
+                assigned_resource_type = Some(priority_allocation.resource_type.clone());
+                break;
+            }
+        }
+
+        // If no resource priorities or no available sources, skip
+        let Some(target_resource_type) = assigned_resource_type else {
+            continue;
+        };
+
+        // Find idle workers
+        for (_worker_entity, mut gatherer, unit, worker_transform) in workers.iter_mut() {
+            if unit.player_id == *player_id &&
+               gatherer.target_resource.is_none() &&
+               gatherer.carried_amount == 0.0 {
+                // Assign to nearest available resource of the target type
+                if let Some((source_entity, _, _)) = resource_sources
+                    .iter()
+                    .filter(|(_, source, _)| source.resource_type == target_resource_type)
+                    .min_by(|a, b| {
+                        let dist_a = worker_transform.translation.distance(a.2.translation);
+                        let dist_b = worker_transform.translation.distance(b.2.translation);
+                        dist_a.partial_cmp(&dist_b).unwrap()
+                    })
+                {
+                    // Find nearest building for drop-off
+                    let nearest_building = buildings
                         .iter()
-                        .filter(|(_, source, _)| source.resource_type == highest_priority.resource_type)
+                        .filter(|(_, _)| unit.player_id == *player_id) // Only player's own buildings
                         .min_by(|a, b| {
-                            let dist_a = worker_transform.translation.distance(a.2.translation);
-                            let dist_b = worker_transform.translation.distance(b.2.translation);
+                            let dist_a = worker_transform.translation.distance(a.1.translation);
+                            let dist_b = worker_transform.translation.distance(b.1.translation);
                             dist_a.partial_cmp(&dist_b).unwrap()
                         })
-                    {
-                        // Find nearest building for drop-off
-                        let nearest_building = buildings
-                            .iter()
-                            .filter(|(_, _)| unit.player_id == *player_id) // Only player's own buildings
-                            .min_by(|a, b| {
-                                let dist_a = worker_transform.translation.distance(a.1.translation);
-                                let dist_b = worker_transform.translation.distance(b.1.translation);
-                                dist_a.partial_cmp(&dist_b).unwrap()
-                            })
-                            .map(|(entity, _)| entity);
+                        .map(|(entity, _)| entity);
 
-                        gatherer.target_resource = Some(source_entity);
-                        gatherer.resource_type = Some(highest_priority.resource_type.clone());
-                        gatherer.drop_off_building = nearest_building;
-                    }
+                    gatherer.target_resource = Some(source_entity);
+                    gatherer.resource_type = Some(target_resource_type.clone());
+                    gatherer.drop_off_building = nearest_building;
                 }
             }
         }
