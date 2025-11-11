@@ -20,9 +20,9 @@ pub struct PlacementStatusText;
 /// System parameter grouping collision-related queries to reduce parameter count
 #[derive(SystemParam)]
 pub struct CollisionQueries<'w, 's> {
-    pub buildings: Query<'w, 's, (&'static Transform, &'static CollisionRadius), With<Building>>,
-    pub units: Query<'w, 's, (&'static Transform, &'static CollisionRadius), With<RTSUnit>>,
-    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius), With<EnvironmentObject>>,
+    pub buildings: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<Building>, Without<PlacementPreview>)>,
+    pub units: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<RTSUnit>, Without<PlacementPreview>)>,
+    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<EnvironmentObject>, Without<PlacementPreview>)>,
 }
 
 /// System parameter grouping preview-related queries to reduce parameter count
