@@ -32,6 +32,28 @@ pub struct PreviewQueries<'w, 's> {
     pub materials: Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>, With<PlacementPreview>>,
 }
 
+/// System parameter grouping rendering resources to reduce parameter count
+#[derive(SystemParam)]
+pub struct RenderingResources<'w> {
+    pub meshes: ResMut<'w, Assets<Mesh>>,
+    pub materials: ResMut<'w, Assets<StandardMaterial>>,
+    pub model_assets: Option<Res<'w, crate::rendering::model_loader::ModelAssets>>,
+}
+
+/// System parameter grouping terrain resources to reduce parameter count
+#[derive(SystemParam)]
+pub struct TerrainResources<'w> {
+    pub manager: Res<'w, crate::world::terrain_v2::TerrainChunkManager>,
+    pub settings: Res<'w, crate::world::terrain_v2::TerrainSettings>,
+}
+
+/// System parameter grouping player resources to reduce parameter count
+#[derive(SystemParam)]
+pub struct PlayerResourcesMut<'w> {
+    pub ui_resources: ResMut<'w, PlayerResources>,
+    pub main_resources: ResMut<'w, crate::core::resources::PlayerResources>,
+}
+
 pub fn handle_building_placement(
     mut placement: ResMut<BuildingPlacement>,
     mouse_button: Res<ButtonInput<MouseButton>>,
@@ -39,13 +61,9 @@ pub fn handle_building_placement(
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
-    mut player_resources: ResMut<PlayerResources>,
-    mut main_resources: ResMut<crate::core::resources::PlayerResources>,
-    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    mut rendering_resources: RenderingResources,
+    terrain_resources: TerrainResources,
+    mut player_resources: PlayerResourcesMut,
     collision_queries: CollisionQueries,
     mut preview_queries: PreviewQueries,
 ) {
@@ -59,17 +77,13 @@ pub fn handle_building_placement(
         handle_active_placement(
             &mut placement,
             &mut commands,
-            &mut meshes,
-            &mut materials,
+            &mut rendering_resources,
             &mut player_resources,
-            &mut main_resources,
             building_type,
             &windows,
             &camera_q,
-            &terrain_manager,
-            &terrain_settings,
+            &terrain_resources,
             &mouse_button,
-            &model_assets,
             &collision_queries,
             &mut preview_queries,
         );
@@ -88,17 +102,13 @@ fn cancel_placement(placement: &mut BuildingPlacement, commands: &mut Commands) 
 fn handle_active_placement(
     placement: &mut ResMut<BuildingPlacement>,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_resources: &mut ResMut<PlayerResources>,
-    main_resources: &mut ResMut<crate::core::resources::PlayerResources>,
+    rendering_resources: &mut RenderingResources,
+    player_resources: &mut PlayerResourcesMut,
     building_type: BuildingType,
     windows: &Query<&Window>,
     camera_q: &Query<(&Camera, &GlobalTransform)>,
-    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
+    terrain_resources: &TerrainResources,
     mouse_button: &ButtonInput<MouseButton>,
-    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
     collision_queries: &CollisionQueries,
     preview_queries: &mut PreviewQueries,
 ) {
@@ -107,7 +117,7 @@ fn handle_active_placement(
         let (camera, camera_transform) = camera_q.single();
 
         if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-            let placement_pos = calculate_placement_position(ray, terrain_manager, terrain_settings);
+            let placement_pos = calculate_placement_position(ray, &terrain_resources.manager, &terrain_resources.settings);
 
             // Get collision radius for this building type
             let building_radius = get_building_collision_radius(&building_type);
@@ -127,8 +137,8 @@ fn handle_active_placement(
             update_placement_preview(
                 placement,
                 commands,
-                meshes,
-                materials,
+                &mut rendering_resources.meshes,
+                &mut rendering_resources.materials,
                 building_type.clone(),
                 placement_pos,
                 &mut preview_queries.transforms,
@@ -141,13 +151,13 @@ fn handle_active_placement(
                 attempt_building_placement(
                     placement,
                     commands,
-                    meshes,
-                    materials,
-                    player_resources,
-                    main_resources,
+                    &mut rendering_resources.meshes,
+                    &mut rendering_resources.materials,
+                    &mut player_resources.ui_resources,
+                    &mut player_resources.main_resources,
                     building_type,
                     placement_pos,
-                    model_assets,
+                    &rendering_resources.model_assets,
                     is_valid,
                 );
             }
