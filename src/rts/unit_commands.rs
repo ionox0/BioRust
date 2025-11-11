@@ -8,6 +8,18 @@ pub struct CommandContext<'a> {
     pub terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
 }
 
+/// Context for executing unit commands
+pub struct UnitCommandContext<'a> {
+    pub buildings: &'a Query<'a, 'a, (Entity, &'static Transform), With<Building>>,
+}
+
+/// Represents the different types of command targets
+pub enum CommandTarget {
+    Enemy(Entity),
+    Resource { entity: Entity, position: Vec3 },
+    Position(Vec3),
+}
+
 pub fn unit_command_system(
     mouse_button: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -205,6 +217,20 @@ fn execute_commands_for_selected_units(
         .filter(|(_, _, _, _, selectable, unit, _)| selectable.is_selected && unit.player_id == 1)
         .count();
 
+    // Create command context
+    let cmd_context = UnitCommandContext {
+        buildings,
+    };
+
+    // Determine the command target type
+    let command_target = if let Some(enemy) = target_enemy {
+        CommandTarget::Enemy(enemy)
+    } else if let Some((entity, position)) = target_resource {
+        CommandTarget::Resource { entity, position }
+    } else {
+        CommandTarget::Position(target_point)
+    };
+
     // Now do mutable iteration
     let mut index = 0;
     for (unit_entity, transform, mut movement, mut combat, selectable, unit, gatherer) in units.iter_mut() {
@@ -221,18 +247,14 @@ fn execute_commands_for_selected_units(
         };
 
         execute_unit_command(
-            unit_entity,
             transform.translation,
             &mut movement,
             &mut combat,
             gatherer,
             unit,
-            buildings,
-            commands,
-            target_enemy,
-            target_resource,
+            &cmd_context,
+            &command_target,
             adjusted_target,
-            shift_held
         );
         index += 1;
     }
@@ -275,49 +297,80 @@ fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_uni
     )
 }
 
+/// Execute a command for a single unit with reduced parameter count
 fn execute_unit_command(
-    _unit_entity: Entity,
     unit_pos: Vec3,
     movement: &mut Movement,
     combat: &mut Combat,
     gatherer: Option<Mut<ResourceGatherer>>,
     unit: &RTSUnit,
-    buildings: &Query<(Entity, &Transform), With<Building>>,
-    _commands: &mut Commands,
-    target_enemy: Option<Entity>,
-    target_resource: Option<(Entity, Vec3)>,
+    context: &UnitCommandContext,
+    target: &CommandTarget,
     target_point: Vec3,
-    _shift_held: bool,
 ) {
-    if let Some(enemy_entity) = target_enemy {
-        // Attack command
-        combat.target = Some(enemy_entity);
-        movement.target_position = None;
-        info!("🗡️ Unit {:?} attacking target {:?}!", unit.unit_id, enemy_entity);
-    } else if let Some((resource_entity, _resource_transform)) = target_resource {
-        // Resource gathering command - only for workers with ResourceGatherer
-        if let Some(mut resource_gatherer) = gatherer {
-            // Find nearest building for drop-off using unit's actual position
-            let nearest_building = find_nearest_building(unit.player_id, unit_pos, buildings);
-
-            resource_gatherer.target_resource = Some(resource_entity);
-            resource_gatherer.drop_off_building = nearest_building;
-            movement.target_position = Some(target_point);
-            combat.target = None;
-
-            info!("⛏️ Worker {:?} assigned to gather from resource {:?}!", unit.unit_id, resource_entity);
-        } else {
-            // Not a worker, just move to location
-            movement.target_position = Some(target_point);
-            combat.target = None;
-            info!("🚶 Unit {:?} moving to resource location: {:?}", unit.unit_id, target_point);
+    match target {
+        CommandTarget::Enemy(enemy_entity) => {
+            execute_attack_command(unit, movement, combat, *enemy_entity);
         }
-    } else {
-        // Simple move command
+        CommandTarget::Resource { entity: resource_entity, .. } => {
+            execute_gather_command(unit, movement, combat, gatherer, unit_pos, *resource_entity, target_point, context);
+        }
+        CommandTarget::Position(_) => {
+            execute_move_command(unit, movement, combat, target_point);
+        }
+    }
+}
+
+/// Execute an attack command on an enemy unit
+fn execute_attack_command(
+    unit: &RTSUnit,
+    movement: &mut Movement,
+    combat: &mut Combat,
+    enemy_entity: Entity,
+) {
+    combat.target = Some(enemy_entity);
+    movement.target_position = None;
+    info!("🗡️ Unit {:?} attacking target {:?}!", unit.unit_id, enemy_entity);
+}
+
+/// Execute a resource gathering command
+fn execute_gather_command(
+    unit: &RTSUnit,
+    movement: &mut Movement,
+    combat: &mut Combat,
+    gatherer: Option<Mut<ResourceGatherer>>,
+    unit_pos: Vec3,
+    resource_entity: Entity,
+    target_point: Vec3,
+    context: &UnitCommandContext,
+) {
+    if let Some(mut resource_gatherer) = gatherer {
+        // Find nearest building for drop-off using unit's actual position
+        let nearest_building = find_nearest_building(unit.player_id, unit_pos, context.buildings);
+
+        resource_gatherer.target_resource = Some(resource_entity);
+        resource_gatherer.drop_off_building = nearest_building;
         movement.target_position = Some(target_point);
         combat.target = None;
-        info!("🚶 Unit {:?} moving to position: {:?}", unit.unit_id, target_point);
+
+        info!("⛏️ Worker {:?} assigned to gather from resource {:?}!", unit.unit_id, resource_entity);
+    } else {
+        // Not a worker, just move to location
+        execute_move_command(unit, movement, combat, target_point);
+        info!("🚶 Unit {:?} moving to resource location: {:?}", unit.unit_id, target_point);
     }
+}
+
+/// Execute a simple move command
+fn execute_move_command(
+    unit: &RTSUnit,
+    movement: &mut Movement,
+    combat: &mut Combat,
+    target_point: Vec3,
+) {
+    movement.target_position = Some(target_point);
+    combat.target = None;
+    info!("🚶 Unit {:?} moving to position: {:?}", unit.unit_id, target_point);
 }
 
 /// Find the nearest building for a given player

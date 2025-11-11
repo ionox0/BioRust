@@ -1,6 +1,16 @@
 use bevy::prelude::*;
 use crate::core::components::*;
 
+/// Context for production operations
+pub struct ProductionContext<'a> {
+    pub player_resources: &'a mut ResMut<'a, crate::core::resources::PlayerResources>,
+    pub ai_resources: &'a mut ResMut<'a, crate::core::resources::AIResources>,
+    pub game_costs: &'a Res<'a, crate::core::resources::GameCosts>,
+    pub commands: &'a mut Commands,
+    pub meshes: &'a mut ResMut<'a, Assets<Mesh>>,
+    pub materials: &'a mut ResMut<'a, Assets<StandardMaterial>>,
+}
+
 pub fn production_system(
     mut buildings: Query<(&mut ProductionQueue, &Building, &RTSUnit, &Transform), With<Building>>,
     mut player_resources: ResMut<crate::core::resources::PlayerResources>,
@@ -13,6 +23,16 @@ pub fn production_system(
 ) {
     let delta_time = time.delta_secs();
 
+    // Create production context
+    let mut context = ProductionContext {
+        player_resources: &mut player_resources,
+        ai_resources: &mut ai_resources,
+        game_costs: &game_costs,
+        commands: &mut commands,
+        meshes: &mut meshes,
+        materials: &mut materials,
+    };
+
     for (mut queue, building, unit, transform) in buildings.iter_mut() {
         if building.is_complete && !queue.queue.is_empty() {
             process_production_queue(
@@ -20,12 +40,7 @@ pub fn production_system(
                 building,
                 unit,
                 transform,
-                &mut player_resources,
-                &mut ai_resources,
-                &game_costs,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
+                &mut context,
                 delta_time
             );
         }
@@ -37,12 +52,7 @@ fn process_production_queue(
     building: &Building,
     unit: &RTSUnit,
     transform: &Transform,
-    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
-    game_costs: &Res<crate::core::resources::GameCosts>,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    context: &mut ProductionContext,
     delta_time: f32,
 ) {
     queue.current_progress += delta_time;
@@ -53,8 +63,8 @@ fn process_production_queue(
 
     let unit_type = queue.queue[0].clone();
 
-    if can_afford_production(unit.player_id, &unit_type, game_costs, player_resources, ai_resources) {
-        complete_production(queue, building, unit, transform, unit_type, player_resources, ai_resources, game_costs, commands, meshes, materials);
+    if can_afford_production(unit.player_id, &unit_type, context) {
+        complete_production(queue, building, unit, transform, unit_type, context);
     } else {
         handle_production_failure(unit.player_id);
     }
@@ -63,19 +73,17 @@ fn process_production_queue(
 fn can_afford_production(
     player_id: u8,
     unit_type: &UnitType,
-    game_costs: &Res<crate::core::resources::GameCosts>,
-    player_resources: &ResMut<crate::core::resources::PlayerResources>,
-    ai_resources: &ResMut<crate::core::resources::AIResources>,
+    context: &ProductionContext,
 ) -> bool {
-    let Some(cost) = game_costs.unit_costs.get(unit_type) else {
+    let Some(cost) = context.game_costs.unit_costs.get(unit_type) else {
         return true;
     };
 
     // Use direct access for read-only check (no mutation needed)
     if player_id == 1 {
-        player_resources.can_afford(cost) && player_resources.has_population_space()
+        context.player_resources.can_afford(cost) && context.player_resources.has_population_space()
     } else {
-        ai_resources.resources.get(&player_id)
+        context.ai_resources.resources.get(&player_id)
             .map(|resources| resources.can_afford(cost) && resources.has_population_space())
             .unwrap_or(true)
     }
@@ -87,18 +95,13 @@ fn complete_production(
     unit: &RTSUnit,
     transform: &Transform,
     unit_type: UnitType,
-    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
-    game_costs: &Res<crate::core::resources::GameCosts>,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    context: &mut ProductionContext,
 ) {
     queue.queue.remove(0);
     queue.current_progress = 0.0;
 
-    pay_production_cost(unit.player_id, &unit_type, player_resources, ai_resources, game_costs);
-    spawn_produced_unit(&unit_type, building, transform, unit.player_id, commands, meshes, materials);
+    pay_production_cost(unit.player_id, &unit_type, context);
+    spawn_produced_unit(&unit_type, building, transform, unit.player_id, context);
 
     info!("Player {} produced {:?} unit", unit.player_id, unit_type);
 }
@@ -106,15 +109,13 @@ fn complete_production(
 fn pay_production_cost(
     player_id: u8,
     unit_type: &UnitType,
-    player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
-    ai_resources: &mut ResMut<crate::core::resources::AIResources>,
-    game_costs: &Res<crate::core::resources::GameCosts>,
+    context: &mut ProductionContext,
 ) {
-    let Some(cost) = game_costs.unit_costs.get(unit_type) else {
+    let Some(cost) = context.game_costs.unit_costs.get(unit_type) else {
         return;
     };
 
-    let mut manager = crate::core::resources::ResourceManager::new(player_resources, ai_resources);
+    let mut manager = crate::core::resources::ResourceManager::new(context.player_resources, context.ai_resources);
     manager.spend_resources(player_id, cost);
     manager.add_population(player_id, 1);
 }
@@ -124,9 +125,7 @@ fn spawn_produced_unit(
     building: &Building,
     building_transform: &Transform,
     player_id: u8,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    context: &mut ProductionContext,
 ) {
     use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
 
@@ -135,7 +134,7 @@ fn spawn_produced_unit(
     let spawn_position = building.rally_point.unwrap_or(building_transform.translation + default_offset);
 
     let config = SpawnConfig::unit(EntityType::Unit(unit_type.clone()), spawn_position, player_id);
-    EntityFactory::spawn(commands, meshes, materials, config, None);
+    EntityFactory::spawn(context.commands, context.meshes, context.materials, config, None);
 }
 
 fn handle_production_failure(player_id: u8) {
