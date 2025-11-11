@@ -39,17 +39,23 @@ fn ensure_dropoff_building_assigned(
     if let Some(current_dropoff) = gatherer.drop_off_building {
         if let Ok((_, building_transform, building, building_unit)) = buildings.get(current_dropoff) {
             // Check if building is still valid (same player, complete, can accept resources)
-            if building_unit.player_id == unit.player_id && building.is_complete {
-                current_distance = worker_transform.translation.distance(building_transform.translation);
+            let is_correct_type = matches!(building.building_type,
+                BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
+            let is_valid = building_unit.player_id == unit.player_id &&
+                          building.is_complete &&
+                          is_correct_type;
 
-                // Keep current assignment if it's reasonably close (within reassignment threshold)
-                // This provides load balancing by reducing reassignment churn
-                if current_distance < DROPOFF_REASSIGNMENT_THRESHOLD {
-                    return; // Current drop-off is still valid and close enough
-                }
+            if is_valid {
+                // Building is valid - keep it assigned!
+                // Workers can be thousands of units away while gathering - that's totally fine
+                // We only want to reassign if a significantly closer building becomes available
+                current_distance = worker_transform.translation.distance(building_transform.translation);
+                return; // Current drop-off is valid, keep it
             }
         }
-        // Current drop-off is invalid or too far, clear it
+
+        // Only clear if building is invalid (destroyed, wrong player, incomplete, wrong type)
+        // Do NOT clear just because worker is far away!
         gatherer.drop_off_building = None;
     }
 
@@ -100,8 +106,11 @@ fn ensure_dropoff_building_assigned(
     // Assign the closest building if we found a significantly better option
     if let Some(building) = closest_building {
         gatherer.drop_off_building = Some(building);
-        info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
-              unit.unit_id, unit.player_id, closest_distance);
+        // Only log if worker has resources or is actively gathering (not at startup)
+        if gatherer.carried_amount > 0.0 || gatherer.target_resource.is_some() {
+            info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
+                  unit.unit_id, unit.player_id, closest_distance);
+        }
     } else if gatherer.drop_off_building.is_none() {
         // Worker needs dropoff but none found - log this as it's a problem
         // Only log once per second to avoid spam
