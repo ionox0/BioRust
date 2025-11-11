@@ -70,7 +70,7 @@ pub fn economy_optimization_system(
 
         // Count current worker distribution
         let mut current_distribution = HashMap::new();
-        for (_entity, gatherer, unit, _transform) in workers.iter() {
+        for (_entity, gatherer, _movement, unit, _transform) in workers.iter() {
             if unit.player_id == *player_id {
                 if let Some(resource_type) = &gatherer.resource_type {
                     *current_distribution.entry(resource_type.clone()).or_insert(0) += 1;
@@ -183,7 +183,7 @@ fn reassign_workers(
             let excess = allocation.current_workers - allocation.ideal_workers;
 
             // Find workers on this resource to reassign
-            for (worker_entity, gatherer, unit, transform) in workers.iter() {
+            for (worker_entity, gatherer, _movement, unit, transform) in workers.iter() {
                 if unit.player_id == player_id &&
                    gatherer.resource_type.as_ref() == Some(&allocation.resource_type) &&
                    workers_to_reassign.len() < excess as usize {
