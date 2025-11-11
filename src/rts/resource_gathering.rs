@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 // Configurable gathering parameters
 const GATHERING_DISTANCE: f32 = 20.0;  // Distance within which gathering occurs (increased for collision constraints)
-const DROPOFF_TRAVEL_DISTANCE: f32 = 10.0;  // Distance threshold for traveling to dropoff
+const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0;  // Distance threshold for delivering resources (increased for building collision radii)
 const DROPOFF_REASSIGNMENT_THRESHOLD: f32 = 50.0;  // Only reassign if new building is this much closer
 
 pub fn resource_gathering_system(
@@ -284,6 +284,20 @@ fn process_resource_delivery(
     };
 
     let distance = gatherer_transform.translation.distance(building_transform.translation);
+
+    // Log distance to dropoff for debugging
+    static DROPOFF_DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f32();
+    let mut log = DROPOFF_DISTANCE_LOG.lock().unwrap();
+    let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+    if current_time - last_time > 2.0 {
+        info!("🏠 Worker {} (player {}) distance to dropoff: {:.1} units (need < {:.1} to deliver)",
+              unit.unit_id, unit.player_id, distance, DROPOFF_TRAVEL_DISTANCE);
+        log.insert(unit.unit_id, current_time);
+    }
 
     // If far from dropoff, move towards it
     if distance > DROPOFF_TRAVEL_DISTANCE {
