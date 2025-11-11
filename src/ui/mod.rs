@@ -32,6 +32,8 @@ impl Plugin for UIPlugin {
                 update_ai_resource_display,
                 handle_building_panel_interactions,
                 handle_building_placement,
+            ))
+            .add_systems(Update, (
                 update_production_queue_display,
                 update_placement_status,
                 building_hotkeys_system,
