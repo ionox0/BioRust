@@ -144,6 +144,21 @@ fn process_resource_gathering(
 
     let distance = gatherer_transform.translation.distance(resource_transform.translation);
 
+    // Log distance for debugging collision issues
+    static DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f32();
+
+    let mut log = DISTANCE_LOG.lock().unwrap();
+    let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
+    if current_time - last_time > 2.0 {
+        info!("🎯 Worker {} (player {}) distance to resource: {:.1} units (need < {:.1})",
+              unit.unit_id, unit.player_id, distance, GATHERING_DISTANCE);
+        log.insert(unit.unit_id, current_time);
+    }
+
     if distance > GATHERING_DISTANCE {
         return;
     }

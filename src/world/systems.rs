@@ -377,8 +377,8 @@ fn spawn_minimal_environment_objects(
                     EnvironmentObject {
                         object_type: env_obj_type.clone(),
                     },
-                    CollisionRadius { 
-                        radius: base_scale * 1.5 // Reasonable collision for navigation
+                    CollisionRadius {
+                        radius: 3.0 // Small fixed radius so workers can get within GATHERING_DISTANCE (5.0)
                     },
                     Position {
                         translation: position,
