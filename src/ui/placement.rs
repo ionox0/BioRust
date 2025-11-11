@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::ecs::system::SystemParam;
 use crate::core::components::*;
 use crate::ui::resource_display::PlayerResources;
 use crate::collision::validate_building_placement;
@@ -16,7 +17,20 @@ pub struct PlacementPreview;
 #[derive(Component)]
 pub struct PlacementStatusText;
 
-// Removed PlacementContext to avoid lifetime issues - using direct parameters instead
+/// System parameter grouping collision-related queries to reduce parameter count
+#[derive(SystemParam)]
+pub struct CollisionQueries<'w, 's> {
+    pub buildings: Query<'w, 's, (&'static Transform, &'static CollisionRadius), With<Building>>,
+    pub units: Query<'w, 's, (&'static Transform, &'static CollisionRadius), With<RTSUnit>>,
+    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius), With<EnvironmentObject>>,
+}
+
+/// System parameter grouping preview-related queries to reduce parameter count
+#[derive(SystemParam)]
+pub struct PreviewQueries<'w, 's> {
+    pub transforms: Query<'w, 's, &'static mut Transform, With<PlacementPreview>>,
+    pub materials: Query<'w, 's, &'static MeshMaterial3d<StandardMaterial>, With<PlacementPreview>>,
+}
 
 pub fn handle_building_placement(
     mut placement: ResMut<BuildingPlacement>,
@@ -32,11 +46,8 @@ pub fn handle_building_placement(
     mut player_resources: ResMut<PlayerResources>,
     mut main_resources: ResMut<crate::core::resources::PlayerResources>,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
-    mut preview_transforms: Query<&mut Transform, With<PlacementPreview>>,
-    existing_buildings: Query<(&Transform, &CollisionRadius), With<Building>>,
-    units: Query<(&Transform, &CollisionRadius), With<RTSUnit>>,
-    environment_objects: Query<(&Transform, &CollisionRadius), With<EnvironmentObject>>,
-    mut preview_materials: Query<&MeshMaterial3d<StandardMaterial>, With<PlacementPreview>>,
+    collision_queries: CollisionQueries,
+    mut preview_queries: PreviewQueries,
 ) {
     // Cancel building placement with ESC
     if keyboard.just_pressed(crate::constants::hotkeys::CANCEL_BUILD) {
@@ -59,11 +70,8 @@ pub fn handle_building_placement(
             &terrain_settings,
             &mouse_button,
             &model_assets,
-            &mut preview_transforms,
-            &existing_buildings,
-            &units,
-            &environment_objects,
-            &mut preview_materials,
+            &collision_queries,
+            &mut preview_queries,
         );
     }
 }
@@ -91,11 +99,8 @@ fn handle_active_placement(
     terrain_settings: &crate::world::terrain_v2::TerrainSettings,
     mouse_button: &ButtonInput<MouseButton>,
     model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
-    preview_transforms: &mut Query<&mut Transform, With<PlacementPreview>>,
-    existing_buildings: &Query<(&Transform, &CollisionRadius), With<Building>>,
-    units: &Query<(&Transform, &CollisionRadius), With<RTSUnit>>,
-    environment_objects: &Query<(&Transform, &CollisionRadius), With<EnvironmentObject>>,
-    preview_materials: &mut Query<&MeshMaterial3d<StandardMaterial>, With<PlacementPreview>>,
+    collision_queries: &CollisionQueries,
+    preview_queries: &mut PreviewQueries,
 ) {
     let window = windows.single();
     if let Some(cursor_position) = window.cursor_position() {
@@ -111,9 +116,9 @@ fn handle_active_placement(
             let is_valid = validate_building_placement(
                 placement_pos,
                 building_radius,
-                existing_buildings,
-                units,
-                environment_objects,
+                &collision_queries.buildings,
+                &collision_queries.units,
+                &collision_queries.environment_objects,
             );
 
             // Update validation state
@@ -126,9 +131,9 @@ fn handle_active_placement(
                 materials,
                 building_type.clone(),
                 placement_pos,
-                preview_transforms,
+                &mut preview_queries.transforms,
                 is_valid,
-                preview_materials,
+                &mut preview_queries.materials,
             );
 
             if mouse_button.just_pressed(MouseButton::Left) {
