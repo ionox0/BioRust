@@ -342,16 +342,53 @@ fn update_selection_state(selectable: &mut Selectable, shift_held: bool) {
 fn spawn_selection_indicator(
     entity: Entity,
     transform: &Transform,
-    _selectable: &Selectable,
+    selectable: &Selectable,
     commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    // TODO: Implement selection indicator with proper mesh/material resources
+    // Create a blue ring using a torus mesh
+    let ring_radius = selectable.selection_radius;
+    let ring_thickness = 0.1;
+
     commands.spawn((
-        Transform::from_translation(Vec3::new(transform.translation.x, 1.0, transform.translation.z)),
+        Mesh3d(meshes.add(Torus::new(ring_thickness, ring_radius))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.3, 0.6, 1.0), // Bright blue
+            emissive: Color::srgb(0.2, 0.4, 0.8).into(), // Blue glow
+            unlit: true,
+            alpha_mode: AlphaMode::Blend,
+            ..default()
+        })),
+        Transform::from_translation(Vec3::new(
+            transform.translation.x,
+            0.1, // Slightly above ground
+            transform.translation.z
+        ))
+        .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)), // Rotate to lay flat
         SelectionIndicator { target: entity },
     ));
 }
 
+/// System to create selection indicators for newly selected units
+pub fn create_selection_indicators(
+    mut commands: Commands,
+    selectables: Query<(Entity, &Selectable, &Transform), (With<RTSUnit>, Changed<Selectable>)>,
+    existing_indicators: Query<&SelectionIndicator>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for (entity, selectable, transform) in selectables.iter() {
+        let has_indicator = existing_indicators.iter().any(|ind| ind.target == entity);
+
+        if selectable.is_selected && !has_indicator {
+            // Unit is selected but doesn't have an indicator yet - create one
+            spawn_selection_indicator(entity, transform, selectable, &mut commands, &mut meshes, &mut materials);
+        }
+    }
+}
+
+/// System to update selection indicator positions and remove indicators for deselected units
 pub fn selection_indicator_system(
     mut selection_indicators: Query<(Entity, &mut Transform, &SelectionIndicator), With<SelectionIndicator>>,
     selectables: Query<(&Selectable, &Transform), (With<RTSUnit>, Without<SelectionIndicator>)>,
@@ -360,12 +397,15 @@ pub fn selection_indicator_system(
     for (indicator_entity, mut indicator_transform, selection_indicator) in selection_indicators.iter_mut() {
         if let Ok((selectable, unit_transform)) = selectables.get(selection_indicator.target) {
             if selectable.is_selected {
+                // Update indicator position to follow the unit
                 indicator_transform.translation.x = unit_transform.translation.x;
                 indicator_transform.translation.z = unit_transform.translation.z;
             } else {
+                // Unit is no longer selected - remove the indicator
                 commands.entity(indicator_entity).despawn();
             }
         } else {
+            // Target unit no longer exists - remove the indicator
             commands.entity(indicator_entity).despawn();
         }
     }
