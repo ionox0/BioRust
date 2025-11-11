@@ -269,13 +269,18 @@ pub fn validate_environment_object_position(
 
 /// Validate that a building can be placed at the given position without overlapping
 /// Returns true if the position is valid (no collisions), false otherwise
-pub fn validate_building_placement(
+pub fn validate_building_placement<BF, UF, EF>(
     position: Vec3,
     building_radius: f32,
-    existing_buildings: &Query<(&Transform, &CollisionRadius), With<Building>>,
-    units: &Query<(&Transform, &CollisionRadius), With<RTSUnit>>,
-    environment_objects: &Query<(&Transform, &CollisionRadius), With<EnvironmentObject>>,
-) -> bool {
+    existing_buildings: &Query<(&Transform, &CollisionRadius), BF>,
+    units: &Query<(&Transform, &CollisionRadius), UF>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), EF>,
+) -> bool
+where
+    BF: bevy::ecs::query::QueryFilter,
+    UF: bevy::ecs::query::QueryFilter,
+    EF: bevy::ecs::query::QueryFilter,
+{
     use crate::constants::building_placement::*;
 
     // Check against existing buildings - prevent overlap
