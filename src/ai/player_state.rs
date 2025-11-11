@@ -6,16 +6,12 @@ pub struct AIPlayer {
     pub player_id: u8,
     pub ai_type: AIType,
     pub decision_timer: Timer,
-    #[allow(dead_code)]
-    pub build_order_index: usize,
 }
 
 #[derive(Debug, Clone)]
 pub enum AIType {
     Aggressive,
-    #[allow(dead_code)]
     Economic,
-    #[allow(dead_code)]
     Balanced,
 }
 
@@ -26,7 +22,6 @@ pub enum AIDecision {
     BuildBuilding(BuildingType),
     AttackPlayer(u8),
     GatherResources,
-    #[allow(dead_code)]
     Expand,
 }
 
@@ -88,47 +83,3 @@ impl PlayerCounts {
     }
 }
 
-// Helper function to spawn AI players with reduced parameters
-pub fn spawn_ai_player(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_id: u8,
-    ai_type: AIType,
-    base_position: Vec3,
-) {
-    // Spawn AI player entity
-    commands.spawn(AIPlayer {
-        player_id,
-        ai_type: ai_type.clone(),
-        decision_timer: Timer::from_seconds(3.0, TimerMode::Repeating),
-        build_order_index: 0,
-    });
-    
-    spawn_starting_units(commands, meshes, materials, player_id, base_position);
-    
-    info!("Spawned AI Player {} ({:?}) at {:?}", player_id, ai_type, base_position);
-}
-
-fn spawn_starting_units(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    player_id: u8,
-    base_position: Vec3,
-) {
-    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-    use crate::core::components::{BuildingType, UnitType};
-
-    // Spawn AI town center
-    let building_config = SpawnConfig::building(EntityType::Building(BuildingType::Queen), base_position, player_id);
-    EntityFactory::spawn(commands, meshes, materials, building_config, None);
-
-    // Spawn starting villagers
-    for i in 0..3 {
-        use crate::constants::ai::*;
-        let villager_pos = base_position + Vec3::new(i as f32 * AI_SPAWN_RANGE, 0.0, AI_SPAWN_RANGE);
-        let unit_config = SpawnConfig::unit(EntityType::Unit(UnitType::WorkerAnt), villager_pos, player_id);
-        EntityFactory::spawn(commands, meshes, materials, unit_config, None);
-    }
-}

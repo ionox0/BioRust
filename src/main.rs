@@ -8,7 +8,6 @@ mod rendering;
 mod ui;
 mod ai;
 mod health_ui;
-mod resource_ui;
 mod combat_systems;
 mod collision;
 

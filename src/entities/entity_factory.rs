@@ -60,8 +60,6 @@ pub enum EntityType {
     Unit(UnitType),
     // Buildings  
     Building(BuildingType),
-    // Resources
-    Resource(ResourceType),
 }
 
 impl EntityType {
@@ -93,7 +91,6 @@ impl EntityFactory {
         match &config.entity_type {
             EntityType::Unit(unit_type) => Self::spawn_unit(commands, meshes, materials, unit_type.clone(), config, model_assets),
             EntityType::Building(building_type) => Self::spawn_building(commands, meshes, materials, building_type.clone(), config, model_assets),
-            EntityType::Resource(resource_type) => Self::spawn_resource(commands, meshes, materials, resource_type.clone(), config),
         }
     }
     
@@ -239,13 +236,11 @@ impl EntityFactory {
         ));
         
         // Add animation controller for units with animations
-        let clips = create_animation_clips_for_unit(&unit_type);
         entity.insert(UnitAnimationController {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
             animation_node_index: None, // Will be populated by setup_glb_animations system
-            clips,
         });
         info!("Added animation controller to unit {:?}", unit_type);
         
@@ -372,37 +367,6 @@ impl EntityFactory {
         ))
     }
     
-    /// Spawn a resource with the specified configuration
-    fn spawn_resource(
-        commands: &mut Commands,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<StandardMaterial>>,
-        resource_type: ResourceType,
-        config: SpawnConfig,
-    ) -> Entity {
-        let resource_stats = Self::get_resource_stats(&resource_type);
-        
-        commands.spawn((
-            Mesh3d(meshes.add(resource_stats.mesh)),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: resource_stats.color,
-                ..default()
-            })),
-            Transform::from_translation(config.position),
-            ResourceSource {
-                resource_type: resource_type.clone(),
-                amount: resource_stats.amount,
-                max_gatherers: resource_stats.max_gatherers,
-                current_gatherers: 0,
-            },
-            Selectable {
-                is_selected: false,
-                selection_radius: resource_stats.selection_radius,
-            },
-            CollisionRadius { radius: resource_stats.collision_radius },
-            GameEntity,
-        )).id()
-    }
 }
 
 // Helper structs for organizing entity statistics
@@ -423,7 +387,6 @@ enum BuildingSpecialComponents {
     None,
     ProductionQueue { production_time: f32 },
     ProductionWithGarrison { production_time: f32, garrison_capacity: u32, protection_bonus: f32 },
-    Vision { sight_range: f32 },
 }
 
 impl BuildingSpecialComponents {
@@ -455,24 +418,8 @@ impl BuildingSpecialComponents {
                     },
                 ));
             },
-            Self::Vision { sight_range } => {
-                entity.insert(Vision {
-                    sight_range: *sight_range,
-                    line_of_sight: true,
-                });
-            },
         }
     }
-}
-
-#[derive(Debug, Clone)]
-struct ResourceStats {
-    mesh: Mesh,
-    color: Color,
-    amount: f32,
-    max_gatherers: u32,
-    selection_radius: f32,
-    collision_radius: f32,
 }
 
 impl EntityFactory {
@@ -554,42 +501,6 @@ impl EntityFactory {
         }
     }
     
-    fn get_resource_stats(resource_type: &ResourceType) -> ResourceStats {
-        match resource_type {
-            ResourceType::Chitin => ResourceStats {
-                mesh: Cuboid::new(4.0, 8.0, 4.0).into(),
-                color: Color::srgb(0.4, 0.2, 0.0),
-                amount: 100.0,
-                max_gatherers: 3,
-                selection_radius: 3.0,
-                collision_radius: 5.0,
-            },
-            ResourceType::Minerals => ResourceStats {
-                mesh: Sphere::new(3.0).into(),
-                color: Color::srgb(0.5, 0.5, 0.5),
-                amount: 200.0,
-                max_gatherers: 5,
-                selection_radius: 4.0,
-                collision_radius: 6.0,
-            },
-            ResourceType::Pheromones => ResourceStats {
-                mesh: Sphere::new(2.5).into(),
-                color: Color::srgb(1.0, 0.8, 0.0),
-                amount: 800.0,
-                max_gatherers: 4,
-                selection_radius: 3.0,
-                collision_radius: 5.5,
-            },
-            ResourceType::Nectar => ResourceStats {
-                mesh: Sphere::new(2.0).into(),
-                color: Color::srgb(1.0, 0.6, 0.2),
-                amount: 500.0,
-                max_gatherers: 3,
-                selection_radius: 3.0,
-                collision_radius: 4.5,
-            },
-        }
-    }
     
     fn get_unit_primitive_mesh(unit_type: &UnitType) -> (Mesh, f32) {
         match unit_type {

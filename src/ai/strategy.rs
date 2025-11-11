@@ -39,6 +39,7 @@ pub struct AIStrategy {
 
 #[derive(Debug, Clone)]
 pub struct PlayerStrategy {
+    #[allow(dead_code)]
     pub strategy_type: StrategyType,
     pub last_building_time: f32,
     pub last_unit_time: f32,
@@ -50,7 +51,9 @@ pub struct PlayerStrategy {
 
 #[derive(Debug, Clone)]
 pub enum StrategyType {
+    #[allow(dead_code)]
     Economic,  // Focus on resource gathering and infrastructure
+    #[allow(dead_code)]
     Military,  // Focus on unit production and combat
     Balanced,  // Mix of both
 }
@@ -73,6 +76,7 @@ pub struct EconomyTargets {
 pub struct MilitaryTargets {
     pub desired_military_units: u32,
     pub preferred_unit_types: Vec<UnitType>,
+    #[allow(dead_code)]
     pub next_military_building: Option<BuildingType>,
 }
 
@@ -81,8 +85,11 @@ pub enum StrategyGoal {
     BuildWorker,
     BuildMilitaryUnit(UnitType),
     ConstructBuilding(BuildingType),
+    #[allow(dead_code)]
     GatherResource(ResourceType),
+    #[allow(dead_code)]
     ExpandTerritory,
+    #[allow(dead_code)]
     AttackEnemy,
 }
 

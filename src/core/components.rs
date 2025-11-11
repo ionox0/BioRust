@@ -17,13 +17,6 @@ pub struct MainCamera;
 #[derive(Component, Debug, Clone)]
 pub struct RTSCamera {
     pub move_speed: f32,
-    #[allow(dead_code)]
-    pub zoom_speed: f32,
-    pub min_height: f32,
-    pub max_height: f32,
-    pub look_sensitivity: f32,
-    pub pitch: f32,
-    pub yaw: f32,
 }
 
 #[derive(Component)]
@@ -202,15 +195,6 @@ impl ResourceType {
         }
     }
 
-    /// Set the value of this resource in PlayerResources
-    pub fn set_in(&self, resources: &mut crate::core::resources::PlayerResources, value: f32) {
-        match self {
-            Self::Nectar => resources.nectar = value,
-            Self::Chitin => resources.chitin = value,
-            Self::Minerals => resources.minerals = value,
-            Self::Pheromones => resources.pheromones = value,
-        }
-    }
 
     /// Add an amount to this resource in PlayerResources
     pub fn add_to(&self, resources: &mut crate::core::resources::PlayerResources, amount: f32) {
@@ -590,20 +574,12 @@ pub struct EnvironmentObject {
 pub enum EnvironmentObjectType {
     /// Mushroom clusters for natural decoration
     Mushrooms,
-    /// Grass patches for ground coverage
-    Grass,
     /// Hive structures for insect theme
     Hive,
     /// Wood stick debris for natural clutter
     WoodStick,
     
     // New environment object types
-    /// Trees for major landmarks and natural barriers
-    Trees,
     /// Rock formations for geological features
     Rocks,
-    /// Ferns and plants for undergrowth decoration
-    Plants,
-    /// Pine cones and forest debris
-    ForestDebris,
 }

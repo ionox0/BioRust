@@ -89,7 +89,6 @@ pub struct PlayerResources {
     pub pheromones: f32, // Gold -> Pheromones (insect theme)
     pub max_population: u32,
     pub current_population: u32,
-    pub idle_workers: u32,  // villagers -> workers (insect theme)
 }
 
 impl Default for PlayerResources {
@@ -101,7 +100,6 @@ impl Default for PlayerResources {
             pheromones: 100.0,
             max_population: 500, // Start with nursery capacity
             current_population: 0,
-            idle_workers: 0,
         }
     }
 }
@@ -168,7 +166,6 @@ impl Default for AIResources {
             pheromones: 500.0, // More pheromones for special units
             max_population: 20, // Higher pop cap to support more units
             current_population: 0,
-            idle_workers: 0,
         });
         Self { resources }
     }
@@ -186,14 +183,6 @@ impl<'a> ResourceManager<'a> {
         Self { player_resources, ai_resources }
     }
 
-    /// Get immutable reference to resources for a specific player
-    pub fn get(&self, player_id: u8) -> Option<&PlayerResources> {
-        if player_id == 1 {
-            Some(self.player_resources)
-        } else {
-            self.ai_resources.resources.get(&player_id)
-        }
-    }
 
     /// Get mutable reference to resources for a specific player
     pub fn get_mut(&mut self, player_id: u8) -> Option<&mut PlayerResources> {
@@ -204,19 +193,6 @@ impl<'a> ResourceManager<'a> {
         }
     }
 
-    /// Check if a player can afford a cost
-    pub fn can_afford(&self, player_id: u8, cost: &[(crate::core::components::ResourceType, f32)]) -> bool {
-        self.get(player_id)
-            .map(|res| res.can_afford(cost))
-            .unwrap_or(false)
-    }
-
-    /// Check if a player can afford a cost and has population space
-    pub fn can_afford_unit(&self, player_id: u8, cost: &[(crate::core::components::ResourceType, f32)]) -> bool {
-        self.get(player_id)
-            .map(|res| res.can_afford(cost) && res.has_population_space())
-            .unwrap_or(false)
-    }
 
     /// Spend resources for a player
     pub fn spend_resources(&mut self, player_id: u8, cost: &[(crate::core::components::ResourceType, f32)]) -> bool {
@@ -239,12 +215,6 @@ impl<'a> ResourceManager<'a> {
             .unwrap_or(false)
     }
 
-    /// Add housing for a player
-    pub fn add_housing(&mut self, player_id: u8, amount: u32) {
-        if let Some(res) = self.get_mut(player_id) {
-            res.add_housing(amount);
-        }
-    }
 }
 
 #[derive(Resource, Debug, Default)]

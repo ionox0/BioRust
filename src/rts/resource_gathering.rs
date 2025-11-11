@@ -6,7 +6,6 @@ use std::collections::{HashMap, HashSet};
 // Configurable gathering parameters
 const GATHERING_DISTANCE: f32 = 20.0;  // Distance within which gathering occurs (increased for collision constraints)
 const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0;  // Distance threshold for delivering resources (increased for building collision radii)
-const DROPOFF_REASSIGNMENT_THRESHOLD: f32 = 50.0;  // Only reassign if new building is this much closer
 
 pub fn resource_gathering_system(
     mut gatherers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), With<RTSUnit>>,

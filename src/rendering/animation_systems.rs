@@ -28,48 +28,18 @@ pub struct UnitAnimationController {
     pub previous_state: AnimationState,
     pub animation_player: Option<Entity>,
     pub animation_node_index: Option<AnimationNodeIndex>,
-    pub clips: UnitAnimationClips,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum AnimationState {
     Idle,
     Walking,
     Running,
     Attacking,
-    Defending,
-    TakingDamage,
     Death,
     Special, // For unit-specific animations like flying, eating, etc.
 }
 
-#[derive(Debug, Clone)]
-pub struct UnitAnimationClips {
-    pub idle: Option<String>,
-    pub walking: Option<String>,
-    pub running: Option<String>,
-    pub attacking: Option<String>,
-    pub defending: Option<String>,
-    pub taking_damage: Option<String>,
-    pub death: Option<String>,
-    pub special: Vec<String>,
-}
-
-impl Default for UnitAnimationClips {
-    fn default() -> Self {
-        Self {
-            idle: None,
-            walking: None,
-            running: None,
-            attacking: None,
-            defending: None,
-            taking_damage: None,
-            death: None,
-            special: Vec::new(),
-        }
-    }
-}
 
 #[derive(Event, Debug)]
 pub struct AnimationStateChangeEvent {
@@ -294,310 +264,7 @@ pub fn start_idle_animations(
     }
 }
 
-// Helper function to get animation name for a state
-fn get_animation_name_for_state<'a>(clips: &'a UnitAnimationClips, state: &'a AnimationState) -> Option<&'a String> {
-    match state {
-        AnimationState::Idle => clips.idle.as_ref(),
-        AnimationState::Walking => clips.walking.as_ref(),
-        AnimationState::Running => clips.running.as_ref(),
-        AnimationState::Attacking => clips.attacking.as_ref(),
-        AnimationState::Defending => clips.defending.as_ref(),
-        AnimationState::TakingDamage => clips.taking_damage.as_ref(),
-        AnimationState::Death => clips.death.as_ref(),
-        AnimationState::Special => clips.special.get(0),
-    }
-}
 
-// Helper function to create animation clips based on unit type
-pub fn create_animation_clips_for_unit(
-    unit_type: &UnitType,
-) -> UnitAnimationClips {
-    use crate::rendering::model_loader::get_unit_insect_model;
-    
-    let model_type = get_unit_insect_model(unit_type);
-    
-    match model_type {
-        crate::rendering::model_loader::InsectModelType::Beetle => {
-            // Black ox beetle has the most complete animation set - use exact names from animation summary
-            UnitAnimationClips {
-                idle: Some("AS_BlackOxBeetle_Idle_NC_01_SK_BlackOxBeetle01".to_string()), // Non-combat idle
-                walking: Some("AS_BlackOxBeetle_Walk_Forward_01_SK_BlackOxBeetle01".to_string()), // Walk forward
-                running: Some("AS_BlackOxBeetle_Run_Forward_01_SK_BlackOxBeetle01".to_string()), // Run forward
-                attacking: Some("AS_BlackOxBeetle_Attack_Basic_SK_BlackOxBeetle01".to_string()), // Basic attack
-                defending: Some("AS_BlackOxBeetle_Idle_Combat_01_SK_BlackOxBeetle01".to_string()), // Combat idle
-                taking_damage: None, // No flinch animation found in summary
-                death: Some("AS_BlackOxBeetle_Death_01_SK_BlackOxBeetle01".to_string()), // Death
-                special: vec![
-                    "AS_BlackOxBeetle_Attack_Spin_SK_BlackOxBeetle01".to_string(), // Spin attack
-                    "AS_BlackOxBeetle_Attack_Thrash_SK_BlackOxBeetle01".to_string(), // Thrash attack
-                    "AS_BlackOxBeetle_Attack_RockFling_SK_BlackOxBeetle01".to_string(), // Rock fling
-                    "as_blackoxbeetle_jump_SK_BlackOxBeetle01".to_string(), // Jump
-                ],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::WolfSpider => {
-            // Wolf spider has good movement animations - use exact names from animation summary
-            UnitAnimationClips {
-                idle: Some("Wolf Spider Armature|Spider walking".to_string()), // Use walking as idle
-                walking: Some("Wolf Spider Armature|Spider walking".to_string()), // Spider walking
-                running: Some("Wolf Spider Armature|Spider running".to_string()), // Spider running
-                attacking: None, // No attack animation available
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![
-                    "Wolf Spider Armature|Spider walking fast".to_string(), // Walking fast
-                    "Wolf Spider Armature|Spider walking backword".to_string(), // Walking backward
-                    "Wolf Spider Armature|Spider walk and turn left".to_string(), // Turn left
-                    "Wolf Spider Armature|Spider walk and turn right".to_string(), // Turn right
-                ],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Scorpion => {
-            // Scorpion has essential combat animations
-            UnitAnimationClips {
-                idle: Some("Idle".to_string()), // Idle
-                walking: Some("Walk".to_string()), // Walk
-                running: Some("Walk".to_string()), // Use walk for running too
-                attacking: Some("Area Attack".to_string()), // Area Attack
-                defending: Some("Defend".to_string()), // Defend
-                taking_damage: None,
-                death: Some("Death".to_string()), // Death
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Bee => {
-            // Bee has unique flying animations
-            UnitAnimationClips {
-                idle: Some("_bee_idle".to_string()), // Bee idle
-                walking: Some("_bee_hover".to_string()), // Bee hover
-                running: Some("_bee_hover".to_string()), // Bee hover (faster)
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![
-                    "_bee_take_off_and_land".to_string(), // Take off and land
-                ],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Spider => {
-            // Simple spider with very limited animations (needs improvement)
-            UnitAnimationClips {
-                idle: None,
-                walking: None,
-                running: None,
-                attacking: Some("SpiderSmall_Attack".to_string()), // Single attack animation
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::QueenFacedBug => {
-            // Queen faced bug - placeholder animations for now
-            UnitAnimationClips {
-                idle: None, // No specific animations defined yet
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::ApisMellifera => {
-            // Apis mellifera - high-quality honey bee with professional animations
-            UnitAnimationClips {
-                idle: Some("_bee_idle".to_string()), // Reuse bee idle
-                walking: Some("_bee_hover".to_string()), // Reuse bee hover
-                running: Some("_bee_hover".to_string()), // Reuse bee hover (faster)
-                attacking: None, // To be defined when available
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![
-                    "_bee_take_off_and_land".to_string(), // Take off and land
-                ],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Meganeura => {
-            // Meganeura - ancient dragonfly with flight animations
-            UnitAnimationClips {
-                idle: Some("_bee_hover".to_string()), // Hover like a bee
-                walking: Some("_bee_hover".to_string()),
-                running: Some("_bee_hover".to_string()),
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec!["_bee_take_off_and_land".to_string()],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::AnimatedSpider => {
-            // Animated spider - enhanced spider animations
-            UnitAnimationClips {
-                idle: Some("SpiderSmall_Attack".to_string()),
-                walking: Some("SpiderSmall_Attack".to_string()), // Reuse attack as movement
-                running: Some("SpiderSmall_Attack".to_string()),
-                attacking: Some("SpiderSmall_Attack".to_string()),
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::RhinoBeetle => {
-            // Rhino beetle - heavy armored unit
-            UnitAnimationClips {
-                idle: Some("AS_BlackOxBeetle_Idle_SK_BlackOxBeetle01".to_string()),
-                walking: Some("AS_BlackOxBeetle_Walk_Forward_SK_BlackOxBeetle01".to_string()),
-                running: Some("AS_BlackOxBeetle_Run_Forward_SK_BlackOxBeetle01".to_string()),
-                attacking: Some("AS_BlackOxBeetle_Attack_Basic_SK_BlackOxBeetle01".to_string()),
-                defending: Some("AS_BlackOxBeetle_CombatIdle_SK_BlackOxBeetle01".to_string()),
-                taking_damage: Some("AS_BlackOxBeetle_Flinch_Front_SK_BlackOxBeetle01".to_string()),
-                death: Some("AS_BlackOxBeetle_Death_SK_BlackOxBeetle01".to_string()),
-                special: vec![
-                    "AS_BlackOxBeetle_Attack_Spin_SK_BlackOxBeetle01".to_string(),
-                    "AS_BlackOxBeetle_Attack_Thrash_SK_BlackOxBeetle01".to_string(),
-                ],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Hornet => {
-            // Hornet - aggressive flying unit
-            UnitAnimationClips {
-                idle: Some("_bee_idle".to_string()),
-                walking: Some("_bee_hover".to_string()),
-                running: Some("_bee_hover".to_string()),
-                attacking: None, // To be defined
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec!["_bee_take_off_and_land".to_string()],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Fourmi => {
-            // Fourmi - French ant, perfect worker
-            UnitAnimationClips {
-                idle: None, // Simple static model
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::CairnsBirdwing => {
-            // Cairns birdwing butterfly - scout unit
-            UnitAnimationClips {
-                idle: Some("_bee_hover".to_string()), // Hover like flying insect
-                walking: Some("_bee_hover".to_string()),
-                running: Some("_bee_hover".to_string()),
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec!["_bee_take_off_and_land".to_string()],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::LadybugLowpoly => {
-            // Low-poly ladybug alternative
-            UnitAnimationClips {
-                idle: Some("LADYBUGAction".to_string()),
-                walking: Some("LADYBUGAction".to_string()),
-                running: Some("LADYBUGAction".to_string()),
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::RolyPoly => {
-            // Roly poly pill bug - defensive unit
-            UnitAnimationClips {
-                idle: None, // Static defensive posture
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![], // Could add rolling animation
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::DragonFly => {
-            // Mystery model - unknown capabilities
-            UnitAnimationClips {
-                idle: None,
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        crate::rendering::model_loader::InsectModelType::Mushrooms => {
-            // Mushrooms - environment objects (static)
-            UnitAnimationClips {
-                idle: None, // Static environment object
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        // Environment objects - all static, no animations
-        crate::rendering::model_loader::InsectModelType::Grass |
-        crate::rendering::model_loader::InsectModelType::Grass2 |
-        crate::rendering::model_loader::InsectModelType::Hive |
-        crate::rendering::model_loader::InsectModelType::WoodStick |
-        crate::rendering::model_loader::InsectModelType::SimpleGrassChunks |
-        crate::rendering::model_loader::InsectModelType::CherryBlossomTree |
-        crate::rendering::model_loader::InsectModelType::PineCone |
-        crate::rendering::model_loader::InsectModelType::PlantsAssetSet |
-        crate::rendering::model_loader::InsectModelType::BeechFern |
-        crate::rendering::model_loader::InsectModelType::TreesPack |
-        crate::rendering::model_loader::InsectModelType::RiverRock |
-        crate::rendering::model_loader::InsectModelType::SmallRocks |
-        // Building objects - all static, no animations
-        crate::rendering::model_loader::InsectModelType::Anthill => {
-            UnitAnimationClips {
-                idle: None, // Static environment objects
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-        
-        // Defensive catch-all for any new model types not explicitly handled
-        _ => {
-            warn!("Animation clips not specifically defined for model type: {:?}. Using default static configuration.", model_type);
-            UnitAnimationClips {
-                idle: None, // Default: no animations (static)
-                walking: None,
-                running: None,
-                attacking: None,
-                defending: None,
-                taking_damage: None,
-                death: None,
-                special: vec![],
-            }
-        },
-    }
-}
 
 // System to retroactively add animation controllers to units that don't have them
 pub fn add_missing_animation_controllers(
@@ -610,15 +277,11 @@ pub fn add_missing_animation_controllers(
             continue;
         };
         
-        // Create animation clips specific to this unit type
-        let clips = create_animation_clips_for_unit(unit_type);
-
         let animation_controller = UnitAnimationController {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
             animation_node_index: None, // Will be populated by setup_glb_animations system
-            clips,
         };
         
         // Add the animation controller to the entity

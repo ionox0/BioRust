@@ -7,7 +7,6 @@ use crate::core::game::GameState;
 // === RTS SETUP CONSTANTS ===
 const INITIAL_CAMERA_HEIGHT: f32 = 200.0;
 const INITIAL_CAMERA_DISTANCE: f32 = 100.0;
-const CAMERA_PITCH_ANGLE: f32 = -0.8;
 const LIGHT_ROTATION_X: f32 = -0.8;
 const LIGHT_ROTATION_Y: f32 = -0.3;
 
@@ -25,12 +24,6 @@ pub fn setup_game(
         MainCamera,
         RTSCamera {
             move_speed: crate::constants::camera::CAMERA_MOVE_SPEED,
-            zoom_speed: crate::constants::camera::ZOOM_SPEED_BASE,
-            min_height: crate::constants::camera::MIN_HEIGHT_ABOVE_TERRAIN,
-            max_height: crate::constants::camera::MAX_HEIGHT_ABOVE_TERRAIN,
-            look_sensitivity: crate::constants::camera::LOOK_SENSITIVITY,
-            pitch: CAMERA_PITCH_ANGLE,
-            yaw: 0.0,
         },
     ));
     
@@ -438,7 +431,6 @@ fn spawn_minimal_environment_objects(
                             selection_radius: base_scale * 2.0,
                         });
                     },
-                    _ => {} // Other objects (Grass, etc.) are not harvestable
                 }
                 
                 info!("Spawned {} at {:?} (scale: {:.1})", object_name.to_lowercase(), position, base_scale);

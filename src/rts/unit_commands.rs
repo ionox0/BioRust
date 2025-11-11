@@ -3,8 +3,6 @@ use bevy::ecs::system::ParamSet;
 use crate::core::components::*;
 
 pub struct CommandContext<'a> {
-    pub camera: &'a Camera,
-    pub camera_transform: &'a GlobalTransform,
     pub terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
     pub terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
 }
@@ -37,8 +35,6 @@ pub fn unit_command_system(
     let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else { return };
     
     let context = CommandContext {
-        camera,
-        camera_transform,
         terrain_manager: &terrain_manager,
         terrain_settings: &terrain_settings,
     };
@@ -117,19 +113,6 @@ fn is_enemy_unit(
     false
 }
 
-fn find_entity_by_transform(
-    target_transform: &Transform,
-    target_unit: &RTSUnit,
-    all_units: &Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
-) -> Option<Entity> {
-    for (entity, transform_comp, unit_comp) in all_units.iter() {
-        if transform_comp.translation == target_transform.translation &&
-           unit_comp.player_id == target_unit.player_id {
-            return Some(entity);
-        }
-    }
-    None
-}
 
 fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With<ResourceSource>>) -> Option<(Entity, Vec3)> {
     for (resource_entity, resource_transform) in resources.iter() {
@@ -308,21 +291,6 @@ fn calculate_formation_position(target_pos: Vec3, unit_index: usize, total_units
     )
 }
 
-/// Calculate a position in a circle around the resource for better distribution
-fn calculate_gathering_position(resource_pos: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
-    if total_units == 1 {
-        return resource_pos;
-    }
-
-    let gather_radius = 4.0 + (total_units as f32 * 0.5); // Radius increases with more units
-    let angle = (unit_index as f32 / total_units as f32) * std::f32::consts::TAU;
-
-    Vec3::new(
-        resource_pos.x + angle.cos() * gather_radius,
-        resource_pos.y,
-        resource_pos.z + angle.sin() * gather_radius,
-    )
-}
 
 fn execute_unit_command(
     _unit_entity: Entity,
@@ -500,31 +468,3 @@ pub fn spawn_test_units_system(
     }
 }
 
-fn spawn_test_unit(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    camera_ground_pos: Vec3,
-    unit_type: UnitType,
-    player_id: u8,
-    offset_x: f32,
-) {
-    let spawn_pos = camera_ground_pos + Vec3::new(offset_x, 1.0, 0.0);
-    
-    // Use the new EntityFactory instead of the old create_combat_unit
-    let config = crate::entities::entity_factory::SpawnConfig::unit(
-        crate::entities::entity_factory::EntityType::from_unit(unit_type.clone()),
-        spawn_pos,
-        player_id,
-    );
-    
-    crate::entities::entity_factory::EntityFactory::spawn(
-        commands,
-        meshes,
-        materials,
-        config,
-        None, // No model assets for now - will use primitives that upgrade to GLB
-    );
-    
-    info!("Spawned {:?} with animation controller at {:?}", unit_type, spawn_pos);
-}

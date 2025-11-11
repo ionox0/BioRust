@@ -50,6 +50,7 @@ pub enum EnemyStrategy {
     Unknown,
     EconomyRush,     // Many workers, few military
     MilitaryRush,    // Early military pressure
+    #[allow(dead_code)]
     FastExpansion,   // Quick second base
     Defensive,       // Building defenses
     Aggressive,      // Active harassment
@@ -200,6 +201,7 @@ fn determine_enemy_strategy(
 }
 
 /// Recommends counter-strategy based on enemy strategy
+#[allow(dead_code)]
 pub fn recommend_counter_strategy(enemy_strategy: &EnemyStrategy) -> &'static str {
     match enemy_strategy {
         EnemyStrategy::EconomyRush => "COUNTER: Early military pressure - rush with 4-5 units",

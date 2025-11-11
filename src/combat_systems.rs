@@ -344,6 +344,7 @@ pub fn health_bar_system(
 }
 
 // Helper function to create a combat unit with default values
+#[allow(dead_code)]
 pub fn create_combat_unit(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,

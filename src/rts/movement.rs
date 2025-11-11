@@ -6,19 +6,6 @@ pub struct MovementContext {
     pub unit_positions: Vec<(Entity, Vec3, f32)>,
 }
 
-impl MovementContext {
-    pub fn new(time: &Res<Time>, units_query: &Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>) -> Self {
-        let unit_positions: Vec<(Entity, Vec3, f32)> = units_query
-            .iter()
-            .map(|(entity, transform, _, collision_radius)| (entity, transform.translation, collision_radius.radius))
-            .collect();
-
-        Self {
-            delta_time: time.delta_secs().min(0.1), // Cap delta time
-            unit_positions,
-        }
-    }
-}
 
 pub fn movement_system(
     mut units_query: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius, &RTSUnit), With<RTSUnit>>,

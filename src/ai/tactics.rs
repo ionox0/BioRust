@@ -15,6 +15,7 @@ pub struct PlayerTactics {
     pub last_attack_time: f32,
     pub rally_point: Vec3,
     pub is_attacking: bool,
+    #[allow(dead_code)]
     pub target_player: Option<u8>,
 }
 
@@ -24,14 +25,17 @@ pub enum TacticalStance {
     Harass,         // Send small raids to disrupt economy
     Aggressive,     // Full army attack
     Retreat,        // Pull back and regroup
+    #[allow(dead_code)]
     Expand,         // Secure expansion locations
 }
 
 #[derive(Debug, Clone)]
 pub struct ArmyGroup {
     pub units: Vec<Entity>,
+    #[allow(dead_code)]
     pub group_position: Vec3,
     pub role: ArmyRole,
+    #[allow(dead_code)]
     pub target_location: Option<Vec3>,
 }
 
@@ -40,11 +44,13 @@ pub enum ArmyRole {
     MainArmy,       // Primary fighting force
     Harassers,      // Small raiding party
     Defenders,      // Base defense
+    #[allow(dead_code)]
     Scouts,         // Exploration
 }
 
 /// Component to mark units as part of an army group
 #[derive(Component, Debug, Clone)]
+#[allow(dead_code)]
 pub struct ArmyMember {
     pub group_role: ArmyRole,
     pub follow_group: bool,

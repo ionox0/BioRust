@@ -5,6 +5,7 @@ use crate::ai::intelligence::IntelligenceSystem;
 /// Component to mark units as scouts
 #[derive(Component, Debug, Clone)]
 pub struct ScoutUnit {
+    #[allow(dead_code)]
     pub assigned_player_id: u8,
     pub scout_target: Vec3,
     pub is_returning: bool,

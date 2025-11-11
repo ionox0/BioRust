@@ -387,21 +387,6 @@ fn create_placeholder_building_visual(
     )
 }
 
-fn place_building(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    building_type: BuildingType,
-    position: Vec3,
-    model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
-) {
-    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-
-    let model_assets_ref = model_assets.as_ref().map(|r| &**r);
-
-    let config = SpawnConfig::building(EntityType::Building(building_type), position, 1);
-    EntityFactory::spawn(commands, meshes, materials, config, model_assets_ref);
-}
 
 // Helper functions
 pub fn can_afford_building(cost: &[(ResourceType, f32)], resources: &PlayerResources) -> bool {
