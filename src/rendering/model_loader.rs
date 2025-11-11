@@ -72,10 +72,16 @@ pub struct ModelAssets {
     pub hornet: Handle<Scene>,          // Hornet
     pub fourmi: Handle<Scene>,          // Ant (French: "fourmi")
     pub cairns_birdwing: Handle<Scene>, // Butterfly
+    pub ladybug: Handle<Scene>,         // Classic ladybug model
     pub ladybug_lowpoly: Handle<Scene>, // Low-poly ladybug variant
     pub roly_poly: Handle<Scene>,       // Pill bug (isopod)
     pub mystery_model: Handle<Scene>,   // Unknown/special model
-    
+    pub common_housefly: Handle<Scene>, // Common housefly
+    pub giant_termite: Handle<Scene>,   // Giant termite
+    pub leg_beetle: Handle<Scene>,      // Leg beetle
+    pub stinkbug: Handle<Scene>,        // Stinkbug
+    pub termite: Handle<Scene>,         // Regular termite
+
     // Environment objects
     pub mushrooms: Handle<Scene>,       // Mushroom environment objects
     pub grass: Handle<Scene>,           // Grass patches
@@ -121,10 +127,16 @@ impl Default for ModelAssets {
             hornet: Handle::default(),
             fourmi: Handle::default(),
             cairns_birdwing: Handle::default(),
+            ladybug: Handle::default(),
             ladybug_lowpoly: Handle::default(),
             roly_poly: Handle::default(),
             mystery_model: Handle::default(),
-            
+            common_housefly: Handle::default(),
+            giant_termite: Handle::default(),
+            leg_beetle: Handle::default(),
+            stinkbug: Handle::default(),
+            termite: Handle::default(),
+
             // Environment objects
             mushrooms: Handle::default(),
             grass: Handle::default(),
@@ -192,7 +204,13 @@ pub enum InsectModelType {
     LadybugLowpoly,   // Low-poly ladybug variant - alternative style
     RolyPoly,         // Pill bug (isopod) - defensive units
     DragonFly,     // Unknown special model - unique units
-    
+    Ladybug,          // Classic ladybug - balanced mid-tier unit
+    CommonHousefly,   // Common housefly - fast flying unit
+    GiantTermite,     // Giant termite - heavy siege unit
+    LegBeetle,        // Leg beetle - specialized melee unit
+    Stinkbug,         // Stinkbug - area denial unit
+    Termite,          // Regular termite - builder/worker variant
+
     // Environment objects - decorative non-interactive models
     Mushrooms,        // Mushroom cluster - environment decoration
     Grass,            // Grass patches - ground coverage
@@ -283,7 +301,12 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("ladybug_lowpoly", "models/insects/ladybug_simple.glb#Scene0", "Low-poly ladybug"),
     ModelConfig::new("roly_poly", "models/insects/roly_poly.glb#Scene0", "Pill bug"),
     ModelConfig::new("mystery_model", "models/insects/unknown.glb#Scene0", "Mystery model"),
-    
+    ModelConfig::new("common_housefly", "models/insects/common_housefly.glb#Scene0", "Common housefly"),
+    ModelConfig::new("giant_termite", "models/insects/giant_termite.glb#Scene0", "Giant termite"),
+    ModelConfig::new("leg_beetle", "models/insects/leg_beetle.glb#Scene0", "Leg beetle"),
+    ModelConfig::new("stinkbug", "models/insects/stinkbug.glb#Scene0", "Stinkbug"),
+    ModelConfig::new("termite", "models/insects/termite.glb#Scene0", "Regular termite"),
+
     // Environment objects
     ModelConfig::new("mushrooms", "models/objects/mushrooms.glb#Scene0", "Mushroom environment objects"),
     ModelConfig::new("grass", "models/objects/grass.glb#Scene0", "Grass patches"),
@@ -346,10 +369,16 @@ pub fn load_models(
     load_model_handle(&mut model_assets.hornet, &asset_server, "hornet");
     load_model_handle(&mut model_assets.fourmi, &asset_server, "fourmi");
     load_model_handle(&mut model_assets.cairns_birdwing, &asset_server, "cairns_birdwing");
+    load_model_handle(&mut model_assets.ladybug, &asset_server, "ladybug");
     load_model_handle(&mut model_assets.ladybug_lowpoly, &asset_server, "ladybug_lowpoly");
     load_model_handle(&mut model_assets.roly_poly, &asset_server, "roly_poly");
     load_model_handle(&mut model_assets.mystery_model, &asset_server, "mystery_model");
-    
+    load_model_handle(&mut model_assets.common_housefly, &asset_server, "common_housefly");
+    load_model_handle(&mut model_assets.giant_termite, &asset_server, "giant_termite");
+    load_model_handle(&mut model_assets.leg_beetle, &asset_server, "leg_beetle");
+    load_model_handle(&mut model_assets.stinkbug, &asset_server, "stinkbug");
+    load_model_handle(&mut model_assets.termite, &asset_server, "termite");
+
     // Load environment objects
     load_model_handle(&mut model_assets.mushrooms, &asset_server, "mushrooms");
     load_model_handle(&mut model_assets.grass, &asset_server, "grass");
@@ -615,7 +644,13 @@ impl ModelAssets {
             InsectModelType::LadybugLowpoly => self.ladybug_lowpoly.clone(),
             InsectModelType::RolyPoly => self.roly_poly.clone(),
             InsectModelType::DragonFly => self.mystery_model.clone(),
-            
+            InsectModelType::Ladybug => self.ladybug.clone(),
+            InsectModelType::CommonHousefly => self.common_housefly.clone(),
+            InsectModelType::GiantTermite => self.giant_termite.clone(),
+            InsectModelType::LegBeetle => self.leg_beetle.clone(),
+            InsectModelType::Stinkbug => self.stinkbug.clone(),
+            InsectModelType::Termite => self.termite.clone(),
+
             // Environment objects
             InsectModelType::Mushrooms => self.mushrooms.clone(),
             InsectModelType::Grass => self.grass.clone(),
@@ -740,8 +775,22 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::DragonFly => InsectModelType::Meganeura, // Ancient dragonfly
         crate::core::components::UnitType::DefenderBug => InsectModelType::RolyPoly, // Defensive pill bug
         crate::core::components::UnitType::EliteSpider => InsectModelType::AnimatedSpider, // Predator
-        crate::core::components::UnitType::DragonFly => InsectModelType::DragonFly, // Unknown/special
-        
+
+        // Units for previously unused models
+        crate::core::components::UnitType::HoneyBee => InsectModelType::Bee, // Classic bee
+        crate::core::components::UnitType::Scorpion => InsectModelType::Scorpion, // Scorpion
+        crate::core::components::UnitType::SpiderHunter => InsectModelType::Spider, // Small spider
+        crate::core::components::UnitType::WolfSpider => InsectModelType::WolfSpider, // Wolf spider
+        crate::core::components::UnitType::Ladybug => InsectModelType::Ladybug, // Classic ladybug
+        crate::core::components::UnitType::LadybugScout => InsectModelType::LadybugLowpoly, // Low-poly ladybug
+
+        // Units for newly added models
+        crate::core::components::UnitType::Housefly => InsectModelType::CommonHousefly, // Housefly
+        crate::core::components::UnitType::TermiteWorker => InsectModelType::Termite, // Regular termite
+        crate::core::components::UnitType::TermiteWarrior => InsectModelType::GiantTermite, // Giant termite
+        crate::core::components::UnitType::LegBeetle => InsectModelType::LegBeetle, // Leg beetle
+        crate::core::components::UnitType::Stinkbug => InsectModelType::Stinkbug, // Stinkbug
+
         // Default fallback - high-quality honey bee
         _ => InsectModelType::ApisMellifera,
     }
@@ -829,7 +878,13 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::LadybugLowpoly => LADYBUG_LOWPOLY_SCALE, // 1.5
         InsectModelType::RolyPoly => ROLY_POLY_SCALE,          // 1.5
         InsectModelType::DragonFly => DRAGONFLY_SCALE,   // 1.5
-        
+        InsectModelType::Ladybug => UNIFORM_UNIT_SCALE,        // 1.5
+        InsectModelType::CommonHousefly => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::GiantTermite => UNIFORM_UNIT_SCALE,   // 1.5
+        InsectModelType::LegBeetle => UNIFORM_UNIT_SCALE,      // 1.5
+        InsectModelType::Stinkbug => UNIFORM_UNIT_SCALE,       // 1.5
+        InsectModelType::Termite => UNIFORM_UNIT_SCALE,        // 1.5
+
         // Environment objects - various scales for different types
         InsectModelType::Mushrooms => MUSHROOMS_SCALE,                 // 2.5
         InsectModelType::Grass => GRASS_SCALE,                         // 1.0

@@ -249,6 +249,21 @@ pub enum UnitType {
     DragonFly,      // Flying reconnaissance unit
     DefenderBug,    // Defensive unit
     EliteSpider,    // Elite predator unit
+
+    // Units for previously unused models
+    HoneyBee,       // Basic flying unit (bee-v1.glb)
+    Scorpion,       // Heavy melee unit with armor
+    SpiderHunter,   // Light predator unit (spider_small.glb)
+    WolfSpider,     // Heavy predator unit
+    Ladybug,        // Balanced mid-tier unit
+    LadybugScout,   // Light scout variant (ladybug_simple.glb)
+
+    // Units for newly added models
+    Housefly,       // Fast flying harassment unit
+    TermiteWorker,  // Builder/gatherer specialist
+    TermiteWarrior, // Heavy siege unit (giant_termite.glb)
+    LegBeetle,      // Fast melee skirmisher
+    Stinkbug,       // Area denial/support unit
 }
 
 #[derive(Component, Debug, Clone)]
