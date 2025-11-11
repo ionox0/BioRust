@@ -4,7 +4,7 @@ use std::sync::{LazyLock, Mutex};
 use std::collections::{HashMap, HashSet};
 
 // Configurable gathering parameters
-const GATHERING_DISTANCE: f32 = 5.0;  // Distance within which gathering occurs
+const GATHERING_DISTANCE: f32 = 20.0;  // Distance within which gathering occurs (increased for collision constraints)
 const DROPOFF_TRAVEL_DISTANCE: f32 = 10.0;  // Distance threshold for traveling to dropoff
 const DROPOFF_REASSIGNMENT_THRESHOLD: f32 = 50.0;  // Only reassign if new building is this much closer
 
