@@ -334,7 +334,7 @@ impl EntityFactory {
         config: &SpawnConfig,
         model_assets: &ModelAssets,
     ) -> EntityCommands<'a> {
-        let model_type = Self::get_building_model_type(building_type);
+        let model_type = crate::rendering::model_loader::get_building_insect_model(building_type);
         let model_handle = model_assets.get_model_handle(&model_type);
         let model_scale = crate::rendering::model_loader::get_model_scale(&model_type);
         
@@ -370,27 +370,6 @@ impl EntityFactory {
             Transform::from_translation(config.position + offset),
             TeamColor::new(config.player_id),
         ))
-    }
-    
-    /// Get the model type for a building type
-    fn get_building_model_type(building_type: &BuildingType) -> crate::rendering::model_loader::InsectModelType {
-        use crate::rendering::model_loader::InsectModelType;
-        
-        match building_type {
-            BuildingType::Queen => InsectModelType::Anthill,
-            BuildingType::Nursery => InsectModelType::Anthill,
-            BuildingType::WarriorChamber => InsectModelType::Hive,  // Bee hive for warrior barracks
-            BuildingType::HunterChamber => InsectModelType::Anthill,
-            BuildingType::Stable => InsectModelType::Anthill,
-            BuildingType::FungalGarden => InsectModelType::Anthill,
-            BuildingType::WoodProcessor => InsectModelType::Anthill,
-            BuildingType::MineralProcessor => InsectModelType::Anthill,
-            BuildingType::StorageChamber => InsectModelType::Anthill,
-            BuildingType::EvolutionChamber => InsectModelType::Anthill,
-            BuildingType::TradingPost => InsectModelType::Anthill,
-            BuildingType::ChitinWall => InsectModelType::Anthill,
-            BuildingType::GuardTower => InsectModelType::Anthill,
-        }
     }
     
     /// Spawn a resource with the specified configuration

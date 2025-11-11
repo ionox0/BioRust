@@ -188,11 +188,12 @@ fn deliver_resources_to_player(
     player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
+    let mut manager = crate::core::resources::ResourceManager::new(player_resources, ai_resources);
+    manager.add_resource(player_id, resource_type.clone(), amount);
+
     if player_id == 1 {
-        player_resources.add_resource(resource_type.clone(), amount);
         info!("Player delivered {:.1} {:?}", amount, resource_type);
-    } else if let Some(ai_player_resources) = ai_resources.resources.get_mut(&player_id) {
-        ai_player_resources.add_resource(resource_type.clone(), amount);
+    } else {
         info!("AI Player {} delivered {:.1} {:?}", player_id, amount, resource_type);
     }
 }

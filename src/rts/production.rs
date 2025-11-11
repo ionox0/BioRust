@@ -61,8 +61,8 @@ fn process_production_queue(
 }
 
 fn can_afford_production(
-    player_id: u8, 
-    unit_type: &UnitType, 
+    player_id: u8,
+    unit_type: &UnitType,
     game_costs: &Res<crate::core::resources::GameCosts>,
     player_resources: &ResMut<crate::core::resources::PlayerResources>,
     ai_resources: &ResMut<crate::core::resources::AIResources>,
@@ -70,14 +70,12 @@ fn can_afford_production(
     let Some(cost) = game_costs.unit_costs.get(unit_type) else {
         return true;
     };
-    
-    if player_id == 1 {
-        player_resources.can_afford(cost) && player_resources.has_population_space()
-    } else {
-        ai_resources.resources.get(&player_id)
-            .map(|resources| resources.can_afford(cost) && resources.has_population_space())
-            .unwrap_or(true)
-    }
+
+    let manager = crate::core::resources::ResourceManager::new(
+        &mut player_resources.clone(),
+        &mut ai_resources.clone()
+    );
+    manager.can_afford_unit(player_id, cost)
 }
 
 fn complete_production(
@@ -103,8 +101,8 @@ fn complete_production(
 }
 
 fn pay_production_cost(
-    player_id: u8, 
-    unit_type: &UnitType, 
+    player_id: u8,
+    unit_type: &UnitType,
     player_resources: &mut ResMut<crate::core::resources::PlayerResources>,
     ai_resources: &mut ResMut<crate::core::resources::AIResources>,
     game_costs: &Res<crate::core::resources::GameCosts>,
@@ -112,14 +110,10 @@ fn pay_production_cost(
     let Some(cost) = game_costs.unit_costs.get(unit_type) else {
         return;
     };
-    
-    if player_id == 1 {
-        player_resources.spend_resources(cost);
-        player_resources.add_population(1);
-    } else if let Some(ai_player_resources) = ai_resources.resources.get_mut(&player_id) {
-        ai_player_resources.spend_resources(cost);
-        ai_player_resources.add_population(1);
-    }
+
+    let mut manager = crate::core::resources::ResourceManager::new(player_resources, ai_resources);
+    manager.spend_resources(player_id, cost);
+    manager.add_population(player_id, 1);
 }
 
 fn spawn_produced_unit(
