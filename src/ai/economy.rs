@@ -49,7 +49,7 @@ impl Default for EconomyManager {
 pub fn economy_optimization_system(
     mut economy_manager: ResMut<EconomyManager>,
     ai_resources: Res<AIResources>,
-    mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
+    mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
     time: Res<Time>,
@@ -149,7 +149,7 @@ fn calculate_resource_priority(
 fn reassign_workers(
     player_id: u8,
     allocations: &[ResourceAllocation],
-    workers: &mut Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
+    workers: &mut Query<(Entity, &mut ResourceGatherer, &mut Movement, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
@@ -227,8 +227,8 @@ fn reassign_workers(
                         dist_a.partial_cmp(&dist_b).unwrap()
                     });
 
-                    if let Some((source_entity, _)) = sources.first() {
-                        if let Ok((_, mut gatherer, unit, worker_transform)) = workers.get_mut(worker_entity) {
+                    if let Some((source_entity, source_position)) = sources.first() {
+                        if let Ok((_, mut gatherer, mut movement, unit, worker_transform)) = workers.get_mut(worker_entity) {
                             // Find nearest suitable drop-off building
                             // Only complete Queens, StorageChambers, and Nurseries can accept resources
                             let nearest_building = buildings
@@ -251,7 +251,11 @@ fn reassign_workers(
                                 gatherer.resource_type = Some(allocation.resource_type.clone());
                                 gatherer.carried_amount = 0.0;
                                 gatherer.drop_off_building = Some(building);
-                                info!("Reassigning AI worker to {:?} with dropoff: {:?}", allocation.resource_type, Some(building));
+                                // CRITICAL: Tell worker to actually MOVE to the resource!
+                                movement.target_position = Some(*source_position);
+                                info!("🚀 Reassigning worker {} (player {}) to gather {:?} at distance {:.1}",
+                                      unit.unit_id, player_id, allocation.resource_type,
+                                      worker_transform.translation.distance(*source_position));
                             }
                         }
                     }
@@ -264,7 +268,7 @@ fn reassign_workers(
 /// System to handle worker idle detection and assignment
 pub fn worker_idle_detection_system(
     economy_manager: Res<EconomyManager>,
-    mut workers: Query<(Entity, &mut ResourceGatherer, &RTSUnit, &Transform), With<ResourceGatherer>>,
+    mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &RTSUnit, &Transform), With<ResourceGatherer>>,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
@@ -307,12 +311,12 @@ pub fn worker_idle_detection_system(
         };
 
         // Find idle workers
-        for (_worker_entity, mut gatherer, unit, worker_transform) in workers.iter_mut() {
+        for (_worker_entity, mut gatherer, mut movement, unit, worker_transform) in workers.iter_mut() {
             if unit.player_id == *player_id &&
                gatherer.target_resource.is_none() &&
                gatherer.carried_amount == 0.0 {
                 // Assign to nearest available resource of the target type
-                if let Some((source_entity, _, _)) = resource_sources
+                if let Some((source_entity, _, resource_transform)) = resource_sources
                     .iter()
                     .filter(|(_, source, _)| source.resource_type == target_resource_type)
                     .min_by(|a, b| {
@@ -342,6 +346,11 @@ pub fn worker_idle_detection_system(
                         gatherer.target_resource = Some(source_entity);
                         gatherer.resource_type = Some(target_resource_type.clone());
                         gatherer.drop_off_building = Some(building);
+                        // CRITICAL: Tell worker to actually MOVE to the resource!
+                        movement.target_position = Some(resource_transform.translation);
+                        info!("🚀 Assigned worker {} (player {}) to gather {:?} at distance {:.1}",
+                              unit.unit_id, unit.player_id, target_resource_type,
+                              worker_transform.translation.distance(resource_transform.translation));
                     }
                 }
             }
