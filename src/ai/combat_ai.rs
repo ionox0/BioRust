@@ -7,7 +7,6 @@ pub struct CombatContext<'a> {
     pub unit: &'a RTSUnit,
     pub unit_transform: &'a Transform,
     pub health: &'a RTSHealth,
-    pub all_units: &'a Query<'a, 'a, (Entity, &'a Transform, &'a RTSUnit, &'a RTSHealth), With<RTSUnit>>,
     pub stance: TacticalStance,
     pub current_time: f32,
 }
@@ -70,7 +69,6 @@ pub fn ai_combat_system(
             unit,
             unit_transform,
             health,
-            all_units: &all_units,
             stance,
             current_time,
         };
@@ -82,6 +80,7 @@ pub fn ai_combat_system(
             &mut combat,
             &mut state,
             &context,
+            &all_units,
         );
 
         // Update combat state
@@ -97,9 +96,10 @@ fn handle_advanced_combat_ai(
     combat: &mut Combat,
     state: &mut CombatState,
     context: &CombatContext,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
 ) {
     // 1. Check if we should retreat (low health or outnumbered)
-    if should_retreat(context) {
+    if should_retreat(context, all_units) {
         handle_retreat(movement, state, context.unit.player_id);
         return;
     } else {
@@ -108,7 +108,7 @@ fn handle_advanced_combat_ai(
     }
 
     // 2. Find best target (with target prioritization)
-    let target_info = find_best_target(context.unit_transform, context.unit, context.all_units, state.current_target);
+    let target_info = find_best_target(context.unit_transform, context.unit, all_units, state.current_target);
 
     if let Some((target_entity, target_pos, target_distance, _target_priority)) = target_info {
         state.current_target = Some(target_entity);
@@ -171,7 +171,10 @@ fn handle_retreat(movement: &mut Movement, state: &mut CombatState, player_id: u
 }
 
 /// Determines if unit should retreat based on health and enemy presence
-fn should_retreat(context: &CombatContext) -> bool {
+fn should_retreat(
+    context: &CombatContext,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+) -> bool {
     // Retreat if health is below 30%
     if context.health.current < context.health.max * 0.3 {
         return true;
@@ -183,7 +186,7 @@ fn should_retreat(context: &CombatContext) -> bool {
     }
 
     // Count nearby allies and enemies
-    let (nearby_allies, nearby_enemies) = count_nearby_forces(context);
+    let (nearby_allies, nearby_enemies) = count_nearby_forces(context, all_units);
 
     // Retreat if significantly outnumbered (3:1 or worse)
     if nearby_enemies >= 3 && nearby_allies < nearby_enemies / 3 {
@@ -194,12 +197,15 @@ fn should_retreat(context: &CombatContext) -> bool {
 }
 
 /// Count nearby allied and enemy forces
-fn count_nearby_forces(context: &CombatContext) -> (u32, u32) {
+fn count_nearby_forces(
+    context: &CombatContext,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+) -> (u32, u32) {
     let mut nearby_allies = 0;
     let mut nearby_enemies = 0;
     let detection_range = 40.0;
 
-    for (_entity, enemy_transform, enemy_unit, _enemy_health) in context.all_units.iter() {
+    for (_entity, enemy_transform, enemy_unit, _enemy_health) in all_units.iter() {
         let distance = context.unit_transform.translation.distance(enemy_transform.translation);
         if distance < detection_range {
             if enemy_unit.player_id == context.unit.player_id {
