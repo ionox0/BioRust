@@ -66,7 +66,7 @@ pub const WORKER_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 75.0,  // 3x faster - workers need to move efficiently
-        acceleration: 25.0,  // Reduced for smoother movement
+        acceleration: 45.0,
         turning_speed: 2.0,
     },
     vision: VisionStats {
@@ -93,7 +93,7 @@ pub const SOLDIER_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 80.0,  // 2.6x faster - strong melee units
-        acceleration: 35.0,  // Reduced for smoother movement
+        acceleration: 60.0,
         turning_speed: 2.5,
     },
     vision: VisionStats {
@@ -120,7 +120,7 @@ pub const HUNTER_WASP_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 85.0,  // 2.8x faster - flying ranged units should be fast
-        acceleration: 40.0,  // Reduced for smoother movement
+        acceleration: 120.0,
         turning_speed: 2.5,
     },
     vision: VisionStats {
