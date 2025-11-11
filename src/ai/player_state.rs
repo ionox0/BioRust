@@ -50,13 +50,17 @@ impl PlayerCounts {
             if unit.player_id == player_id {
                 if let Some(unit_type) = &unit.unit_type {
                     match unit_type {
-                        UnitType::WorkerAnt => self.villager_count += 1,
-                        UnitType::SoldierAnt | UnitType::HunterWasp | 
-                        UnitType::BeetleKnight | UnitType::SpearMantis | 
-                        UnitType::ScoutAnt | UnitType::BatteringBeetle | 
+                        UnitType::WorkerAnt | UnitType::TermiteWorker => self.villager_count += 1,
+                        UnitType::SoldierAnt | UnitType::HunterWasp |
+                        UnitType::BeetleKnight | UnitType::SpearMantis |
+                        UnitType::ScoutAnt | UnitType::BatteringBeetle |
                         UnitType::AcidSpitter | UnitType::DragonFly |
                         UnitType::DefenderBug | UnitType::EliteSpider |
-                        UnitType::DragonFly => {
+                        UnitType::HoneyBee | UnitType::Scorpion |
+                        UnitType::SpiderHunter | UnitType::WolfSpider |
+                        UnitType::Ladybug | UnitType::LadybugScout |
+                        UnitType::Housefly | UnitType::TermiteWarrior |
+                        UnitType::LegBeetle | UnitType::Stinkbug => {
                             self.military_count += 1;
                         },
                     }
