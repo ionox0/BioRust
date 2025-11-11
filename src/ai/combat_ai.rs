@@ -26,6 +26,9 @@ pub fn ai_combat_system(
     mut commands: Commands,
     mut ai_units: Query<(Entity, &mut Movement, &mut Combat, &Transform, &RTSUnit, &RTSHealth, Option<&mut CombatState>), With<Combat>>,
     all_units: Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    // Add queries for obstacles
+    buildings: Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
     tactical_manager: Option<Res<TacticalManager>>,
     time: Res<Time>,
 ) {
@@ -46,13 +49,13 @@ pub fn ai_combat_system(
             }
         };
 
-        // Get tactical stance
+        // Get tactical stance - make AI more aggressive by default
         let stance = if let Some(ref manager) = tactical_manager {
             manager.player_tactics.get(&unit.player_id)
                 .map(|t| t.current_stance.clone())
-                .unwrap_or(TacticalStance::Defensive)
+                .unwrap_or(TacticalStance::Aggressive) // Changed from Defensive to Aggressive
         } else {
-            TacticalStance::Defensive
+            TacticalStance::Aggressive // Changed from Defensive to Aggressive
         };
 
         // Advanced combat AI with tactics
@@ -65,6 +68,8 @@ pub fn ai_combat_system(
             health,
             &mut state,
             &all_units,
+            &buildings,
+            &environment_objects,
             stance,
             current_time,
         );
@@ -85,6 +90,8 @@ fn handle_advanced_combat_ai(
     health: &RTSHealth,
     state: &mut CombatState,
     all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
     stance: TacticalStance,
     current_time: f32,
 ) {
@@ -140,16 +147,40 @@ fn handle_advanced_combat_ai(
 
         state.last_attack_time = current_time;
     } else {
-        // No target found - follow group or return to rally
+        // No target found - be aggressive and seek out enemies
         state.current_target = None;
 
-        // If no enemy nearby and defensive stance, stay near home
-        if stance == TacticalStance::Defensive {
-            let home_pos = estimate_home_position(unit.player_id);
-            if unit_transform.translation.distance(home_pos) > 40.0 {
-                // Only update if significantly different to avoid jitter
-                if should_update_target_position(&movement.target_position, home_pos, 2.0) {
-                    movement.target_position = Some(home_pos);
+        // AGGRESSIVE BEHAVIOR: Actively seek out player 1's units for attack
+        if stance == TacticalStance::Aggressive || stance == TacticalStance::Defensive {
+            // If we're AI player 2, use smart formation-based positioning
+            if unit.player_id == 2 {
+                let smart_target_pos = calculate_smart_attack_position(
+                    unit_transform.translation,
+                    unit.unit_id,
+                    &all_units,
+                    buildings,
+                    environment_objects,
+                    unit.player_id,
+                    current_time,
+                );
+                
+                if let Some(target_pos) = smart_target_pos {
+                    let distance_to_target = unit_transform.translation.distance(target_pos);
+                    
+                    // Only move if we need to reposition significantly
+                    if distance_to_target > 10.0 {
+                        if should_update_target_position(&movement.target_position, target_pos, 5.0) {
+                            movement.target_position = Some(target_pos);
+                            debug!("AI unit {} moving to smart attack position at distance {:.1}", unit.unit_id, distance_to_target);
+                        }
+                    } else {
+                        // Close enough - stop moving to prevent oscillation
+                        movement.target_position = None;
+                    }
+                } else {
+                    // No smart position found - clear combat movement target to allow resource gathering
+                    movement.target_position = None;
+                    debug!("AI unit {} clearing combat movement target - transitioning to resource gathering", unit.unit_id);
                 }
             }
         }
@@ -164,8 +195,8 @@ fn should_retreat(
     all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     stance: &TacticalStance,
 ) -> bool {
-    // Retreat if health is below 30%
-    if health.current < health.max * 0.3 {
+    // More aggressive - only retreat if health is below 15% (reduced from 30%)
+    if health.current < health.max * 0.15 {
         return true;
     }
 
@@ -190,8 +221,8 @@ fn should_retreat(
         }
     }
 
-    // Retreat if significantly outnumbered (3:1 or worse)
-    if nearby_enemies >= 3 && nearby_allies < nearby_enemies / 3 {
+    // More aggressive - only retreat if heavily outnumbered (5:1 or worse, increased from 3:1)
+    if nearby_enemies >= 5 && nearby_allies < nearby_enemies / 5 {
         return true;
     }
 
@@ -205,7 +236,7 @@ fn find_best_target(
     all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     current_target: Option<Entity>,
 ) -> Option<(Entity, Vec3, f32, u32)> {
-    let detection_range = 120.0;
+    let detection_range = 200.0; // Increased from 120.0 to 200.0 for more aggressive seeking
     let mut best_target: Option<(Entity, Vec3, f32, u32)> = None;
     let mut best_priority = 0u32;
 
@@ -333,6 +364,193 @@ fn handle_melee_combat(
     // Else: in buffer zone, maintain current movement to avoid jitter
 }
 
+/// Calculate a smart attack position that prevents units from converging on the same point
+fn calculate_smart_attack_position(
+    current_pos: Vec3,
+    unit_id: u32,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
+    player_id: u8,
+    current_time: f32,
+) -> Option<Vec3> {
+    // Find enemy units and buildings to attack
+    let mut enemy_positions = Vec::new();
+    let mut ally_positions = Vec::new();
+    
+    for (_, transform, unit, health) in all_units.iter() {
+        if health.current > 0.0 {
+            if unit.player_id != player_id {
+                enemy_positions.push(transform.translation);
+            } else if unit.unit_id != unit_id {
+                ally_positions.push(transform.translation);
+            }
+        }
+    }
+    
+    // If no enemies found, check if all enemies are truly eliminated
+    if enemy_positions.is_empty() {
+        // Check if there are any enemy buildings or units anywhere on the map
+        let has_any_enemies = all_units.iter().any(|(_, _, unit, health)| {
+            unit.player_id != player_id && health.current > 0.0
+        });
+        
+        if !has_any_enemies {
+            // VICTORY! All enemies eliminated - units should transition to resource gathering
+            info!("🏆 AI unit {} transitioning from combat to resource gathering - all enemies eliminated!", unit_id);
+            return None; // Return None to clear combat movement target and allow resource gathering system to take over
+        } else {
+            // Enemies exist somewhere but not in range - patrol around enemy base
+            let enemy_base = estimate_home_position(1);
+            let distance_to_enemy_base = current_pos.distance(enemy_base);
+            
+            // Only approach if far from enemy base, otherwise patrol
+            if distance_to_enemy_base > 100.0 {
+                return Some(calculate_formation_position_around_target(
+                    enemy_base,
+                    current_pos,
+                    unit_id,
+                    &ally_positions,
+                    buildings,
+                    environment_objects,
+                    current_time,
+                ));
+            } else {
+                // Close to enemy base but no units - return to more defensive position
+                let defensive_pos = enemy_base + (current_pos - enemy_base).normalize_or_zero() * 30.0;
+                return Some(defensive_pos);
+            }
+        }
+    }
+    
+    // Find closest enemy
+    let closest_enemy = enemy_positions.iter()
+        .min_by(|a, b| current_pos.distance(**a).partial_cmp(&current_pos.distance(**b)).unwrap())
+        .copied()?;
+    
+    // Calculate formation position around the closest enemy
+    Some(calculate_formation_position_around_target(
+        closest_enemy,
+        current_pos,
+        unit_id,
+        &ally_positions,
+        buildings,
+        environment_objects,
+        current_time,
+    ))
+}
+
+/// Calculate a formation position around a target that avoids clustering
+fn calculate_formation_position_around_target(
+    target: Vec3,
+    current_pos: Vec3,
+    unit_id: u32,
+    ally_positions: &[Vec3],
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
+    current_time: f32,
+) -> Vec3 {
+    // Use unit ID and time to create unique positioning
+    let unit_offset = (unit_id % 100) as f32 * 0.1;
+    let time_offset = (current_time * 0.2).sin() * 0.3;
+    let unique_angle = (unit_id as f32 * 2.17) + unit_offset + time_offset; // 2.17 creates good distribution
+    
+    // Create ring-based formation around target
+    let ring_number = ((unit_id % 20) / 6) as f32; // Units in rings of 6
+    let position_in_ring = (unit_id % 6) as f32;
+    
+    let base_radius = 25.0 + (ring_number * 15.0); // Rings at 25, 40, 55 units from target
+    let angle_in_ring = (position_in_ring * std::f32::consts::PI * 2.0 / 6.0) + unique_angle;
+    
+    // Calculate ideal formation position
+    let ideal_formation_pos = target + Vec3::new(
+        angle_in_ring.cos() * base_radius,
+        0.0,
+        angle_in_ring.sin() * base_radius,
+    );
+    
+    // Check if formation position is too crowded
+    let mut final_position = ideal_formation_pos;
+    
+    // Avoid clustering with allies
+    for &ally_pos in ally_positions {
+        let distance_to_ally = final_position.distance(ally_pos);
+        if distance_to_ally < 8.0 { // Too close to ally
+            // Push away from ally
+            let push_direction = (final_position - ally_pos).normalize_or_zero();
+            final_position = ally_pos + push_direction * 12.0;
+        }
+    }
+    
+    // Ensure minimum distance from target for tactical positioning
+    let distance_to_target = final_position.distance(target);
+    if distance_to_target < 20.0 {
+        let direction_to_target = (target - final_position).normalize_or_zero();
+        final_position = target - direction_to_target * 20.0;
+    }
+    
+    // OBSTACLE AVOIDANCE: Check if position conflicts with buildings or environment objects
+    final_position = avoid_obstacles(final_position, current_pos, buildings, environment_objects);
+    
+    final_position
+}
+
+/// Adjust position to avoid obstacles like buildings and environment objects
+fn avoid_obstacles(
+    desired_position: Vec3,
+    current_position: Vec3,
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
+) -> Vec3 {
+    let mut final_position = desired_position;
+    let unit_radius = 2.0; // Approximate unit radius
+    let safety_margin = 3.0;
+    
+    // Check against buildings
+    for (building_transform, building_collision) in buildings.iter() {
+        let distance = final_position.distance(building_transform.translation);
+        let min_safe_distance = unit_radius + building_collision.radius + safety_margin;
+        
+        if distance < min_safe_distance {
+            // Push unit away from building
+            let push_direction = (final_position - building_transform.translation).normalize_or_zero();
+            
+            // If units are stuck inside building, push toward their current position instead
+            if push_direction.length() < 0.1 {
+                let fallback_direction = (current_position - building_transform.translation).normalize_or_zero();
+                final_position = building_transform.translation + fallback_direction * min_safe_distance;
+            } else {
+                final_position = building_transform.translation + push_direction * min_safe_distance;
+            }
+            
+            debug!("Avoided building obstacle, moved to safe position");
+        }
+    }
+    
+    // Check against environment objects
+    for (env_transform, env_collision) in environment_objects.iter() {
+        let distance = final_position.distance(env_transform.translation);
+        let min_safe_distance = unit_radius + env_collision.radius + safety_margin;
+        
+        if distance < min_safe_distance {
+            // Push unit away from environment object
+            let push_direction = (final_position - env_transform.translation).normalize_or_zero();
+            
+            // If units are stuck inside object, push toward their current position instead
+            if push_direction.length() < 0.1 {
+                let fallback_direction = (current_position - env_transform.translation).normalize_or_zero();
+                final_position = env_transform.translation + fallback_direction * min_safe_distance;
+            } else {
+                final_position = env_transform.translation + push_direction * min_safe_distance;
+            }
+            
+            debug!("Avoided environment obstacle, moved to safe position");
+        }
+    }
+    
+    final_position
+}
+
 /// Estimate home base position for retreat
 fn estimate_home_position(player_id: u8) -> Vec3 {
     match player_id {
@@ -340,4 +558,91 @@ fn estimate_home_position(player_id: u8) -> Vec3 {
         2 => Vec3::new(200.0, 0.0, 0.0),
         _ => Vec3::new((player_id as f32 - 1.0) * 200.0, 0.0, 0.0),
     }
+}
+
+/// System to handle smooth transition from combat to resource gathering when victory is achieved
+pub fn combat_to_resource_transition_system(
+    mut commands: Commands,
+    mut military_units: Query<(Entity, &mut Movement, &RTSUnit, Option<&mut CombatState>), (With<Combat>, Without<ResourceGatherer>)>,
+    all_units: Query<&RTSUnit, With<RTSUnit>>,
+    resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+) {
+    // Check if victory conditions are met for each AI player
+    for player_id in 2..=4 { // AI players 2-4
+        let has_enemies = all_units.iter().any(|unit| unit.player_id != player_id && unit.player_id == 1);
+        
+        if !has_enemies {
+            // Victory! Convert military units to resource gatherers (only units that don't already have ResourceGatherer)
+            let mut units_converted = 0;
+            for (entity, mut movement, unit, mut combat_state_opt) in military_units.iter_mut() {
+                if unit.player_id == player_id {
+                    // Clear combat movement target to prevent circling
+                    movement.target_position = None;
+                    movement.current_velocity = Vec3::ZERO;
+                    
+                    // Clear combat state
+                    if let Some(ref mut combat_state) = combat_state_opt {
+                        combat_state.current_target = None;
+                        combat_state.is_retreating = false;
+                        combat_state.retreat_position = None;
+                    }
+                    
+                    // Find nearest resource and assign immediately to prevent wandering
+                    if let Some((resource_entity, resource_pos)) = find_nearest_resource(&unit, &resource_sources) {
+                        // Convert unit to resource gatherer with immediate assignment
+                        commands.entity(entity).insert(ResourceGatherer {
+                            gather_rate: 8.0,    // Slightly slower than dedicated workers
+                            capacity: 4.0,       // Smaller capacity than dedicated workers  
+                            carried_amount: 0.0,
+                            resource_type: Some(resource_pos.1.clone()),
+                            target_resource: Some(resource_entity),
+                            drop_off_building: None,
+                        });
+                        
+                        // Set movement target to the resource
+                        movement.target_position = Some(resource_pos.0);
+                        
+                        units_converted += 1;
+                    } else {
+                        // Convert unit to resource gatherer without assignment (will be assigned later by strategy system)
+                        commands.entity(entity).insert(ResourceGatherer {
+                            gather_rate: 8.0,
+                            capacity: 4.0,
+                            carried_amount: 0.0,
+                            resource_type: None,
+                            target_resource: None,
+                            drop_off_building: None,
+                        });
+                        
+                        units_converted += 1;
+                    }
+                }
+            }
+            
+            // Log summary if units were converted
+            if units_converted > 0 {
+                info!("🏆 VICTORY! AI Player {} converted {} military units to resource gatherers - smooth transition to peaceful economy!", 
+                      player_id, units_converted);
+            }
+        }
+    }
+}
+
+/// Find the nearest available resource for a unit
+fn find_nearest_resource(unit: &RTSUnit, resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>) -> Option<(Entity, (Vec3, ResourceType))> {
+    let home_base = estimate_home_position(unit.player_id);
+    let mut nearest_resource = None;
+    let mut nearest_distance = f32::MAX;
+    
+    for (entity, source, transform) in resource_sources.iter() {
+        if source.amount > 0.0 {
+            let distance = home_base.distance(transform.translation);
+            if distance < nearest_distance {
+                nearest_distance = distance;
+                nearest_resource = Some((entity, (transform.translation, source.resource_type.clone())));
+            }
+        }
+    }
+    
+    nearest_resource
 }

@@ -17,7 +17,7 @@ pub fn construction_system(
 /// System to handle AI construction workflow with worker movement
 pub fn ai_construction_workflow_system(
     mut commands: Commands,
-    mut workers: Query<(Entity, &mut Movement, &mut ConstructionTask, &Transform, &RTSUnit), With<ConstructionTask>>,
+    mut workers: Query<(Entity, &mut Movement, &mut ConstructionTask, &mut Transform, &RTSUnit), With<ConstructionTask>>,
     mut building_sites: Query<(Entity, &mut BuildingSite), With<BuildingSite>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -25,13 +25,19 @@ pub fn ai_construction_workflow_system(
 ) {
     let delta_time = time.delta_secs();
     
-    for (worker_entity, _movement, mut task, worker_transform, unit) in workers.iter_mut() {
+    for (worker_entity, mut movement, mut task, mut worker_transform, unit) in workers.iter_mut() {
         if task.is_moving_to_site {
             // Check if worker has reached the construction site
             let distance = worker_transform.translation.distance(task.target_position);
             
             if distance <= CONSTRUCTION_DISTANCE { // Close enough to start construction
                 task.is_moving_to_site = false;
+                
+                // Ensure worker is positioned at a safe distance from the building center
+                // to prevent getting stuck inside when the building is completed
+                let direction_away = (worker_transform.translation - task.target_position).normalize();
+                let safe_construction_position = task.target_position + direction_away * 15.0; // Keep worker 15 units away
+                worker_transform.translation = safe_construction_position;
                 
                 // Mark the building site as construction started
                 if let Ok((_, mut site)) = building_sites.get_mut(task.building_site) {
@@ -61,11 +67,25 @@ pub fn ai_construction_workflow_system(
                         unit.player_id
                     );
                     
+                    // Move worker away from the completed building to prevent getting stuck
+                    let safe_distance = 25.0; // Distance to move away from building
+                    let angle = worker_transform.translation.x * 0.1 + worker_transform.translation.z * 0.1; // Pseudo-random angle based on position
+                    let offset = Vec3::new(
+                        safe_distance * angle.cos(),
+                        0.0,
+                        safe_distance * angle.sin()
+                    );
+                    let safe_position = site.position + offset;
+                    
+                    // Set worker to move away from the building
+                    movement.target_position = Some(safe_position);
+                    info!("🚶 Moving worker away from completed building to avoid getting stuck at {:?}", safe_position);
+                    
                     // Clean up the building site and task
                     commands.entity(site_entity).despawn();
                     commands.entity(worker_entity).remove::<ConstructionTask>();
                     
-                    info!("🏗️ AI Player {} completed construction of {:?} - building spawned and site cleaned up", unit.player_id, task.building_type);
+                    info!("🏗️ AI Player {} completed construction of {:?} - building spawned and worker moved away", unit.player_id, task.building_type);
                 } else {
                     warn!("⚠️ Construction task completed but building site not found - possible cleanup issue");
                 }

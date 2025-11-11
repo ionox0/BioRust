@@ -53,17 +53,15 @@ impl Plugin for AIPlugin {
                 economy_optimization_system,
                 worker_idle_detection_system,
             ).chain())
-            .add_systems(Update, (
-                // Decision making phase
-                ai_decision_system,
-                ai_strategy_system,
-            ).chain())
+            .add_systems(Update, ai_decision_system)
+            .add_systems(Update, ai_strategy_system)
             .add_systems(Update, (
                 // Execution phase
                 ai_unit_management_system,
                 ai_resource_management_system,
                 army_coordination_system,
                 ai_combat_system,
+                combat_to_resource_transition_system,  // Handle transition from combat to resource gathering
                 ai_worker_initialization_system,
                 ai_worker_dropoff_system,
             ).chain());

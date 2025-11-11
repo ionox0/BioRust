@@ -92,14 +92,14 @@ pub fn target_acquisition_system(
 
 // System to handle attacks and combat timing
 pub fn attack_system(
-    mut combat_query: Query<(Entity, &mut Combat, &Transform, &RTSUnit)>,
-    target_query: Query<&Transform, (With<RTSHealth>, Without<DeathEvent>)>,
+    mut combat_query: Query<(Entity, &mut Combat, &Transform, &RTSUnit, &CollisionRadius)>,
+    target_query: Query<(&Transform, &CollisionRadius), (With<RTSHealth>, Without<DeathEvent>)>,
     mut damage_events: EventWriter<DamageEvent>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
 
-    for (attacker_entity, mut combat, attacker_transform, _unit) in combat_query.iter_mut() {
+    for (attacker_entity, mut combat, attacker_transform, _unit, attacker_collision) in combat_query.iter_mut() {
         // Check if we have a target
         let target_entity = match combat.target {
             Some(target) => target,
@@ -110,8 +110,8 @@ pub fn attack_system(
         };
 
         // Check if target still exists
-        let target_transform = match target_query.get(target_entity) {
-            Ok(transform) => transform,
+        let (target_transform, target_collision) = match target_query.get(target_entity) {
+            Ok((transform, collision)) => (transform, collision),
             Err(_) => {
                 // Target no longer exists, clear it
                 combat.target = None;
@@ -120,10 +120,14 @@ pub fn attack_system(
             }
         };
 
-        let distance = attacker_transform.translation.distance(target_transform.translation);
-
-        // Check if target is in range
-        if distance <= combat.attack_range {
+        // Calculate distance between centers
+        let center_distance = attacker_transform.translation.distance(target_transform.translation);
+        
+        // Calculate edge-to-edge distance by subtracting collision radii
+        let edge_distance = center_distance - attacker_collision.radius - target_collision.radius;
+        
+        // Check if target is in range (using edge distance for more realistic combat)
+        if edge_distance <= combat.attack_range {
             // Check if enough time has passed since last attack
             if current_time - combat.last_attack_time >= combat.attack_cooldown {
                 // Execute attack
@@ -145,11 +149,17 @@ pub fn attack_system(
                     damage_type,
                 });
 
-                info!("Unit {:?} attacks {:?} for {} damage", 
-                      attacker_entity, target_entity, combat.attack_damage);
+                info!("⚔️ Unit {:?} attacks {:?} for {} damage (edge_dist: {:.1}, attack_range: {:.1})", 
+                      attacker_entity, target_entity, combat.attack_damage, edge_distance, combat.attack_range);
             }
         } else {
             combat.is_attacking = false;
+            // Debug occasional range issues  
+            if edge_distance <= combat.attack_range + 2.0 { // Only log when close to range
+                debug!("🎯 Unit {:?} out of range: edge_dist {:.1} > attack_range {:.1} (center_dist: {:.1}, att_radius: {:.1}, tgt_radius: {:.1})", 
+                       attacker_entity, edge_distance, combat.attack_range, center_distance, 
+                       attacker_collision.radius, target_collision.radius);
+            }
         }
     }
 }

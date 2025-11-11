@@ -110,6 +110,29 @@ pub struct Movement {
     pub path_index: usize,
 }
 
+#[derive(Component, Debug, Clone)]
+pub struct StuckDetection {
+    pub last_position: Vec3,
+    pub stuck_timer: f32,
+    pub position_history: Vec<Vec3>,
+    pub last_movement_time: f32,
+    pub unstuck_attempts: u32,
+    pub last_unstuck_time: f32,
+}
+
+impl Default for StuckDetection {
+    fn default() -> Self {
+        Self {
+            last_position: Vec3::ZERO,
+            stuck_timer: 0.0,
+            position_history: Vec::new(),
+            last_movement_time: 0.0,
+            unstuck_attempts: 0,
+            last_unstuck_time: 0.0,
+        }
+    }
+}
+
 impl Default for Movement {
     fn default() -> Self {
         Self {

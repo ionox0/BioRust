@@ -203,7 +203,7 @@ pub mod models {
     pub const SIMPLE_GRASS_CHUNKS_SCALE: f32 = 1.2; // Compact grass chunks (increased for visibility)
     
     // Building object scales
-    pub const ANTHILL_SCALE: f32 = 3.5;            // Anthill building scale - larger for visibility
+    pub const ANTHILL_SCALE: f32 = 10.5;            // Anthill building scale - larger for visibility
     
     // New environment object scales (increased for visibility)
     pub const CHERRY_BLOSSOM_TREE_SCALE: f32 = 2.0; // Beautiful tree landmark (increased for visibility)
@@ -336,6 +336,11 @@ pub mod hotkeys {
     pub const BUILD_NURSERY: KeyCode = KeyCode::KeyH;
     pub const BUILD_FUNGAL_GARDEN: KeyCode = KeyCode::KeyF;
     pub const CANCEL_BUILD: KeyCode = KeyCode::Escape;
+    
+    // Time control hotkeys
+    pub const SPEED_UP: KeyCode = KeyCode::Equal;        // + key
+    pub const SLOW_DOWN: KeyCode = KeyCode::Minus;       // - key
+    pub const RESET_SPEED: KeyCode = KeyCode::Backspace; // Reset to normal speed
 
     // Legacy hotkeys for compatibility
     #[deprecated(note = "Use BUILD_WARRIOR_CHAMBER instead")]

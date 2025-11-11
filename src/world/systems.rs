@@ -324,8 +324,9 @@ fn spawn_minimal_environment_objects(
         if models.models_loaded {
             info!("Spawning distributed environment objects across the map");
             
-            // Spread out environment objects far across the map with large spacing
+            // Add many more resource nodes with better distribution for AI access
             let object_positions = [
+                // Original positions
                 (800.0, 1200.0),    // Far northeast
                 (-1200.0, 800.0),   // Far northwest  
                 (0.0, -1000.0),     // Far south
@@ -334,17 +335,43 @@ fn spawn_minimal_environment_objects(
                 (600.0, -600.0),    // Southeast quadrant
                 (-800.0, 600.0),    // Northwest quadrant
                 (200.0, 800.0),     // North-center
+                
+                // NEW: More resources closer to player bases for better economy
+                // Near Player 1 base (-200, 0)
+                (-150.0, 80.0),     // Northeast of Player 1 base
+                (-250.0, 100.0),    // Northwest of Player 1 base  
+                (-100.0, -120.0),   // Southeast of Player 1 base
+                (-300.0, -80.0),    // Southwest of Player 1 base
+                
+                // Near Player 2 base (200, 0) - Critical for AI economy
+                (150.0, 90.0),      // Northeast of Player 2 base
+                (250.0, 110.0),     // Northwest of Player 2 base
+                (120.0, -100.0),    // Southeast of Player 2 base
+                (280.0, -90.0),     // Southwest of Player 2 base
+                
+                // Central contested area for strategic resources
+                (-50.0, 50.0),      // Northwest center
+                (50.0, 60.0),       // Northeast center
+                (-30.0, -70.0),     // Southwest center
+                (40.0, -60.0),      // Southeast center
+                
+                // Additional mid-range resources
+                (0.0, 200.0),       // North center
+                (0.0, -200.0),      // South center
+                (-400.0, 0.0),      // West center
+                (400.0, 0.0),       // East center
             ];
             
             for (i, &(x, z)) in object_positions.iter().enumerate() {
                 let position = get_terrain_position(x, z, 1.0);
                 let rotation = Quat::from_rotation_y(i as f32 * 1.2); // Slight rotation variation
                 
-                // Alternate between different resource types (cycle through all 4)
-                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 4 {
-                    0 => (InsectModelType::Mushrooms, EnvironmentObjectType::Mushrooms, &models.mushrooms, "Mushroom Cluster"),
-                    1 => (InsectModelType::RiverRock, EnvironmentObjectType::Rocks, &models.river_rock, "Rock Formation"),
-                    2 => (InsectModelType::WoodStick, EnvironmentObjectType::WoodStick, &models.wood_stick, "Wood Debris"),
+                // Prioritize Nectar (food) resources for better unit production, especially near AI base
+                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 6 {
+                    // 50% Nectar sources (mushrooms) for better economy
+                    0 | 1 | 2 => (InsectModelType::Mushrooms, EnvironmentObjectType::Mushrooms, &models.mushrooms, "Mushroom Cluster"),
+                    3 => (InsectModelType::RiverRock, EnvironmentObjectType::Rocks, &models.river_rock, "Rock Formation"),
+                    4 => (InsectModelType::WoodStick, EnvironmentObjectType::WoodStick, &models.wood_stick, "Wood Debris"),
                     _ => (InsectModelType::Hive, EnvironmentObjectType::Hive, &models.hive, "Hive Structure"),
                 };
                 
@@ -386,8 +413,8 @@ fn spawn_minimal_environment_objects(
                     EnvironmentObjectType::Mushrooms => {
                         entity_commands.insert(ResourceSource {
                             resource_type: ResourceType::Nectar,
-                            amount: 300.0,
-                            max_gatherers: 3,
+                            amount: 800.0,  // Increased from 300 to 800 for better economy
+                            max_gatherers: 4,  // Allow more gatherers for faster collection
                             current_gatherers: 0,
                         });
                         entity_commands.insert(Selectable {

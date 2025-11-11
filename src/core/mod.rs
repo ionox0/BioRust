@@ -4,6 +4,7 @@ pub mod resources;
 pub mod constants;
 pub mod game;
 pub mod unit_stats;
+pub mod time_controls;
 
 // Re-export commonly used items for convenience
 // Only re-export what's actually used externally

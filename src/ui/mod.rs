@@ -25,7 +25,7 @@ impl Plugin for UIPlugin {
             .init_resource::<BuildingPlacement>()
             .init_resource::<UIIcons>()
             .init_resource::<HoveredUnit>()
-            .add_systems(Startup, (load_ui_icons, setup_building_ui, setup_tooltip, setup_ai_resource_display).chain())
+            .add_systems(Startup, (load_ui_icons, setup_building_ui, setup_tooltip, setup_ai_resource_display, setup_resource_tooltip).chain())
             .add_systems(Update, sync_player_resources)
             .add_systems(Update, update_resource_display)
             .add_systems(Update, update_ai_resource_display)
@@ -35,6 +35,8 @@ impl Plugin for UIPlugin {
             .add_systems(Update, update_placement_status)
             .add_systems(Update, building_hotkeys_system)
             .add_systems(Update, unit_hover_detection_system)
-            .add_systems(Update, update_tooltip_system);
+            .add_systems(Update, update_tooltip_system)
+            .add_systems(Update, resource_hover_system)
+            .add_systems(Update, resource_hover_effects_system);
     }
 }

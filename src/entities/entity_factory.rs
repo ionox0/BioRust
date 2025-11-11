@@ -444,8 +444,10 @@ impl EntityFactory {
                 size: 2.0,
                 selection_radius: 5.0,
                 collision_radius: crate::constants::collision::NURSERY_COLLISION_RADIUS,
-                rally_point: None,
-                special_components: BuildingSpecialComponents::None,
+                rally_point: Some(Vec3::new(15.0, 0.0, 15.0)),
+                special_components: BuildingSpecialComponents::ProductionQueue {
+                    production_time: 18.0, // Faster than Queen for flying units
+                },
             },
             BuildingType::WarriorChamber => BuildingStats {
                 health: 200.0,

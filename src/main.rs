@@ -13,6 +13,7 @@ mod collision;
 
 use core::game::*;
 use core::constants;
+use core::time_controls::TimeControlPlugin;
 use world::terrain_v2::TerrainPluginV2;
 use combat_systems::CombatPlugin;
 use health_ui::HealthUIPlugin;
@@ -47,6 +48,7 @@ fn main() {
             AnimationPlugin,
             EntityStatePlugin,
             CollisionPlugin,
+            TimeControlPlugin, // Fast-forward and time control system
         ))
         .run();
 }

@@ -164,7 +164,7 @@ impl Default for AIResources {
             chitin: 800.0,  // More building materials
             minerals: 500.0, // More minerals
             pheromones: 500.0, // More pheromones for special units
-            max_population: 20, // Higher pop cap to support more units
+            max_population: 200, // Much higher pop cap to support AI expansion (increased from 20 to 200)
             current_population: 0,
         });
         Self { resources }
