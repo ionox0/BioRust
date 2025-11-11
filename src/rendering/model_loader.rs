@@ -303,8 +303,7 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("mystery_model", "models/insects/unknown.glb#Scene0", "Mystery model"),
     ModelConfig::new("common_housefly", "models/insects/common_housefly.glb#Scene0", "Common housefly"),
     ModelConfig::new("giant_termite", "models/insects/giant_termite.glb#Scene0", "Giant termite"),
-    ModelConfig::new("leg_beetle", "models/insects/leg_beetle.glb#Scene0", "Leg beetle"),
-    // Note: If leg_beetle doesn't show up, try changing Scene0 to just Scene in the path above
+    ModelConfig::new("leg_beetle", "models/insects/leg_beetle.glb#Scene", "Leg beetle"),
     ModelConfig::new("stinkbug", "models/insects/stinkbug.glb#Scene0", "Stinkbug"),
     ModelConfig::new("termite", "models/insects/termite.glb#Scene0", "Regular termite"),
 
