@@ -716,7 +716,7 @@ impl RTSEntityFactory {
                 construction_progress: 100.0,
                 max_construction: 100.0,
                 is_complete: true,
-                rally_point: None,
+                rally_point: Some(position + Vec3::new(10.0, 0.0, 10.0)),
             },
             RTSHealth {
                 current: 75.0,
@@ -728,6 +728,11 @@ impl RTSEntityFactory {
             Selectable {
                 is_selected: false,
                 selection_radius: 5.0,
+            },
+            ProductionQueue {
+                queue: Vec::new(),
+                current_progress: 0.0,
+                production_time: 20.0,
             },
             CollisionRadius { radius: crate::constants::collision::NURSERY_COLLISION_RADIUS },
             GameEntity,

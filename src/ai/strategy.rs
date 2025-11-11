@@ -315,10 +315,18 @@ fn try_build_unit(
     
     // Find a suitable production building
     let required_building = match unit_type {
+        // Ant units from Queen (Ant Hill)
         UnitType::WorkerAnt => BuildingType::Queen,
-        UnitType::SoldierAnt => BuildingType::WarriorChamber,
-        UnitType::HunterWasp => BuildingType::HunterChamber,
+        UnitType::SoldierAnt => BuildingType::Queen,
+        UnitType::ScoutAnt => BuildingType::Queen,
+        UnitType::SpearMantis => BuildingType::Queen,
+        // Bee/Flying units from Nursery (Bee Hive)
+        UnitType::HunterWasp => BuildingType::Nursery,
+        UnitType::DragonFly => BuildingType::Nursery,
+        UnitType::AcidSpitter => BuildingType::Nursery,
+        // Beetle/Heavy units from WarriorChamber (Pine Cone)
         UnitType::BeetleKnight => BuildingType::WarriorChamber,
+        UnitType::BatteringBeetle => BuildingType::WarriorChamber,
         _ => return false,
     };
     
@@ -335,10 +343,18 @@ fn try_build_unit(
     
     // Find the appropriate building to spawn from
     let spawn_building_type = match unit_type {
+        // Ant units from Queen (Ant Hill)
         UnitType::WorkerAnt => BuildingType::Queen,
-        UnitType::SoldierAnt => BuildingType::WarriorChamber,
-        UnitType::HunterWasp => BuildingType::HunterChamber,
+        UnitType::SoldierAnt => BuildingType::Queen,
+        UnitType::ScoutAnt => BuildingType::Queen,
+        UnitType::SpearMantis => BuildingType::Queen,
+        // Bee/Flying units from Nursery (Bee Hive)
+        UnitType::HunterWasp => BuildingType::Nursery,
+        UnitType::DragonFly => BuildingType::Nursery,
+        UnitType::AcidSpitter => BuildingType::Nursery,
+        // Beetle/Heavy units from WarriorChamber (Pine Cone)
         UnitType::BeetleKnight => BuildingType::WarriorChamber,
+        UnitType::BatteringBeetle => BuildingType::WarriorChamber,
         _ => BuildingType::Queen, // Default fallback
     };
     

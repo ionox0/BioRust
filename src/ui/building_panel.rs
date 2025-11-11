@@ -192,17 +192,20 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     use crate::constants::resources::*;
     
     let unit_data = [
+        // Ant units from Queen (Ant Hill)
         (UnitType::WorkerAnt, ui_icons.worker_icon.clone(), "Worker", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
-        (UnitType::SoldierAnt, ui_icons.soldier_icon.clone(), "Soldier", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
-        (UnitType::HunterWasp, ui_icons.hunter_icon.clone(), "Hunter", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::HunterChamber),
-    
+        (UnitType::SoldierAnt, ui_icons.soldier_icon.clone(), "Soldier", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::Queen),
         (UnitType::SpearMantis, ui_icons.worker_icon.clone(), "Mantis", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
-        (UnitType::ScoutAnt, ui_icons.soldier_icon.clone(), "Scout", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
-        (UnitType::DragonFly, ui_icons.hunter_icon.clone(), "DragonFly", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::HunterChamber),
-    
-        (UnitType::BeetleKnight, ui_icons.worker_icon.clone(), "Beetle", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::Queen),
+        (UnitType::ScoutAnt, ui_icons.soldier_icon.clone(), "Scout", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::Queen),
+
+        // Bee/Flying units from Nursery (Bee Hive)
+        (UnitType::HunterWasp, ui_icons.hunter_icon.clone(), "Hunter", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::Nursery),
+        (UnitType::DragonFly, ui_icons.hunter_icon.clone(), "DragonFly", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::Nursery),
+        (UnitType::AcidSpitter, ui_icons.hunter_icon.clone(), "Acid", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::Nursery),
+
+        // Beetle/Heavy units from WarriorChamber (Pine Cone)
+        (UnitType::BeetleKnight, ui_icons.worker_icon.clone(), "Beetle", vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
         (UnitType::BatteringBeetle, ui_icons.soldier_icon.clone(), "Battering", vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)], BuildingType::WarriorChamber),
-        (UnitType::AcidSpitter, ui_icons.hunter_icon.clone(), "Acid", vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)], BuildingType::HunterChamber),
     ];
     
     for (unit_type, icon, name, cost, building_type) in unit_data {
@@ -213,6 +216,7 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
 pub fn handle_building_panel_interactions(
     mut interaction_query: Query<(&Interaction, &BuildingButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
     mut unit_interaction_query: Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
+    buildings: Query<(&Building, &Transform, &RTSUnit), With<Building>>,
     mut placement: ResMut<BuildingPlacement>,
     player_resources: Res<PlayerResources>,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
@@ -221,7 +225,7 @@ pub fn handle_building_panel_interactions(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     handle_building_button_interactions(&mut interaction_query, &mut placement, &player_resources);
-    handle_unit_button_interactions(&mut unit_interaction_query, &player_resources, model_assets, &mut commands, &mut meshes, &mut materials);
+    handle_unit_button_interactions(&mut unit_interaction_query, &buildings, &player_resources, model_assets, &mut commands, &mut meshes, &mut materials);
 }
 
 fn handle_building_button_interactions(
@@ -262,6 +266,7 @@ fn handle_building_button_interactions(
 
 fn handle_unit_button_interactions(
     unit_interaction_query: &mut Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
+    buildings: &Query<(&Building, &Transform, &RTSUnit), With<Building>>,
     player_resources: &PlayerResources,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     commands: &mut Commands,
@@ -272,7 +277,7 @@ fn handle_unit_button_interactions(
         match *interaction {
             Interaction::Pressed => {
                 if can_afford_unit(&unit_button.cost, player_resources) {
-                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone(), model_assets.as_deref());
+                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone(), unit_button.building_type.clone(), buildings, model_assets.as_deref());
                     info!("Producing unit: {:?}", unit_button.unit_type);
                 } else {
                     info!("Cannot afford unit: {:?}", unit_button.unit_type);
@@ -297,32 +302,54 @@ fn spawn_unit_from_building(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     unit_type: UnitType,
+    building_type: BuildingType,
+    buildings: &Query<(&Building, &Transform, &RTSUnit), With<Building>>,
     model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
 ) {
     use crate::constants::combat::*;
-    let x = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
-    let z = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
-    
+
+    // Find the building of the correct type for player 1
+    let building_position = buildings.iter()
+        .find(|(building, _, unit)| {
+            unit.player_id == 1 &&
+            building.building_type == building_type &&
+            building.is_complete
+        })
+        .map(|(building, transform, _)| {
+            // Use rally point if available, otherwise use building position
+            building.rally_point.unwrap_or(transform.translation)
+        })
+        .unwrap_or(Vec3::ZERO); // Fallback to origin if no building found
+
+    // Add random offset from building position
+    let x_offset = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
+    let z_offset = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
+
     // Use appropriate height offset based on unit type
     let height_offset = match unit_type {
         UnitType::DragonFly => 30.0,  // DragonFly model needs higher spawn height
         UnitType::HunterWasp => 30.0,  // Flying units spawn higher
         _ => 2.0,  // Standard ground units
     };
-    let spawn_position = Vec3::new(x, height_offset, z);
+
+    let spawn_position = Vec3::new(
+        building_position.x + x_offset,
+        height_offset,
+        building_position.z + z_offset
+    );
 
     // Use the consolidated factory for all unit spawning with model assets
     let config = SpawnConfig::unit(
-        EntityType::from_unit(unit_type.clone()), 
-        spawn_position, 
+        EntityType::from_unit(unit_type.clone()),
+        spawn_position,
         1 // Player ID
     );
-    
+
     EntityFactory::spawn(
-        commands, 
-        meshes, 
-        materials, 
-        config, 
+        commands,
+        meshes,
+        materials,
+        config,
         model_assets // Pass through model assets so GLB models get proper scaling
     );
 }
