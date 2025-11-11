@@ -529,7 +529,7 @@ fn upgrade_units_to_glb<'a>(
         ));
         
         // Update transform for proper model display
-        apply_model_transform(&mut transform, model_scale);
+        apply_model_transform(&mut transform, model_scale, &model_type);
         
         // Adjust movement speed to compensate for visual scale
         if let Some(mut movement) = movement_opt {
@@ -541,7 +541,7 @@ fn upgrade_units_to_glb<'a>(
 }
 
 /// Calculates the appropriate scale for a given model type.
-/// 
+///
 /// Special handling for certain models, otherwise uses the standard scale function.
 fn calculate_model_scale(model_type: &InsectModelType) -> f32 {
     match model_type {
@@ -551,21 +551,38 @@ fn calculate_model_scale(model_type: &InsectModelType) -> f32 {
     }
 }
 
+/// Calculates the appropriate Y-axis rotation for a given model type.
+///
+/// Most models need a 180° rotation to face forward (from default backwards orientation).
+/// Some models need additional rotation adjustments.
+fn calculate_model_rotation(model_type: &InsectModelType) -> f32 {
+    let base_rotation = std::f32::consts::PI; // 180° to face forward
+
+    match model_type {
+        // Termite needs 90° clockwise rotation (when viewed from above)
+        InsectModelType::Termite | InsectModelType::GiantTermite => {
+            base_rotation + std::f32::consts::FRAC_PI_2 // 180° + 90° = 270°
+        },
+        // All other models use default forward-facing rotation
+        _ => base_rotation,
+    }
+}
+
 /// Applies proper transform settings for a GLB model.
-/// 
+///
 /// Sets the scale to match the model's intended size and rotates it to face forward
 /// (GLB models typically face backwards by default).
-fn apply_model_transform(transform: &mut Transform, model_scale: f32) {
+/// Some models need special rotation adjustments.
+fn apply_model_transform(transform: &mut Transform, model_scale: f32, model_type: &InsectModelType) {
     let target_scale = Vec3::splat(model_scale);
-    
+
     // Only update scale if it's significantly different to avoid jitter
     if (transform.scale - target_scale).length() > 0.1 {
         transform.scale = target_scale;
     }
-    
-    // Fix model orientation - models face backwards by default
-    // Apply 180° rotation around Y-axis to face forward
-    transform.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+
+    // Apply model-specific rotation
+    transform.rotation = Quat::from_rotation_y(calculate_model_rotation(model_type));
 }
 
 /// Adjusts movement speed to compensate for visual model scale.
@@ -721,14 +738,14 @@ pub fn spawn_insect_model(
     } else {
         scale
     };
-    
+
     commands.spawn((
         SceneRoot(model_handle),
         Transform::from_translation(position)
             .with_scale(Vec3::splat(final_scale))
-            .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)), // Face forward
+            .with_rotation(Quat::from_rotation_y(calculate_model_rotation(&model_type))),
         InsectModel {
-            model_type,
+            model_type: model_type.clone(),
             scale: final_scale,
         },
         UseGLBModel,
