@@ -87,24 +87,17 @@ fn determine_entity_state(
     // Check for resource gathering/delivery
     if let Some(gatherer) = gatherer {
         // Check if returning to base with resources
-        // Unit is returning if: carrying resources AND (at capacity OR no target resource OR moving to dropoff)
+        // Unit is returning if: carrying resources AND (at capacity OR no target resource)
+        // At capacity: full load, returning to dropoff
+        // No target: resource depleted, returning with partial load
         if gatherer.carried_amount > 0.0 {
-            // If at full capacity or resource depleted, definitely returning
             if gatherer.carried_amount >= gatherer.capacity || gatherer.target_resource.is_none() {
                 return UnitState::ReturningWithResources;
-            }
-            // If has partial resources and a target, check if moving away from target (returning to base)
-            // This catches the case where resource depleted while gathering
-            if let Some(movement) = movement {
-                if movement.target_position.is_some() && gatherer.drop_off_building.is_some() {
-                    // If has both target and movement, assume returning to dropoff for now
-                    // The gathering system will set movement toward resource or dropoff appropriately
-                    return UnitState::ReturningWithResources;
-                }
             }
         }
 
         // Check if actively gathering at a resource
+        // This includes traveling TO the resource and gathering AT the resource
         if gatherer.target_resource.is_some() {
             return UnitState::Gathering;
         }

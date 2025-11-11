@@ -166,7 +166,14 @@ fn process_resource_delivery(
     }
 
     let Some(dropoff_entity) = gatherer.drop_off_building else {
-        warn!("Worker {} (player {}) has full load but no drop-off building assigned!", unit.unit_id, unit.player_id);
+        // Worker has resources but no drop-off building (likely no buildings built yet)
+        // Clear target_resource and movement so worker waits idle until a building is assigned
+        if gatherer.target_resource.is_some() || movement.target_position.is_some() {
+            gatherer.target_resource = None;
+            movement.target_position = None;
+            warn!("Worker {} (player {}) has {:.1} resources but no drop-off building available - waiting for building to be constructed",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount);
+        }
         return;
     };
 
