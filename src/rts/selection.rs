@@ -258,7 +258,7 @@ fn perform_box_selection(
         }
 
         // Project world position to screen space
-        if let Some(screen_pos) = camera.world_to_viewport(camera_transform, transform.translation) {
+        if let Ok(screen_pos) = camera.world_to_viewport(camera_transform, transform.translation) {
             // Check if the unit's screen position is within the selection box bounds
             if screen_pos.x >= bounds.min_x && screen_pos.x <= bounds.max_x &&
                screen_pos.y >= bounds.min_y && screen_pos.y <= bounds.max_y {
