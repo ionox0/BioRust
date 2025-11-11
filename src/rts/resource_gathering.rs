@@ -1,6 +1,11 @@
 use bevy::prelude::*;
 use crate::core::components::*;
 
+// Configurable gathering parameters
+const GATHERING_DISTANCE: f32 = 5.0;  // Distance within which gathering occurs
+const DROPOFF_TRAVEL_DISTANCE: f32 = 10.0;  // Distance threshold for traveling to dropoff
+const DROPOFF_REASSIGNMENT_THRESHOLD: f32 = 50.0;  // Only reassign if new building is this much closer
+
 pub fn resource_gathering_system(
     mut gatherers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), With<RTSUnit>>,
     mut resources: Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
@@ -21,22 +26,30 @@ pub fn resource_gathering_system(
     }
 }
 
-/// Ensure a worker has a drop-off building assigned
+/// Ensure a worker has a drop-off building assigned with load balancing
 fn ensure_dropoff_building_assigned(
     gatherer: &mut ResourceGatherer,
     worker_transform: &Transform,
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
+    let mut current_distance = f32::MAX;
+
     // If gatherer already has a drop-off building, verify it still exists and is valid
     if let Some(current_dropoff) = gatherer.drop_off_building {
-        if let Ok((_, _, building, building_unit)) = buildings.get(current_dropoff) {
+        if let Ok((_, building_transform, building, building_unit)) = buildings.get(current_dropoff) {
             // Check if building is still valid (same player, complete, can accept resources)
             if building_unit.player_id == unit.player_id && building.is_complete {
-                return; // Current drop-off is still valid
+                current_distance = worker_transform.translation.distance(building_transform.translation);
+
+                // Keep current assignment if it's reasonably close (within reassignment threshold)
+                // This provides load balancing by reducing reassignment churn
+                if current_distance < DROPOFF_REASSIGNMENT_THRESHOLD {
+                    return; // Current drop-off is still valid and close enough
+                }
             }
         }
-        // Current drop-off is invalid, clear it
+        // Current drop-off is invalid or too far, clear it
         gatherer.drop_off_building = None;
     }
 
@@ -61,19 +74,24 @@ fn ensure_dropoff_building_assigned(
             BuildingType::StorageChamber |
             BuildingType::Nursery => {
                 let distance = worker_transform.translation.distance(building_transform.translation);
-                if distance < closest_distance {
-                    closest_distance = distance;
-                    closest_building = Some(building_entity);
+
+                // Only consider this building if it's significantly closer than current assignment
+                if current_distance == f32::MAX || distance < current_distance - DROPOFF_REASSIGNMENT_THRESHOLD {
+                    if distance < closest_distance {
+                        closest_distance = distance;
+                        closest_building = Some(building_entity);
+                    }
                 }
             }
             _ => continue,
         }
     }
 
-    // Assign the closest building
+    // Assign the closest building if we found a significantly better option
     if let Some(building) = closest_building {
         gatherer.drop_off_building = Some(building);
-        info!("Assigned drop-off building to worker {} (player {})", unit.unit_id, unit.player_id);
+        info!("Assigned drop-off building to worker {} (player {}) at distance {:.1}",
+              unit.unit_id, unit.player_id, closest_distance);
     }
 }
 
@@ -93,8 +111,8 @@ fn process_resource_gathering(
     };
     
     let distance = gatherer_transform.translation.distance(resource_transform.translation);
-    
-    if distance > 5.0 {
+
+    if distance > GATHERING_DISTANCE {
         return;
     }
     
@@ -156,7 +174,7 @@ fn process_resource_delivery(
     let distance = gatherer_transform.translation.distance(building_transform.translation);
 
     // If far from dropoff, move towards it
-    if distance > 10.0 {
+    if distance > DROPOFF_TRAVEL_DISTANCE {
         // Set movement target to building if not already moving there
         if movement.target_position.is_none() ||
            movement.target_position.unwrap().distance(building_transform.translation) > 5.0 {
