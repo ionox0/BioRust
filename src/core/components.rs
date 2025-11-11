@@ -191,6 +191,48 @@ pub enum ResourceType {
     Pheromones,
 }
 
+impl ResourceType {
+    /// Get the current value of this resource from PlayerResources
+    pub fn get_from(&self, resources: &crate::core::resources::PlayerResources) -> f32 {
+        match self {
+            Self::Nectar => resources.nectar,
+            Self::Chitin => resources.chitin,
+            Self::Minerals => resources.minerals,
+            Self::Pheromones => resources.pheromones,
+        }
+    }
+
+    /// Set the value of this resource in PlayerResources
+    pub fn set_in(&self, resources: &mut crate::core::resources::PlayerResources, value: f32) {
+        match self {
+            Self::Nectar => resources.nectar = value,
+            Self::Chitin => resources.chitin = value,
+            Self::Minerals => resources.minerals = value,
+            Self::Pheromones => resources.pheromones = value,
+        }
+    }
+
+    /// Add an amount to this resource in PlayerResources
+    pub fn add_to(&self, resources: &mut crate::core::resources::PlayerResources, amount: f32) {
+        match self {
+            Self::Nectar => resources.nectar += amount,
+            Self::Chitin => resources.chitin += amount,
+            Self::Minerals => resources.minerals += amount,
+            Self::Pheromones => resources.pheromones += amount,
+        }
+    }
+
+    /// Subtract an amount from this resource in PlayerResources
+    pub fn subtract_from(&self, resources: &mut crate::core::resources::PlayerResources, amount: f32) {
+        match self {
+            Self::Nectar => resources.nectar -= amount,
+            Self::Chitin => resources.chitin -= amount,
+            Self::Minerals => resources.minerals -= amount,
+            Self::Pheromones => resources.pheromones -= amount,
+        }
+    }
+}
+
 #[derive(Component, Debug, Clone)]
 pub struct ResourceSource {
     pub resource_type: ResourceType,

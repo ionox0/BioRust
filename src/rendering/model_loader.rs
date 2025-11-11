@@ -833,22 +833,27 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
 /// 
 /// The appropriate `InsectModelType` for visual representation
 pub fn get_building_insect_model(building_type: &crate::core::components::BuildingType) -> InsectModelType {
+    use crate::core::components::BuildingType;
+
     match building_type {
-        // Main structures - large, imposing models
-        crate::core::components::BuildingType::Queen => InsectModelType::QueenFacedBug, // Regal mantis
-        
-        // Production buildings - thematic models
-        crate::core::components::BuildingType::Nursery => InsectModelType::LadybugLowpoly, // Friendly nurturing
-        crate::core::components::BuildingType::WarriorChamber => InsectModelType::RhinoBeetle, // Heavy training
-        crate::core::components::BuildingType::HunterChamber => InsectModelType::AnimatedSpider, // Predator training
-        
-        // Resource buildings - functional models
-        crate::core::components::BuildingType::FungalGarden => InsectModelType::Mushrooms, // Perfect match!
-        crate::core::components::BuildingType::WoodProcessor => InsectModelType::Beetle, // Wood processing
-        crate::core::components::BuildingType::MineralProcessor => InsectModelType::DragonFly, // Advanced tech
-        
-        // Default fallback
-        _ => InsectModelType::Spider,
+        // Main structures use anthill
+        BuildingType::Queen => InsectModelType::Anthill,
+        BuildingType::Nursery => InsectModelType::Anthill,
+
+        // Production buildings
+        BuildingType::WarriorChamber => InsectModelType::Hive,  // Bee hive for warrior barracks
+        BuildingType::HunterChamber => InsectModelType::Anthill,
+        BuildingType::Stable => InsectModelType::Anthill,
+
+        // Resource buildings
+        BuildingType::FungalGarden => InsectModelType::Mushrooms,  // Perfect match!
+        BuildingType::WoodProcessor => InsectModelType::Anthill,
+        BuildingType::MineralProcessor => InsectModelType::Anthill,
+        BuildingType::StorageChamber => InsectModelType::Anthill,
+        BuildingType::EvolutionChamber => InsectModelType::Anthill,
+        BuildingType::TradingPost => InsectModelType::Anthill,
+        BuildingType::ChitinWall => InsectModelType::Anthill,
+        BuildingType::GuardTower => InsectModelType::Anthill,
     }
 }
 
