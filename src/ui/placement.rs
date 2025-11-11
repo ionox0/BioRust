@@ -347,56 +347,12 @@ fn place_building(
     position: Vec3,
     model_assets: &Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
-    use crate::entities::rts_entities::RTSEntityFactory;
-    
-    let model_assets_ref = model_assets.as_ref().map(|r| &**r);
-    
-    let _building_entity = match building_type {
-        BuildingType::Queen => RTSEntityFactory::spawn_queen_chamber(commands, meshes, materials, position, 1, model_assets_ref),
-        BuildingType::Nursery => RTSEntityFactory::spawn_nursery(commands, meshes, materials, position, 1, model_assets_ref),
-        BuildingType::WarriorChamber => RTSEntityFactory::spawn_warrior_chamber(commands, meshes, materials, position, 1, model_assets_ref),
-        _ => create_fallback_building(commands, meshes, materials, building_type, position),
-    };
-}
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
 
-fn create_fallback_building(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    building_type: BuildingType,
-    position: Vec3,
-) -> Entity {
-    use crate::constants::buildings::*;
-    let (mesh, material, size) = (
-        meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)),
-        materials.add(StandardMaterial {
-            base_color: DEFAULT_BUILDING_COLOR,
-            ..default()
-        }),
-        DEFAULT_BUILDING_SIZE,
-    );
-    
-    commands.spawn((
-        Mesh3d(mesh),
-        MeshMaterial3d(material),
-        Transform::from_translation(position + Vec3::new(0.0, size.y / 2.0, 0.0)),
-        Building {
-            building_type: building_type.clone(),
-            construction_progress: CONSTRUCTION_PROGRESS_MAX,
-            max_construction: CONSTRUCTION_PROGRESS_MAX,
-            is_complete: true,
-            rally_point: None,
-        },
-        crate::core::components::RTSHealth {
-            current: DEFAULT_BUILDING_HEALTH,
-            max: DEFAULT_BUILDING_HEALTH,
-            armor: DEFAULT_BUILDING_ARMOR,
-            regeneration_rate: 0.0,
-            last_damage_time: 0.0,
-        },
-        crate::core::components::Selectable::default(),
-        crate::core::components::GameEntity,
-    )).id()
+    let model_assets_ref = model_assets.as_ref().map(|r| &**r);
+
+    let config = SpawnConfig::building(EntityType::Building(building_type), position, 1);
+    EntityFactory::spawn(commands, meshes, materials, config, model_assets_ref);
 }
 
 // Helper functions

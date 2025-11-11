@@ -248,21 +248,15 @@ fn execute_build_building(
                 
                 let position = generate_ai_building_position();
                 
+                use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+
+                let config = SpawnConfig::building(EntityType::Building(building_type.clone()), position, player_id);
                 let model_assets_ref = model_assets.as_ref().map(|r| &**r);
-                
-                match building_type {
-                    BuildingType::Nursery => {
-                        crate::entities::rts_entities::RTSEntityFactory::spawn_nursery(
-                            commands, meshes, materials, position, player_id, model_assets_ref
-                        );
-                        resources.add_housing(5); // Nurseries provide 5 population
-                    },
-                    BuildingType::WarriorChamber => {
-                        crate::entities::rts_entities::RTSEntityFactory::spawn_warrior_chamber(
-                            commands, meshes, materials, position, player_id, model_assets_ref
-                        );
-                    },
-                    _ => {}
+                EntityFactory::spawn(commands, meshes, materials, config, model_assets_ref);
+
+                // Add housing for nurseries
+                if building_type == BuildingType::Nursery {
+                    resources.add_housing(5); // Nurseries provide 5 population
                 }
                 
                 info!("AI Player {} built {:?}", player_id, building_type);

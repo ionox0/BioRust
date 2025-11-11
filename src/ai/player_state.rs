@@ -113,17 +113,18 @@ fn spawn_starting_units(
     player_id: u8,
     base_position: Vec3,
 ) {
+    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
+    use crate::core::components::{BuildingType, UnitType};
+
     // Spawn AI town center
-    crate::entities::rts_entities::RTSEntityFactory::spawn_queen_chamber(
-        commands, meshes, materials, base_position, player_id, None
-    );
-    
+    let building_config = SpawnConfig::building(EntityType::Building(BuildingType::Queen), base_position, player_id);
+    EntityFactory::spawn(commands, meshes, materials, building_config, None);
+
     // Spawn starting villagers
     for i in 0..3 {
         use crate::constants::ai::*;
         let villager_pos = base_position + Vec3::new(i as f32 * AI_SPAWN_RANGE, 0.0, AI_SPAWN_RANGE);
-        crate::entities::rts_entities::RTSEntityFactory::spawn_worker_ant(
-            commands, meshes, materials, villager_pos, player_id, rand::random()
-        );
+        let unit_config = SpawnConfig::unit(EntityType::Unit(UnitType::WorkerAnt), villager_pos, player_id);
+        EntityFactory::spawn(commands, meshes, materials, unit_config, None);
     }
 }
