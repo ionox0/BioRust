@@ -1,6 +1,8 @@
 #![allow(dead_code)] // Allow unused terrain functionality for future features
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::tasks::{AsyncComputeTaskPool, Task};
+use futures::executor::block_on;
 use hashbrown::HashMap;
 use noise::{NoiseFn, Perlin};
 use std::collections::VecDeque;
@@ -24,13 +26,15 @@ impl Plugin for TerrainPluginV2 {
             .add_systems(Startup, load_terrain_texture)
             .add_systems(Update, (
                 update_visible_chunks_quadtree,
-                process_chunk_generation,
+                start_chunk_generation_tasks,
+                collect_generated_chunks,
+                process_sync_chunk_generation,
                 retire_old_chunks,
             ).chain());
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct TerrainSettings {
     pub min_cell_size: f32,
     pub min_cell_resolution: u32,
@@ -86,12 +90,15 @@ pub struct TerrainChunkManager {
     pub old_chunks: VecDeque<Entity>,             // Chunks being retired
     pub chunk_pool: Vec<ChunkData>,               // Pooled chunk data
     pub generation_queue: VecDeque<ChunkKey>,     // Chunks to generate
-    pub noise_generator: Perlin,
+    pub generating_tasks: HashMap<ChunkKey, Entity>, // Active generation tasks
+    pub noise_generator: Perlin,                  // Keep for compatibility with existing systems
+    pub noise_seed: u32,                          // Noise seed for thread-safe generation
     pub last_player_position: Vec3,
     pub dirty: bool,
     pub terrain_material: Option<Handle<StandardMaterial>>, // Cached terrain material
     pub last_update_time: f64,                    // Track when chunks were last updated
     pub terrain_texture: Option<Handle<Image>>,   // Cached terrain texture
+    pub max_concurrent_tasks: usize,              // Limit concurrent generation tasks
 }
 
 impl Default for TerrainChunkManager {
@@ -101,17 +108,20 @@ impl Default for TerrainChunkManager {
             old_chunks: VecDeque::new(),
             chunk_pool: Vec::new(),
             generation_queue: VecDeque::new(),
+            generating_tasks: HashMap::new(),
             noise_generator: Perlin::new(42),
+            noise_seed: 42,
             last_player_position: Vec3::ZERO,
             dirty: true,
             terrain_material: None,
             last_update_time: 0.0,
             terrain_texture: None,
+            max_concurrent_tasks: 4, // Allow up to 4 concurrent terrain generation tasks
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChunkData {
     pub vertices: Vec<[f32; 3]>,
     pub indices: Vec<u32>,
@@ -138,6 +148,29 @@ impl ChunkData {
         self.colors.clear();
         self.uvs.clear();
     }
+}
+
+// Async terrain generation result
+#[derive(Debug)]
+pub struct TerrainGenerationResult {
+    pub chunk_key: ChunkKey,
+    pub chunk_data: ChunkData,
+}
+
+// Task handle for async terrain generation
+#[derive(Component)]
+pub struct TerrainGenerationTask {
+    pub task: Task<TerrainGenerationResult>,
+    pub chunk_key: ChunkKey,
+    pub started_time: f64,
+}
+
+// Thread-safe terrain generation parameters
+#[derive(Clone)]
+pub struct TerrainGenParams {
+    pub chunk_key: ChunkKey,
+    pub settings: TerrainSettings,
+    pub noise_seed: u32,
 }
 
 // Bug_Game style quadtree node
@@ -383,59 +416,6 @@ pub fn update_visible_chunks_quadtree(
     }
 }
 
-pub fn process_chunk_generation(
-    mut commands: Commands,
-    mut terrain_manager: ResMut<TerrainChunkManager>,
-    terrain_settings: Res<TerrainSettings>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-    _asset_server: Res<AssetServer>,
-) {
-    // Initialize shared terrain texture and material if not already created
-    if terrain_manager.terrain_texture.is_none() {
-        let terrain_texture = create_seamless_terrain_texture(&mut images);
-        terrain_manager.terrain_texture = Some(terrain_texture.clone());
-        
-        let shared_material = materials.add(StandardMaterial {
-            base_color: Color::WHITE, // Use white so vertex colors show through properly
-            base_color_texture: Some(terrain_texture),
-            perceptual_roughness: 0.9, // High roughness for natural terrain
-            metallic: 0.0, // No metallic reflection
-            reflectance: 0.1, // Low reflectance for matte finish
-            cull_mode: Some(bevy::render::render_resource::Face::Back),
-            double_sided: false,
-            unlit: false, // Use proper lighting
-            alpha_mode: AlphaMode::Opaque,
-            ..default()
-        });
-        terrain_manager.terrain_material = Some(shared_material);
-        debug!("Created shared terrain material with procedural texture");
-    }
-
-    // Process up to 2 chunks per frame (Bug_Game limit)
-    for _ in 0..2 {
-        if let Some(chunk_key) = terrain_manager.generation_queue.pop_front() {
-            debug!("Generating terrain chunk at ({}, {}) size {}", chunk_key.x, chunk_key.z, chunk_key.size);
-            let chunk_entity = generate_terrain_chunk_v2(
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut images,
-                chunk_key,
-                &terrain_settings,
-                &terrain_manager.noise_generator,
-                &terrain_manager.terrain_material,
-                &terrain_manager.terrain_texture,
-            );
-            
-            terrain_manager.chunks.insert(chunk_key, chunk_entity);
-            debug!("Generated terrain chunk entity {:?}", chunk_entity);
-        } else {
-            break;
-        }
-    }
-}
 
 pub fn retire_old_chunks(
     mut commands: Commands,
@@ -761,4 +741,282 @@ pub fn load_terrain_texture(
     let texture_handle: Handle<Image> = asset_server.load("textures/grass.jpg");
     terrain_manager.terrain_texture = Some(texture_handle);
     info!("Terrain texture loaded and cached");
+}
+
+// Thread-safe terrain generation function that runs on async compute thread pool
+async fn generate_terrain_chunk_async(params: TerrainGenParams) -> TerrainGenerationResult {
+    let chunk_key = params.chunk_key;
+    let settings = &params.settings;
+    let noise = Perlin::new(params.noise_seed);
+    
+    let resolution = calculate_resolution_for_chunk_size(chunk_key.size, settings.min_cell_resolution);
+    let step = chunk_key.size as f32 / resolution as f32;
+    
+    // Generate terrain data on background thread
+    let mut chunk_data = ChunkData::new();
+    
+    // Store height data for normal calculation
+    let mut height_data = vec![vec![0.0; (resolution + 1) as usize]; (resolution + 1) as usize];
+    
+    // Generate vertices and store heights
+    for z in 0..=resolution {
+        for x in 0..=resolution {
+            let world_x = chunk_key.x as f32 + x as f32 * step;
+            let world_z = chunk_key.z as f32 + z as f32 * step;
+            
+            let height = generate_height_v2(world_x, world_z, settings, &noise);
+            height_data[z as usize][x as usize] = height;
+            
+            chunk_data.vertices.push([world_x, height, world_z]);
+            
+            // UV mapping
+            let texture_tile_size = 10.0;
+            let u = world_x / texture_tile_size;
+            let v = world_z / texture_tile_size;
+            chunk_data.uvs.push([u, v]);
+            
+            // Terrain color
+            let color = calculate_terrain_color_v2(world_x, world_z, height, settings, &noise);
+            chunk_data.colors.push(color);
+        }
+    }
+    
+    // Calculate normals
+    for z in 0..=resolution {
+        for x in 0..=resolution {
+            let normal = calculate_normal_v2(&height_data, x as usize, z as usize, resolution as usize, step);
+            chunk_data.normals.push([normal.x, normal.y, normal.z]);
+        }
+    }
+    
+    // Generate indices
+    for z in 0..resolution {
+        for x in 0..resolution {
+            let i = z * (resolution + 1) + x;
+            let i_next_row = (z + 1) * (resolution + 1) + x;
+            
+            chunk_data.indices.extend_from_slice(&[
+                i as u32, i_next_row as u32, (i + 1) as u32,
+                (i + 1) as u32, i_next_row as u32, (i_next_row + 1) as u32,
+            ]);
+        }
+    }
+    
+    TerrainGenerationResult {
+        chunk_key,
+        chunk_data,
+    }
+}
+
+// System to start async terrain generation tasks
+pub fn start_chunk_generation_tasks(
+    mut commands: Commands,
+    mut terrain_manager: ResMut<TerrainChunkManager>,
+    terrain_settings: Res<TerrainSettings>,
+    mut images: ResMut<Assets<Image>>,
+    time: Res<Time>,
+) {
+    // Initialize shared terrain texture if needed
+    if terrain_manager.terrain_texture.is_none() {
+        let terrain_texture = create_seamless_terrain_texture(&mut images);
+        terrain_manager.terrain_texture = Some(terrain_texture);
+    }
+    
+    // Limit concurrent generation tasks
+    if terrain_manager.generating_tasks.len() >= terrain_manager.max_concurrent_tasks {
+        return;
+    }
+    
+    // Start new generation tasks
+    let tasks_to_start = terrain_manager.max_concurrent_tasks - terrain_manager.generating_tasks.len();
+    
+    for _ in 0..tasks_to_start {
+        if let Some(chunk_key) = terrain_manager.generation_queue.pop_front() {
+            // Skip if already generating this chunk
+            if terrain_manager.generating_tasks.contains_key(&chunk_key) {
+                continue;
+            }
+            
+            debug!("Starting async generation for terrain chunk at ({}, {}) size {}", 
+                   chunk_key.x, chunk_key.z, chunk_key.size);
+            
+            let params = TerrainGenParams {
+                chunk_key,
+                settings: (*terrain_settings).clone(),
+                noise_seed: terrain_manager.noise_seed,
+            };
+            
+            let task_pool = AsyncComputeTaskPool::get();
+            let task = task_pool.spawn(generate_terrain_chunk_async(params));
+            
+            let task_entity = commands.spawn(TerrainGenerationTask {
+                task,
+                chunk_key,
+                started_time: time.elapsed_secs_f64(),
+            }).id();
+            
+            terrain_manager.generating_tasks.insert(chunk_key, task_entity);
+        } else {
+            break;
+        }
+    }
+}
+
+// System to collect completed terrain generation tasks
+pub fn collect_generated_chunks(
+    mut commands: Commands,
+    mut terrain_manager: ResMut<TerrainChunkManager>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut generation_tasks: Query<&mut TerrainGenerationTask>,
+    time: Res<Time>,
+) {
+    let mut completed_tasks = Vec::new();
+    
+    // Check all active generation tasks - collect data first to avoid borrowing conflicts
+    let task_data: Vec<(ChunkKey, Entity)> = terrain_manager.generating_tasks.iter().map(|(k, e)| (*k, *e)).collect();
+    
+    for (chunk_key, task_entity) in task_data {
+        if let Ok(mut task) = generation_tasks.get_mut(task_entity) {
+            // Check if task is completed
+            if task.task.is_finished() {
+                // Extract the result from the completed task
+                let result = block_on(&mut task.task);
+                
+                info!("✅ Async terrain generation completed for chunk ({}, {}) size {}", 
+                       result.chunk_key.x, result.chunk_key.z, result.chunk_key.size);
+                
+                // Create mesh from the generated data
+                let chunk_entity = create_mesh_from_chunk_data(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    result.chunk_key,
+                    result.chunk_data,
+                    &terrain_manager.terrain_material,
+                    &terrain_manager.terrain_texture,
+                );
+                
+                // Add to active chunks
+                terrain_manager.chunks.insert(result.chunk_key, chunk_entity);
+                completed_tasks.push((chunk_key, task_entity));
+            } else {
+                // Check for timeout (optional)
+                let elapsed = time.elapsed_secs_f64() - task.started_time;
+                if elapsed > 10.0 { // 10 second timeout
+                    warn!("Terrain generation task timed out for chunk ({}, {}) size {}", 
+                          chunk_key.x, chunk_key.z, chunk_key.size);
+                    completed_tasks.push((chunk_key, task_entity));
+                }
+            }
+        }
+    }
+    
+    // Clean up completed tasks
+    for (chunk_key, task_entity) in completed_tasks {
+        terrain_manager.generating_tasks.remove(&chunk_key);
+        commands.entity(task_entity).despawn();
+    }
+}
+
+// Fallback sync terrain generation for when async fails
+pub fn process_sync_chunk_generation(
+    mut commands: Commands,
+    mut terrain_manager: ResMut<TerrainChunkManager>,
+    terrain_settings: Res<TerrainSettings>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+) {
+    // Initialize shared terrain texture and material if not already created
+    if terrain_manager.terrain_texture.is_none() {
+        let terrain_texture = create_seamless_terrain_texture(&mut images);
+        terrain_manager.terrain_texture = Some(terrain_texture.clone());
+        
+        let shared_material = materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            base_color_texture: Some(terrain_texture),
+            perceptual_roughness: 0.9,
+            metallic: 0.0,
+            reflectance: 0.1,
+            cull_mode: Some(bevy::render::render_resource::Face::Back),
+            double_sided: false,
+            unlit: false,
+            alpha_mode: AlphaMode::Opaque,
+            ..default()
+        });
+        terrain_manager.terrain_material = Some(shared_material);
+    }
+
+    // Process up to 1 chunk per frame to keep framerate smooth
+    if let Some(chunk_key) = terrain_manager.generation_queue.pop_front() {
+        debug!("Generating terrain chunk synchronously at ({}, {}) size {}", 
+               chunk_key.x, chunk_key.z, chunk_key.size);
+        
+        let chunk_entity = generate_terrain_chunk_v2(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut images,
+            chunk_key,
+            &terrain_settings,
+            &terrain_manager.noise_generator,
+            &terrain_manager.terrain_material,
+            &terrain_manager.terrain_texture,
+        );
+        
+        terrain_manager.chunks.insert(chunk_key, chunk_entity);
+    }
+}
+
+// Helper function to create mesh from generated chunk data
+fn create_mesh_from_chunk_data(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    chunk_key: ChunkKey,
+    chunk_data: ChunkData,
+    cached_material: &Option<Handle<StandardMaterial>>,
+    terrain_texture: &Option<Handle<Image>>,
+) -> Entity {
+    // Create mesh
+    let mut mesh = Mesh::new(
+        bevy::render::render_resource::PrimitiveTopology::TriangleList,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+    
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, chunk_data.vertices);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, chunk_data.normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, chunk_data.uvs);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, chunk_data.colors);
+    mesh.insert_indices(bevy::render::mesh::Indices::U32(chunk_data.indices));
+    
+    // Use cached material or create new one
+    let material = if let Some(cached_mat) = cached_material {
+        cached_mat.clone()
+    } else {
+        materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            base_color_texture: terrain_texture.clone(),
+            perceptual_roughness: 0.9,
+            metallic: 0.0,
+            reflectance: 0.1,
+            cull_mode: Some(bevy::render::render_resource::Face::Back),
+            double_sided: false,
+            unlit: false,
+            alpha_mode: AlphaMode::Opaque,
+            ..default()
+        })
+    };
+    
+    commands.spawn((
+        Mesh3d(meshes.add(mesh)),
+        MeshMaterial3d(material),
+        Transform::from_translation(Vec3::ZERO),
+        TerrainChunk {
+            key: chunk_key,
+            generation_time: 0.0,
+            is_ready: true,
+        },
+    )).id()
 }
