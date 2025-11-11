@@ -236,11 +236,11 @@ fn update_rotation(transform: &mut Transform, direction: Vec3, movement: &Moveme
     }
 
     // Calculate rotation based on model type
-    // Some models (Fourmi/Ant) naturally face forward and don't need pre-rotation
+    // Some models (Fourmi/Ant, Butterfly) naturally face backward in GLB and don't need pre-rotation
     // Others face backward and are pre-rotated 180° in entity_factory
     let target_rotation = match rts_unit.unit_type.as_ref() {
-        Some(UnitType::WorkerAnt) | Some(UnitType::SoldierAnt) => {
-            // Ant models naturally face backward in GLB, no pre-rotation applied
+        Some(UnitType::WorkerAnt) | Some(UnitType::SoldierAnt) | Some(UnitType::ScoutAnt) => {
+            // Ant and butterfly models naturally face backward in GLB, no pre-rotation applied
             // Use negated formula for backward-facing models
             Quat::from_rotation_y(-direction.x.atan2(-direction.z))
         }

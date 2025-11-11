@@ -222,7 +222,6 @@ fn finalize_selection(
     let is_drag = is_significant_drag(&bounds);
 
     if is_drag {
-        // Only clear selections and perform box selection if it was actually a drag
         if !shift_held {
             clear_all_selections(selectables);
         }
