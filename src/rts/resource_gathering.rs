@@ -135,18 +135,18 @@ fn ensure_dropoff_building_assigned(
 fn process_resource_gathering(
     gatherer: &mut ResourceGatherer,
     gatherer_transform: &Transform,
-    _unit: &RTSUnit,
+    unit: &RTSUnit,
     resources: &mut Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
     delta_time: f32,
     commands: &mut Commands,
 ) {
     let Some(resource_entity) = gatherer.target_resource else { return };
-    
+
     let Ok((_, mut resource, resource_transform)) = resources.get_mut(resource_entity) else {
         gatherer.target_resource = None;
         return;
     };
-    
+
     let distance = gatherer_transform.translation.distance(resource_transform.translation);
 
     if distance > GATHERING_DISTANCE {
@@ -155,13 +155,50 @@ fn process_resource_gathering(
 
     // If at full capacity, stop gathering but keep target_resource so we can return after delivery
     if gatherer.carried_amount >= gatherer.capacity {
+        // Log when worker reaches full capacity and stops gathering
+        static mut LAST_FULL_LOG: std::collections::HashMap<u32, f32> = std::collections::HashMap::new();
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f32();
+
+        unsafe {
+            let last_time = LAST_FULL_LOG.get(&unit.unit_id).copied().unwrap_or(0.0);
+            if current_time - last_time > 2.0 {
+                info!("📦 Worker {} (player {}) FULL: {:.1}/{:.1} - waiting to return",
+                      unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
+                LAST_FULL_LOG.insert(unit.unit_id, current_time);
+            }
+        }
         return;
     }
 
     let gather_amount = calculate_gather_amount(gatherer, &resource, delta_time);
+
+    // Log gathering progress periodically
+    if gather_amount > 0.0 {
+        static mut LAST_GATHER_LOG: std::collections::HashMap<u32, f32> = std::collections::HashMap::new();
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs_f32();
+
+        unsafe {
+            let last_time = LAST_GATHER_LOG.get(&unit.unit_id).copied().unwrap_or(0.0);
+            if current_time - last_time > 1.0 {
+                info!("⛏️  Worker {} (player {}) gathering {:?}: {:.1}/{:.1} (resource has {:.1} left)",
+                      unit.unit_id, unit.player_id, gatherer.resource_type,
+                      gatherer.carried_amount, gatherer.capacity, resource.amount);
+                LAST_GATHER_LOG.insert(unit.unit_id, current_time);
+            }
+        }
+    }
+
     apply_gathering(gatherer, &mut resource, gather_amount);
-    
+
     if resource.amount <= 0.0 {
+        info!("🔴 Resource depleted! Worker {} (player {}) has {:.1}/{:.1} resources",
+              unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
         commands.entity(resource_entity).despawn();
         gatherer.target_resource = None;
     }
@@ -199,7 +236,25 @@ fn process_resource_delivery(
 
     // If still gathering from a resource, don't return yet (unless at full capacity)
     if gatherer.target_resource.is_some() && gatherer.carried_amount < gatherer.capacity {
+        // Still gathering, not ready to return yet
         return;
+    }
+
+    // Log when worker decides to return
+    static mut DELIVERY_DECISION_LOGGED: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    unsafe {
+        if !DELIVERY_DECISION_LOGGED.contains(&unit.unit_id) {
+            let reason = if gatherer.carried_amount >= gatherer.capacity {
+                "FULL CAPACITY"
+            } else if gatherer.target_resource.is_none() {
+                "RESOURCE DEPLETED"
+            } else {
+                "UNKNOWN"
+            };
+            info!("🔵 Worker {} (player {}) READY TO RETURN: {:.1}/{:.1} resources (reason: {})",
+                  unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity, reason);
+            DELIVERY_DECISION_LOGGED.insert(unit.unit_id);
+        }
     }
 
     let Some(dropoff_entity) = gatherer.drop_off_building else {

@@ -254,7 +254,7 @@ impl EntityFactory {
             entity.insert((
                 ResourceGatherer {
                     gather_rate: 10.0,
-                    capacity: 10.0,
+                    capacity: 5.0,  // Reduced from 10.0 for faster testing
                     carried_amount: 0.0,
                     resource_type: None,
                     target_resource: None,
