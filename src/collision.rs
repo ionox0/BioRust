@@ -161,8 +161,9 @@ struct CollisionInfo {
 /// 3. Applying appropriate avoidance forces
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
-    // Query for static obstacles: buildings OR environment objects/resources
-    buildings: Query<(&Transform, &CollisionRadius), (With<Building>, Without<Movement>)>,
+    // Query for static obstacles: buildings use Position+GlobalTransform for GLB model compatibility
+    buildings: Query<(&Position, &CollisionRadius), (With<Building>, Without<Movement>)>,
+    // Environment objects use Transform directly
     environment_objects: Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<Movement>)>,
     time: Res<Time>,
 ) {
@@ -182,11 +183,12 @@ pub fn unit_collision_avoidance_system(
         let is_moving = velocity_magnitude > 0.5; // Higher threshold to reduce sensitivity
 
         // Check collision with buildings (static obstacles)
-        for (building_transform, building_radius) in buildings.iter() {
+        // Buildings use Position component for their world location (GLB models)
+        for (building_position, building_radius) in buildings.iter() {
             if let Some(collision) = check_collision(
                 unit_transform.translation,
                 unit_radius.radius,
-                building_transform.translation,
+                building_position.translation,
                 building_radius.radius,
                 1.5, // Larger buffer for buildings
             ) {
