@@ -21,7 +21,7 @@ pub mod movement {
     
     // Collision and separation
     pub const SEPARATION_MULTIPLIER: f32 = 1.8;  // Units separate at 1.8x their radius (reduced to prevent jiggling)
-    pub const SEPARATION_FORCE_STRENGTH: f32 = 25.0;  // Much gentler separation force to prevent jiggling
+    pub const SEPARATION_FORCE_STRENGTH: f32 = 8.0;  // Very gentle separation force to eliminate jerkiness
     
     // Default spawn height
     pub const DEFAULT_SPAWN_HEIGHT: f32 = 10.0;

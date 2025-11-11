@@ -66,7 +66,7 @@ pub const WORKER_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 75.0,  // 3x faster - workers need to move efficiently
-        acceleration: 45.0,
+        acceleration: 25.0,  // Reduced for smoother movement
         turning_speed: 2.0,
     },
     vision: VisionStats {
@@ -93,7 +93,7 @@ pub const SOLDIER_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 80.0,  // 2.6x faster - strong melee units
-        acceleration: 60.0,
+        acceleration: 35.0,  // Reduced for smoother movement
         turning_speed: 2.5,
     },
     vision: VisionStats {
@@ -120,7 +120,7 @@ pub const HUNTER_WASP_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 85.0,  // 2.8x faster - flying ranged units should be fast
-        acceleration: 120.0,
+        acceleration: 40.0,  // Reduced for smoother movement
         turning_speed: 2.5,
     },
     vision: VisionStats {
@@ -147,7 +147,7 @@ pub const SPEAR_MANTIS_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 70.0,  // 2.8x faster - elite mantis units
-        acceleration: 110.0,
+        acceleration: 40.0,  // Reduced for smoother movement
         turning_speed: 2.8,
     },
     vision: VisionStats {
@@ -174,7 +174,7 @@ pub const SCOUT_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 120.0,  // 3x faster - scouts should be very fast
-        acceleration: 140.0,
+        acceleration: 50.0,  // Reduced for smoother movement
         turning_speed: 3.2,
     },
     vision: VisionStats {
@@ -201,7 +201,7 @@ pub const BEETLE_KNIGHT_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 90.0,  // 2.5x faster - heavy units but still mobile
-        acceleration: 140.0,
+        acceleration: 50.0,  // Reduced for smoother movement
         turning_speed: 3.0,
     },
     vision: VisionStats {
@@ -228,7 +228,7 @@ pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
     },
     movement: MovementStats {
         max_speed: 1200.0,  // Balanced speed for smooth collision handling (1200 / 25 / 2 = 24 final speed)
-        acceleration: 1200.0,  // Matched acceleration for smooth movement
+        acceleration: 600.0,  // Reduced acceleration for smoother movement
         turning_speed: 3.0,  // Fast turning without jitter
     },
     vision: VisionStats {

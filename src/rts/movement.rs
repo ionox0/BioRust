@@ -153,9 +153,9 @@ fn apply_collision_avoidance(
         let velocity_factor = (1.0 - movement.current_velocity.length() / movement.max_speed).max(0.2);
         movement.current_velocity += separation_data.force * context.delta_time * velocity_factor;
     }
-    
+
     if separation_data.has_collision {
-        movement.current_velocity *= 0.7;
+        movement.current_velocity *= 0.5;  // Stronger damping to reduce jerkiness
     }
     
     movement.current_velocity = clamp_velocity(movement.current_velocity);
