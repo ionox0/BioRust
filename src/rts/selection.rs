@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 
 // Helper functions for selection system
 
@@ -17,9 +17,13 @@ pub fn click_selection_system(
     }
 
     let window = windows.single();
-    let Some(cursor_position) = window.cursor_position() else { return };
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
     let (camera, camera_transform) = camera_q.single();
-    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else { return };
+    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
 
     let shift_held = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
 
@@ -93,18 +97,36 @@ pub fn drag_selection_system(
     let window = windows.single();
     let (camera, camera_transform) = camera_q.single();
 
-    let Some(cursor_position) = window.cursor_position() else { return };
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
 
     if mouse_button.just_pressed(MouseButton::Left) {
         start_drag_selection(&mut drag_selection_query, cursor_position, &mut commands);
     }
 
     if mouse_button.pressed(MouseButton::Left) {
-        update_drag_selection(&mut drag_selection_query, cursor_position, &selection_box_query, &mut commands, &mut meshes, &mut materials);
+        update_drag_selection(
+            &mut drag_selection_query,
+            cursor_position,
+            &selection_box_query,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+        );
     }
 
     if mouse_button.just_released(MouseButton::Left) {
-        finalize_selection(&mut drag_selection_query, &mut selectables, &keyboard, &selection_box_query, cursor_position, &mut commands, camera, camera_transform);
+        finalize_selection(
+            &mut drag_selection_query,
+            &mut selectables,
+            &keyboard,
+            &selection_box_query,
+            cursor_position,
+            &mut commands,
+            camera,
+            camera_transform,
+        );
     }
 }
 
@@ -134,18 +156,20 @@ fn update_drag_selection(
     _meshes: &mut ResMut<Assets<Mesh>>,
     _materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    let Ok(mut drag_selection) = drag_selection_query.get_single_mut() else { return };
-    
+    let Ok(mut drag_selection) = drag_selection_query.get_single_mut() else {
+        return;
+    };
+
     if !drag_selection.is_active {
         return;
     }
-    
+
     drag_selection.current_position = cursor_position;
-    
+
     let bounds = calculate_selection_bounds(&drag_selection);
-    
+
     cleanup_old_selection_box(selection_box_query, commands);
-    
+
     if is_significant_drag(&bounds) {
         create_visual_selection_box(&bounds, commands);
     }
@@ -160,10 +184,22 @@ struct SelectionBounds {
 
 fn calculate_selection_bounds(drag_selection: &DragSelection) -> SelectionBounds {
     SelectionBounds {
-        min_x: drag_selection.start_position.x.min(drag_selection.current_position.x),
-        max_x: drag_selection.start_position.x.max(drag_selection.current_position.x),
-        min_y: drag_selection.start_position.y.min(drag_selection.current_position.y),
-        max_y: drag_selection.start_position.y.max(drag_selection.current_position.y),
+        min_x: drag_selection
+            .start_position
+            .x
+            .min(drag_selection.current_position.x),
+        max_x: drag_selection
+            .start_position
+            .x
+            .max(drag_selection.current_position.x),
+        min_y: drag_selection
+            .start_position
+            .y
+            .min(drag_selection.current_position.y),
+        max_y: drag_selection
+            .start_position
+            .y
+            .max(drag_selection.current_position.y),
     }
 }
 
@@ -211,7 +247,9 @@ fn finalize_selection(
     camera: &Camera,
     camera_transform: &GlobalTransform,
 ) {
-    let Ok(mut drag_selection) = drag_selection_query.get_single_mut() else { return };
+    let Ok(mut drag_selection) = drag_selection_query.get_single_mut() else {
+        return;
+    };
 
     if !drag_selection.is_active {
         return;
@@ -270,7 +308,6 @@ fn perform_box_selection(
     info!("📦 Box selected {} units", selected_count);
 }
 
-
 fn update_selection_state(selectable: &mut Selectable, shift_held: bool) {
     if shift_held {
         selectable.is_selected = !selectable.is_selected;
@@ -294,7 +331,7 @@ fn spawn_selection_indicator(
     commands.spawn((
         Mesh3d(meshes.add(ring_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.3, 0.6, 1.0), // Bright blue
+            base_color: Color::srgb(0.3, 0.6, 1.0),      // Bright blue
             emissive: Color::srgb(0.2, 0.4, 0.8).into(), // Blue glow
             unlit: true,
             alpha_mode: AlphaMode::Blend,
@@ -304,7 +341,7 @@ fn spawn_selection_indicator(
         Transform::from_translation(Vec3::new(
             transform.translation.x,
             0.1, // Slightly above ground
-            transform.translation.z
+            transform.translation.z,
         )),
         SelectionIndicator { target: entity },
     ));
@@ -314,7 +351,7 @@ fn spawn_selection_indicator(
 fn create_hollow_ring_mesh(radius: f32, segments: usize) -> Mesh {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
-    
+
     // Create vertices around the circle
     for i in 0..segments {
         let angle = (i as f32 / segments as f32) * std::f32::consts::TAU;
@@ -322,22 +359,22 @@ fn create_hollow_ring_mesh(radius: f32, segments: usize) -> Mesh {
         let z = angle.sin() * radius;
         positions.push([x, 0.0, z]);
     }
-    
+
     // Create line indices to connect the vertices in a loop
     for i in 0..segments {
         let next = (i + 1) % segments;
         indices.push(i as u32);
         indices.push(next as u32);
     }
-    
+
     let mut mesh = Mesh::new(
         bevy::render::render_resource::PrimitiveTopology::LineList,
         bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
     );
-    
+
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
-    
+
     mesh
 }
 
@@ -354,18 +391,30 @@ pub fn create_selection_indicators(
 
         if selectable.is_selected && !has_indicator {
             // Unit is selected but doesn't have an indicator yet - create one
-            spawn_selection_indicator(entity, transform, selectable, &mut commands, &mut meshes, &mut materials);
+            spawn_selection_indicator(
+                entity,
+                transform,
+                selectable,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+            );
         }
     }
 }
 
 /// System to update selection indicator positions and remove indicators for deselected units
 pub fn selection_indicator_system(
-    mut selection_indicators: Query<(Entity, &mut Transform, &SelectionIndicator), With<SelectionIndicator>>,
+    mut selection_indicators: Query<
+        (Entity, &mut Transform, &SelectionIndicator),
+        With<SelectionIndicator>,
+    >,
     selectables: Query<(&Selectable, &Transform), (With<RTSUnit>, Without<SelectionIndicator>)>,
     mut commands: Commands,
 ) {
-    for (indicator_entity, mut indicator_transform, selection_indicator) in selection_indicators.iter_mut() {
+    for (indicator_entity, mut indicator_transform, selection_indicator) in
+        selection_indicators.iter_mut()
+    {
         if let Ok((selectable, unit_transform)) = selectables.get(selection_indicator.target) {
             if selectable.is_selected {
                 // Update indicator position to follow the unit

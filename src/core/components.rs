@@ -42,9 +42,12 @@ impl TeamColor {
             4 => PLAYER_4_TINT,
             _ => UNKNOWN_PLAYER_TINT,
         };
-        Self { player_id, tint_color }
+        Self {
+            player_id,
+            tint_color,
+        }
     }
-    
+
     /// Get the primitive color for a player (used for fallback geometric shapes)
     pub fn get_primitive_color(player_id: u8) -> Color {
         use crate::core::constants::team_colors::*;
@@ -136,8 +139,8 @@ impl Default for StuckDetection {
 impl Default for Movement {
     fn default() -> Self {
         Self {
-            max_speed: 200.0,  // 2x speed increase for default
-            acceleration: 400.0,  // 2x acceleration increase for default
+            max_speed: 200.0,    // 2x speed increase for default
+            acceleration: 400.0, // 2x acceleration increase for default
             turning_speed: 4.0,  // Slightly faster turning
             current_velocity: Vec3::ZERO,
             target_position: None,
@@ -167,6 +170,9 @@ impl Default for RTSHealth {
         }
     }
 }
+
+// Alias for compatibility with existing code
+pub type Health = RTSHealth;
 
 #[derive(Component, Debug, Clone)]
 pub struct Combat {
@@ -203,14 +209,14 @@ pub struct CombatState {
 pub enum CombatStateType {
     /// Unit is not in combat, following normal movement/orders
     Idle,
+    /// Unit is moving toward a combat engagement (initial movement to fight)
+    MovingToCombat,
     /// Unit is moving toward an attack target but not yet in range
     MovingToAttack,
     /// Unit is actively engaged in combat, within attack range
     InCombat,
     /// Unit is in combat but temporarily moving (chasing fleeing enemy, repositioning)
     CombatMoving,
-    /// Unit is retreating from combat
-    Retreating,
 }
 
 impl Default for CombatState {
@@ -255,7 +261,6 @@ impl ResourceType {
         }
     }
 
-
     /// Add an amount to this resource in PlayerResources
     pub fn add_to(&self, resources: &mut crate::core::resources::PlayerResources, amount: f32) {
         match self {
@@ -267,7 +272,11 @@ impl ResourceType {
     }
 
     /// Subtract an amount from this resource in PlayerResources
-    pub fn subtract_from(&self, resources: &mut crate::core::resources::PlayerResources, amount: f32) {
+    pub fn subtract_from(
+        &self,
+        resources: &mut crate::core::resources::PlayerResources,
+        amount: f32,
+    ) {
         match self {
             Self::Nectar => resources.nectar -= amount,
             Self::Chitin => resources.chitin -= amount,
@@ -330,19 +339,19 @@ pub enum UnitType {
     ScoutAnt,
     BatteringBeetle,
     AcidSpitter,
-    
+
     // Additional unit types for new models
-    DragonFly,      // Flying reconnaissance unit
-    DefenderBug,    // Defensive unit
-    EliteSpider,    // Elite predator unit
+    DragonFly,   // Flying reconnaissance unit
+    DefenderBug, // Defensive unit
+    EliteSpider, // Elite predator unit
 
     // Units for previously unused models
-    HoneyBee,       // Basic flying unit (bee-v1.glb)
-    Scorpion,       // Heavy melee unit with armor
-    SpiderHunter,   // Light predator unit (spider_small.glb)
-    WolfSpider,     // Heavy predator unit
-    Ladybug,        // Balanced mid-tier unit
-    LadybugScout,   // Light scout variant (ladybug_simple.glb)
+    HoneyBee,     // Basic flying unit (bee-v1.glb)
+    Scorpion,     // Heavy melee unit with armor
+    SpiderHunter, // Light predator unit (spider_small.glb)
+    WolfSpider,   // Heavy predator unit
+    Ladybug,      // Balanced mid-tier unit
+    LadybugScout, // Light scout variant (ladybug_simple.glb)
 
     // Units for newly added models
     Housefly,       // Fast flying harassment unit
@@ -380,7 +389,7 @@ pub enum FormationType {
     Box,
     Wedge,
     Circle,
-    Spread,  // Wide spread formation with greater spacing
+    Spread, // Wide spread formation with greater spacing
 }
 
 #[derive(Component, Debug, Clone)]
@@ -536,53 +545,105 @@ pub struct DeathEvent {
 #[derive(Component, Debug)]
 pub struct Dying;
 
-/// General entity state for game logic (separate from animation states)
-/// This tracks the high-level state of what an entity is doing
+/// Resource gathering state component
+/// Tracks units that are collecting or returning resources
 #[derive(Component, Debug, Clone, PartialEq)]
-pub struct EntityState {
-    pub current: UnitState,
-    pub previous: UnitState,
-    pub state_timer: f32, // How long the entity has been in this state
+pub struct GatheringState {
+    pub state: GatheringStateType,
+    pub target_resource: Option<Entity>,
+    pub return_building: Option<Entity>,
+    pub gather_start_time: f32,
+    pub last_state_change: f32,
 }
 
-impl Default for EntityState {
+#[derive(Debug, Clone, PartialEq)]
+pub enum GatheringStateType {
+    /// Moving to a resource to start gathering
+    MovingToResource,
+    /// Actively gathering from a resource
+    Gathering,
+    /// Moving back to base with gathered resources
+    ReturningToBase,
+    /// Delivering resources to a building
+    DeliveringResources,
+}
+
+impl Default for GatheringState {
     fn default() -> Self {
         Self {
-            current: UnitState::Idle,
-            previous: UnitState::Idle,
-            state_timer: 0.0,
+            state: GatheringStateType::MovingToResource,
+            target_resource: None,
+            return_building: None,
+            gather_start_time: 0.0,
+            last_state_change: 0.0,
         }
     }
 }
 
-/// High-level states that entities can be in
-/// This affects AI behavior, decision making, and game logic
+/// Construction state component
+/// Tracks units that are building structures
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct BuildingState {
+    pub state: BuildingStateType,
+    pub target_site: Option<Entity>,
+    pub construction_progress: f32,
+    pub build_start_time: f32,
+    pub last_state_change: f32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum UnitState {
-    /// Entity is not doing anything specific
-    Idle,
-    /// Entity is moving to a target location
+pub enum BuildingStateType {
+    /// Moving to a construction site
+    MovingToSite,
+    /// Actively constructing the building
+    Constructing,
+    /// Construction completed, returning to idle
+    ConstructionComplete,
+}
+
+impl Default for BuildingState {
+    fn default() -> Self {
+        Self {
+            state: BuildingStateType::MovingToSite,
+            target_site: None,
+            construction_progress: 0.0,
+            build_start_time: 0.0,
+            last_state_change: 0.0,
+        }
+    }
+}
+
+/// Movement state component
+/// Tracks units that are moving without other specific activities
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct MovementState {
+    pub state: MovementStateType,
+    pub destination: Vec3,
+    pub move_start_time: f32,
+    pub last_state_change: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MovementStateType {
+    /// Moving to a destination
     Moving,
-    /// Entity is in combat (attacking or being attacked)
-    Fighting,
-    /// Entity is gathering resources
-    Gathering,
-    /// Entity is returning to base with gathered resources
-    ReturningWithResources,
-    /// Entity is constructing a building
-    #[allow(dead_code)]
-    Building,
-    /// Entity is dead and should be cleaned up
-    Dead,
-    /// Entity is following another entity
-    #[allow(dead_code)]
+    /// Following another entity
     Following,
-    /// Entity is patrolling between waypoints
-    #[allow(dead_code)]
+    /// Patrolling between waypoints
     Patrolling,
-    /// Entity is guarding a specific location or entity
-    #[allow(dead_code)]
+    /// Guarding a specific location
     Guarding,
+}
+
+impl Default for MovementState {
+    fn default() -> Self {
+        Self {
+            state: MovementStateType::Moving,
+            destination: Vec3::ZERO,
+            move_start_time: 0.0,
+            last_state_change: 0.0,
+        }
+    }
 }
 
 #[derive(Component, Debug)]
@@ -639,7 +700,7 @@ pub enum EnvironmentObjectType {
     Hive,
     /// Wood stick debris for natural clutter
     WoodStick,
-    
+
     // New environment object types
     /// Rock formations for geological features
     Rocks,

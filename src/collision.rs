@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 use std::collections::HashMap;
 
 pub struct CollisionPlugin;
@@ -26,7 +26,10 @@ impl SpatialGrid {
 
     fn insert(&mut self, entity: Entity, position: Vec3, radius: f32) {
         let cell = Self::get_cell(position);
-        self.cells.entry(cell).or_default().push((entity, position, radius));
+        self.cells
+            .entry(cell)
+            .or_default()
+            .push((entity, position, radius));
     }
 
     fn get_cell(position: Vec3) -> (i32, i32) {
@@ -57,8 +60,6 @@ impl SpatialGrid {
         results
     }
 }
-
-
 
 /// Helper to check if two entities are colliding
 fn check_collision(
@@ -126,7 +127,10 @@ mod collision_constants {
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
     buildings: Query<(&Position, &CollisionRadius), (With<Building>, Without<Movement>)>,
-    environment_objects: Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<Movement>)>,
+    environment_objects: Query<
+        (&Transform, &CollisionRadius),
+        (With<EnvironmentObject>, Without<Movement>),
+    >,
     time: Res<Time>,
 ) {
     use collision_constants::*;
@@ -135,7 +139,8 @@ pub fn unit_collision_avoidance_system(
 
     // Build spatial grid for units
     let mut unit_grid = SpatialGrid::new();
-    let unit_data: Vec<_> = units.iter()
+    let unit_data: Vec<_> = units
+        .iter()
         .map(|(e, t, m, r)| (e, t.translation, r.radius, m.current_velocity))
         .collect();
 
@@ -166,14 +171,16 @@ pub fn unit_collision_avoidance_system(
         );
 
         // Check collisions with nearby units using spatial grid
-        let nearby_units = unit_grid.query_nearby(unit_transform.translation, unit_radius.radius * 5.0);
+        let nearby_units =
+            unit_grid.query_nearby(unit_transform.translation, unit_radius.radius * 5.0);
         for (other_entity, other_pos, other_radius) in nearby_units {
             if unit_entity == other_entity {
                 continue;
             }
 
             // Find velocity of other unit
-            let other_velocity = unit_data.iter()
+            let other_velocity = unit_data
+                .iter()
                 .find(|(e, _, _, _)| *e == other_entity)
                 .map(|(_, _, _, v)| *v)
                 .unwrap_or(Vec3::ZERO);
@@ -201,7 +208,8 @@ pub fn unit_collision_avoidance_system(
                     avoidance_force += collision.direction * force_magnitude * force_multiplier;
 
                     if collision.overlap > collision.min_distance * SERIOUS_UNIT_OVERLAP_RATIO {
-                        unit_transform.translation += collision.direction * collision.overlap * GENTLE_PUSH_MULTIPLIER;
+                        unit_transform.translation +=
+                            collision.direction * collision.overlap * GENTLE_PUSH_MULTIPLIER;
                     }
                 }
             }
@@ -220,7 +228,8 @@ pub fn unit_collision_avoidance_system(
                     new_velocity
                 };
             } else {
-                unit_transform.translation += avoidance_force.normalize() * dt * STATIONARY_ADJUSTMENT_FACTOR;
+                unit_transform.translation +=
+                    avoidance_force.normalize() * dt * STATIONARY_ADJUSTMENT_FACTOR;
             }
 
             movement.current_velocity *= VELOCITY_DAMPING;
@@ -251,7 +260,8 @@ fn process_static_collisions(
                 force += collision.direction * force_magnitude * AVOIDANCE_FORCE_BASE;
 
                 if collision.distance < collision.min_distance * SERIOUS_OVERLAP_RATIO {
-                    transform.translation += collision.direction * collision.overlap * PUSH_MULTIPLIER;
+                    transform.translation +=
+                        collision.direction * collision.overlap * PUSH_MULTIPLIER;
                 }
             }
         }
@@ -262,7 +272,10 @@ fn process_static_collisions(
 fn process_environment_collisions(
     position: Vec3,
     radius: f32,
-    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<Movement>)>,
+    environment_objects: &Query<
+        (&Transform, &CollisionRadius),
+        (With<EnvironmentObject>, Without<Movement>),
+    >,
     buffer: f32,
     transform: &mut Transform,
 ) -> Vec3 {
@@ -282,14 +295,14 @@ fn process_environment_collisions(
                 force += collision.direction * force_magnitude * AVOIDANCE_FORCE_BASE;
 
                 if collision.distance < collision.min_distance * SERIOUS_OVERLAP_RATIO {
-                    transform.translation += collision.direction * collision.overlap * PUSH_MULTIPLIER;
+                    transform.translation +=
+                        collision.direction * collision.overlap * PUSH_MULTIPLIER;
                 }
             }
         }
     }
     force
 }
-
 
 /// Validate that a building can be placed at the given position without overlapping
 /// Returns true if the position is valid (no collisions), false otherwise
@@ -305,9 +318,9 @@ where
     UF: bevy::ecs::query::QueryFilter,
     EF: bevy::ecs::query::QueryFilter,
 {
-    check_building_collisions(position, building_radius, existing_buildings) &&
-    check_unit_collisions(position, building_radius, units) &&
-    check_environment_collisions(position, building_radius, environment_objects)
+    check_building_collisions(position, building_radius, existing_buildings)
+        && check_unit_collisions(position, building_radius, units)
+        && check_environment_collisions(position, building_radius, environment_objects)
 }
 
 fn check_building_collisions<BF>(
@@ -319,10 +332,11 @@ where
     BF: bevy::ecs::query::QueryFilter,
 {
     use crate::constants::building_placement::MIN_SPACING_BETWEEN_BUILDINGS;
-    
+
     for (transform, collision_radius) in existing_buildings.iter() {
         let distance = position.distance(transform.translation);
-        let min_distance = building_radius + collision_radius.radius + MIN_SPACING_BETWEEN_BUILDINGS;
+        let min_distance =
+            building_radius + collision_radius.radius + MIN_SPACING_BETWEEN_BUILDINGS;
 
         if distance < min_distance {
             return false; // Too close to another building
@@ -340,7 +354,7 @@ where
     UF: bevy::ecs::query::QueryFilter,
 {
     use crate::constants::building_placement::MIN_SPACING_FROM_UNITS;
-    
+
     for (transform, collision_radius) in units.iter() {
         let distance = position.distance(transform.translation);
         let min_distance = building_radius + collision_radius.radius + MIN_SPACING_FROM_UNITS;
@@ -360,7 +374,6 @@ fn check_environment_collisions<EF>(
 where
     EF: bevy::ecs::query::QueryFilter,
 {
-    
     for (transform, collision_radius, env_object) in environment_objects.iter() {
         let distance = position.distance(transform.translation);
         let extra_spacing = calculate_environment_spacing(&env_object.object_type);
@@ -374,9 +387,8 @@ where
 }
 
 fn calculate_environment_spacing(object_type: &EnvironmentObjectType) -> f32 {
-    
     match object_type {
         EnvironmentObjectType::Mushrooms => 80.0, // Much wider radius for mushrooms
-        _ => 3.0, // Normal spacing for other objects
+        _ => 3.0,                                 // Normal spacing for other objects
     }
 }

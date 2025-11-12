@@ -1,12 +1,12 @@
 //! # Unified Entity Factory
-//! 
+//!
 //! Consolidated factory for spawning all game entities with clean parameter passing
 //! and efficient code organization. Replaces scattered spawn functions across the codebase.
 
-use bevy::prelude::*;
 use crate::core::components::*;
-use crate::rendering::model_loader::*;
 use crate::rendering::animation_systems::*;
+use crate::rendering::model_loader::*;
+use bevy::prelude::*;
 use rand;
 
 /// Configuration for spawning any entity in the game
@@ -39,7 +39,7 @@ impl SpawnConfig {
             prefer_glb: true,
         }
     }
-    
+
     /// Create a basic spawn config for a building
     pub fn building(entity_type: EntityType, position: Vec3, player_id: u8) -> Self {
         Self {
@@ -58,7 +58,7 @@ impl SpawnConfig {
 pub enum EntityType {
     // Units
     Unit(UnitType),
-    // Buildings  
+    // Buildings
     Building(BuildingType),
 }
 
@@ -67,7 +67,7 @@ impl EntityType {
     pub fn from_unit(unit_type: UnitType) -> Self {
         Self::Unit(unit_type)
     }
-    
+
     /// Convert building type to entity type
     pub fn from_building(building_type: BuildingType) -> Self {
         Self::Building(building_type)
@@ -89,11 +89,25 @@ impl EntityFactory {
         model_assets: Option<&ModelAssets>,
     ) -> Entity {
         match &config.entity_type {
-            EntityType::Unit(unit_type) => Self::spawn_unit(commands, meshes, materials, unit_type.clone(), config, model_assets),
-            EntityType::Building(building_type) => Self::spawn_building(commands, meshes, materials, building_type.clone(), config, model_assets),
+            EntityType::Unit(unit_type) => Self::spawn_unit(
+                commands,
+                meshes,
+                materials,
+                unit_type.clone(),
+                config,
+                model_assets,
+            ),
+            EntityType::Building(building_type) => Self::spawn_building(
+                commands,
+                meshes,
+                materials,
+                building_type.clone(),
+                config,
+                model_assets,
+            ),
         }
     }
-    
+
     /// Spawn a unit with the specified configuration
     fn spawn_unit(
         commands: &mut Commands,
@@ -105,7 +119,7 @@ impl EntityFactory {
     ) -> Entity {
         let unit_id = config.unit_id.unwrap_or_else(rand::random);
         let unit_stats_config = crate::core::unit_stats::get_unit_stats(&unit_type);
-        
+
         // Determine model scale - always use correct scale for GLB model upgrade compatibility
         let model_scale = if let Some(scale) = config.scale_override {
             scale
@@ -115,20 +129,34 @@ impl EntityFactory {
             let model_type = get_unit_insect_model(&unit_type);
             get_model_scale(&model_type)
         };
-        
+
         // Create the visual representation
         let mut entity = if let (true, Some(assets)) = (config.prefer_glb, model_assets) {
             Self::spawn_unit_with_glb(commands, &unit_type, &config, model_scale, assets)
         } else {
-            Self::spawn_unit_with_primitive(commands, meshes, materials, &unit_type, &config, model_scale)
+            Self::spawn_unit_with_primitive(
+                commands,
+                meshes,
+                materials,
+                &unit_type,
+                &config,
+                model_scale,
+            )
         };
-        
+
         // Add common components
-        Self::add_unit_components(&mut entity, unit_type, unit_id, config, unit_stats_config, model_scale);
-        
+        Self::add_unit_components(
+            &mut entity,
+            unit_type,
+            unit_id,
+            config,
+            unit_stats_config,
+            model_scale,
+        );
+
         entity.id()
     }
-    
+
     /// Create GLB model entity for unit
     fn spawn_unit_with_glb<'a>(
         commands: &'a mut Commands,
@@ -139,10 +167,10 @@ impl EntityFactory {
     ) -> EntityCommands<'a> {
         let model_type = get_unit_insect_model(unit_type);
         let model_handle = model_assets.get_model_handle(&model_type);
-        
+
         // Determine correct rotation for each model type
         let rotation = Self::get_model_rotation(unit_type, &model_type);
-        
+
         commands.spawn((
             SceneRoot(model_handle),
             Transform::from_translation(config.position)
@@ -156,7 +184,7 @@ impl EntityFactory {
             TeamColor::new(config.player_id),
         ))
     }
-    
+
     /// Create primitive shape entity for unit
     fn spawn_unit_with_primitive<'a>(
         commands: &'a mut Commands,
@@ -168,7 +196,7 @@ impl EntityFactory {
     ) -> EntityCommands<'a> {
         let (mesh, _) = Self::get_unit_primitive_mesh(unit_type);
         // Use the calculated model_scale instead of the primitive's default scale
-        
+
         commands.spawn((
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -179,7 +207,7 @@ impl EntityFactory {
             TeamColor::new(config.player_id),
         ))
     }
-    
+
     /// Add components to a unit entity
     fn add_unit_components(
         entity: &mut EntityCommands,
@@ -191,17 +219,19 @@ impl EntityFactory {
     ) {
         // Debug logging for DragonFly spawning
         if matches!(unit_type, UnitType::DragonFly) {
-            info!("Spawning DragonFly with stats - max_speed: {:.1}, acceleration: {:.1}", 
-                  stats.movement.max_speed, stats.movement.acceleration);
+            info!(
+                "Spawning DragonFly with stats - max_speed: {:.1}, acceleration: {:.1}",
+                stats.movement.max_speed, stats.movement.acceleration
+            );
         }
-        
+
         // Add base components
         entity.insert((
-            RTSUnit { 
-                unit_id, 
-                player_id: config.player_id, 
-                size: 1.0, 
-                unit_type: Some(unit_type.clone()) 
+            RTSUnit {
+                unit_id,
+                player_id: config.player_id,
+                size: 1.0,
+                unit_type: Some(unit_type.clone()),
             },
             Position {
                 translation: config.position,
@@ -227,7 +257,7 @@ impl EntityFactory {
                 last_attack_time: 0.0,
                 target: None,
                 attack_type: stats.combat.attack_type,
-                attack_cooldown: 0.0,
+                attack_cooldown: 1.0 / stats.combat.attack_speed, // Convert attack_speed to cooldown
                 is_attacking: false,
                 auto_attack: stats.combat.auto_attack,
             },
@@ -236,11 +266,13 @@ impl EntityFactory {
                 line_of_sight: stats.vision.line_of_sight,
             },
             Selectable::default(),
-            CollisionRadius { radius: stats.collision_radius },
-            EntityState::default(),
+            CollisionRadius {
+                radius: stats.collision_radius,
+            },
+            // EntityState removed - using specialized state components instead
             GameEntity,
         ));
-        
+
         // Add animation controller for units with animations
         entity.insert(UnitAnimationController {
             current_state: AnimationState::Idle,
@@ -249,13 +281,13 @@ impl EntityFactory {
             animation_node_index: None, // Will be populated by setup_glb_animations system
         });
         info!("Added animation controller to unit {:?}", unit_type);
-        
+
         // Add special components for specific unit types
         if let UnitType::WorkerAnt = unit_type {
             entity.insert((
                 ResourceGatherer {
                     gather_rate: 10.0,
-                    capacity: 5.0,  // Reduced from 10.0 for faster testing
+                    capacity: 5.0, // Reduced from 10.0 for faster testing
                     carried_amount: 0.0,
                     resource_type: None,
                     target_resource: None,
@@ -268,7 +300,7 @@ impl EntityFactory {
             ));
         }
     }
-    
+
     /// Spawn a building with the specified configuration
     fn spawn_building(
         commands: &mut Commands,
@@ -279,21 +311,27 @@ impl EntityFactory {
         model_assets: Option<&ModelAssets>,
     ) -> Entity {
         let building_stats = Self::get_building_stats(&building_type);
-        
+
         // Create the visual representation - prefer GLB models if available
         let mut entity = if let (true, Some(assets)) = (config.prefer_glb, model_assets) {
             Self::spawn_building_with_glb(commands, &building_type, &config, assets)
         } else {
-            Self::spawn_building_with_primitive(commands, meshes, materials, &building_type, &config)
+            Self::spawn_building_with_primitive(
+                commands,
+                meshes,
+                materials,
+                &building_type,
+                &config,
+            )
         };
-        
+
         // Add common building components
         entity.insert((
-            RTSUnit { 
-                unit_id: config.unit_id.unwrap_or(0), 
-                player_id: config.player_id, 
-                size: building_stats.size, 
-                unit_type: None 
+            RTSUnit {
+                unit_id: config.unit_id.unwrap_or(0),
+                player_id: config.player_id,
+                size: building_stats.size,
+                unit_type: None,
             },
             TeamColor::new(config.player_id),
             Position {
@@ -305,7 +343,9 @@ impl EntityFactory {
                 construction_progress: 100.0,
                 max_construction: 100.0,
                 is_complete: true,
-                rally_point: building_stats.rally_point.map(|offset| config.position + offset),
+                rally_point: building_stats
+                    .rally_point
+                    .map(|offset| config.position + offset),
             },
             RTSHealth {
                 current: building_stats.health,
@@ -318,16 +358,18 @@ impl EntityFactory {
                 is_selected: false,
                 selection_radius: building_stats.selection_radius,
             },
-            CollisionRadius { radius: building_stats.collision_radius },
+            CollisionRadius {
+                radius: building_stats.collision_radius,
+            },
             GameEntity,
         ));
-        
+
         // Add special components based on building type
         building_stats.special_components.add_to_entity(&mut entity);
-        
+
         entity.id()
     }
-    
+
     /// Create GLB model entity for building
     fn spawn_building_with_glb<'a>(
         commands: &'a mut Commands,
@@ -338,11 +380,10 @@ impl EntityFactory {
         let model_type = crate::rendering::model_loader::get_building_insect_model(building_type);
         let model_handle = model_assets.get_model_handle(&model_type);
         let model_scale = crate::rendering::model_loader::get_model_scale(&model_type);
-        
+
         commands.spawn((
             SceneRoot(model_handle),
-            Transform::from_translation(config.position)
-                .with_scale(Vec3::splat(model_scale)),
+            Transform::from_translation(config.position).with_scale(Vec3::splat(model_scale)),
             InsectModel {
                 model_type,
                 scale: model_scale,
@@ -351,7 +392,7 @@ impl EntityFactory {
             TeamColor::new(config.player_id),
         ))
     }
-    
+
     /// Create primitive shape entity for building
     fn spawn_building_with_primitive<'a>(
         commands: &'a mut Commands,
@@ -361,7 +402,7 @@ impl EntityFactory {
         config: &SpawnConfig,
     ) -> EntityCommands<'a> {
         let (mesh, offset) = Self::get_building_mesh(building_type);
-        
+
         commands.spawn((
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -372,7 +413,6 @@ impl EntityFactory {
             TeamColor::new(config.player_id),
         ))
     }
-    
 }
 
 // Helper structs for organizing entity statistics
@@ -391,22 +431,32 @@ struct BuildingStats {
 #[derive(Debug, Clone)]
 enum BuildingSpecialComponents {
     None,
-    ProductionQueue { production_time: f32 },
-    ProductionWithGarrison { production_time: f32, garrison_capacity: u32, protection_bonus: f32 },
+    ProductionQueue {
+        production_time: f32,
+    },
+    ProductionWithGarrison {
+        production_time: f32,
+        garrison_capacity: u32,
+        protection_bonus: f32,
+    },
 }
 
 impl BuildingSpecialComponents {
     fn add_to_entity(&self, entity: &mut EntityCommands) {
         match self {
-            Self::None => {},
+            Self::None => {}
             Self::ProductionQueue { production_time } => {
                 entity.insert(ProductionQueue {
                     queue: Vec::new(),
                     current_progress: 0.0,
                     production_time: *production_time,
                 });
-            },
-            Self::ProductionWithGarrison { production_time, garrison_capacity, protection_bonus } => {
+            }
+            Self::ProductionWithGarrison {
+                production_time,
+                garrison_capacity,
+                protection_bonus,
+            } => {
                 entity.insert((
                     ProductionQueue {
                         queue: Vec::new(),
@@ -423,7 +473,7 @@ impl BuildingSpecialComponents {
                         line_of_sight: true,
                     },
                 ));
-            },
+            }
         }
     }
 }
@@ -478,38 +528,43 @@ impl EntityFactory {
             },
         }
     }
-    
+
     /// Get the correct rotation for a model based on unit type and model type
     fn get_model_rotation(unit_type: &UnitType, model_type: &InsectModelType) -> Quat {
         match (unit_type, model_type) {
             // Ant models (Fourmi) need no additional rotation - they face forward correctly
             (UnitType::WorkerAnt, InsectModelType::Fourmi) => Quat::IDENTITY,
             (UnitType::SoldierAnt, InsectModelType::Fourmi) => Quat::IDENTITY,
-            
+
             // Mantis models need 180° rotation - they're facing backwards
-            (UnitType::SpearMantis, InsectModelType::QueenFacedBug) => Quat::from_rotation_y(std::f32::consts::PI),
-            
+            (UnitType::SpearMantis, InsectModelType::QueenFacedBug) => {
+                Quat::from_rotation_y(std::f32::consts::PI)
+            }
+
             // Butterfly/Scout models face forward correctly - no rotation needed
             (UnitType::ScoutAnt, InsectModelType::CairnsBirdwing) => Quat::IDENTITY,
-            
+
             // Hornet/Wasp models face forward correctly - no rotation needed
             (UnitType::HunterWasp, InsectModelType::Hornet) => Quat::IDENTITY,
-            
+
             // Beetle models face forward correctly - no rotation needed
             (UnitType::BeetleKnight, InsectModelType::RhinoBeetle) => Quat::IDENTITY,
-            
+
             // DragonFly model - may need specific rotation
-            (UnitType::DragonFly, InsectModelType::DragonFly) => Quat::from_rotation_y(std::f32::consts::PI),
-            
+            (UnitType::DragonFly, InsectModelType::DragonFly) => {
+                Quat::from_rotation_y(std::f32::consts::PI)
+            }
+
             // BatteringBeetle uses black_ox_beetle_small.glb
-            (UnitType::BatteringBeetle, InsectModelType::Beetle) => Quat::from_rotation_y(std::f32::consts::PI),
-            
+            (UnitType::BatteringBeetle, InsectModelType::Beetle) => {
+                Quat::from_rotation_y(std::f32::consts::PI)
+            }
+
             // Default case: 180° rotation for most models since they typically face backwards
             _ => Quat::from_rotation_y(std::f32::consts::PI),
         }
     }
-    
-    
+
     fn get_unit_primitive_mesh(unit_type: &UnitType) -> (Mesh, f32) {
         match unit_type {
             UnitType::WorkerAnt => (Capsule3d::new(1.0, 2.0).into(), 1.0),
@@ -521,12 +576,18 @@ impl EntityFactory {
             _ => (Capsule3d::new(1.0, 2.0).into(), 1.0),
         }
     }
-    
+
     fn get_building_mesh(building_type: &BuildingType) -> (Mesh, Vec3) {
         match building_type {
-            BuildingType::Queen => (Cuboid::new(20.0, 15.0, 20.0).into(), Vec3::new(0.0, 7.5, 0.0)),
+            BuildingType::Queen => (
+                Cuboid::new(20.0, 15.0, 20.0).into(),
+                Vec3::new(0.0, 7.5, 0.0),
+            ),
             BuildingType::Nursery => (Cuboid::new(8.0, 6.0, 8.0).into(), Vec3::new(0.0, 3.0, 0.0)),
-            BuildingType::WarriorChamber => (Cuboid::new(12.0, 8.0, 12.0).into(), Vec3::new(0.0, 4.0, 0.0)),
+            BuildingType::WarriorChamber => (
+                Cuboid::new(12.0, 8.0, 12.0).into(),
+                Vec3::new(0.0, 4.0, 0.0),
+            ),
             _ => (Cuboid::new(8.0, 6.0, 8.0).into(), Vec3::new(0.0, 3.0, 0.0)),
         }
     }

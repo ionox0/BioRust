@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use crate::core::components::*;
 use crate::core::resources::*;
+use bevy::prelude::*;
 use std::collections::HashMap;
 
 /// Manages optimal worker distribution across resources
@@ -30,16 +30,19 @@ impl Default for EconomyManager {
 
         // Initialize AI player 2 with balanced economy
         let mut ideal_distribution = HashMap::new();
-        ideal_distribution.insert(ResourceType::Nectar, 3);    // Food priority
-        ideal_distribution.insert(ResourceType::Chitin, 3);    // Building materials
-        ideal_distribution.insert(ResourceType::Minerals, 2);  // Secondary
+        ideal_distribution.insert(ResourceType::Nectar, 3); // Food priority
+        ideal_distribution.insert(ResourceType::Chitin, 3); // Building materials
+        ideal_distribution.insert(ResourceType::Minerals, 2); // Secondary
         ideal_distribution.insert(ResourceType::Pheromones, 2); // Least priority
 
-        player_economy.insert(2, PlayerEconomy {
-            resource_priorities: Vec::new(),
-            ideal_worker_distribution: ideal_distribution,
-            last_optimization_time: 0.0,
-        });
+        player_economy.insert(
+            2,
+            PlayerEconomy {
+                resource_priorities: Vec::new(),
+                ideal_worker_distribution: ideal_distribution,
+                last_optimization_time: 0.0,
+            },
+        );
 
         Self { player_economy }
     }
@@ -49,7 +52,16 @@ impl Default for EconomyManager {
 pub fn economy_optimization_system(
     mut economy_manager: ResMut<EconomyManager>,
     ai_resources: Res<AIResources>,
-    mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &RTSUnit, &Transform), With<ResourceGatherer>>,
+    mut workers: Query<
+        (
+            Entity,
+            &mut ResourceGatherer,
+            &mut Movement,
+            &RTSUnit,
+            &Transform,
+        ),
+        With<ResourceGatherer>,
+    >,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
     time: Res<Time>,
@@ -73,7 +85,9 @@ pub fn economy_optimization_system(
         for (_entity, gatherer, _movement, unit, _transform) in workers.iter() {
             if unit.player_id == *player_id {
                 if let Some(resource_type) = &gatherer.resource_type {
-                    *current_distribution.entry(resource_type.clone()).or_insert(0) += 1;
+                    *current_distribution
+                        .entry(resource_type.clone())
+                        .or_insert(0) += 1;
                 }
             }
         }
@@ -91,7 +105,11 @@ pub fn economy_optimization_system(
         }
 
         // Sort by priority (highest first)
-        allocations.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap_or(std::cmp::Ordering::Equal));
+        allocations.sort_by(|a, b| {
+            b.priority
+                .partial_cmp(&a.priority)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         economy.resource_priorities = allocations.clone();
 
         // Reassign workers based on priorities
@@ -109,23 +127,37 @@ pub fn economy_optimization_system(
 fn adjust_resource_priorities(economy: &mut PlayerEconomy, resources: &PlayerResources) {
     // If low on a resource, increase its priority
     if resources.nectar < 100.0 {
-        economy.ideal_worker_distribution.insert(ResourceType::Nectar, 4);
+        economy
+            .ideal_worker_distribution
+            .insert(ResourceType::Nectar, 4);
     }
     if resources.chitin < 100.0 {
-        economy.ideal_worker_distribution.insert(ResourceType::Chitin, 4);
+        economy
+            .ideal_worker_distribution
+            .insert(ResourceType::Chitin, 4);
     }
 
     // If high on a resource, reduce its priority
     if resources.nectar > 500.0 {
-        economy.ideal_worker_distribution.insert(ResourceType::Nectar, 2);
+        economy
+            .ideal_worker_distribution
+            .insert(ResourceType::Nectar, 2);
     }
     if resources.chitin > 500.0 {
-        economy.ideal_worker_distribution.insert(ResourceType::Chitin, 2);
+        economy
+            .ideal_worker_distribution
+            .insert(ResourceType::Chitin, 2);
     }
 
     // Always need some minerals and pheromones
-    economy.ideal_worker_distribution.entry(ResourceType::Minerals).or_insert(2);
-    economy.ideal_worker_distribution.entry(ResourceType::Pheromones).or_insert(2);
+    economy
+        .ideal_worker_distribution
+        .entry(ResourceType::Minerals)
+        .or_insert(2);
+    economy
+        .ideal_worker_distribution
+        .entry(ResourceType::Pheromones)
+        .or_insert(2);
 }
 
 /// Calculate priority for a resource type
@@ -149,20 +181,30 @@ fn calculate_resource_priority(
 fn reassign_workers(
     player_id: u8,
     allocations: &[ResourceAllocation],
-    workers: &mut Query<(Entity, &mut ResourceGatherer, &mut Movement, &RTSUnit, &Transform), With<ResourceGatherer>>,
+    workers: &mut Query<
+        (
+            Entity,
+            &mut ResourceGatherer,
+            &mut Movement,
+            &RTSUnit,
+            &Transform,
+        ),
+        With<ResourceGatherer>,
+    >,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
     use crate::core::components::BuildingType;
 
     // First, check if player has any suitable drop-off buildings
-    let has_dropoff_building = buildings
-        .iter()
-        .any(|(_, _, building, building_unit)| {
-            building_unit.player_id == player_id &&
-            building.is_complete &&
-            matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
-        });
+    let has_dropoff_building = buildings.iter().any(|(_, _, building, building_unit)| {
+        building_unit.player_id == player_id
+            && building.is_complete
+            && matches!(
+                building.building_type,
+                BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery
+            )
+    });
 
     // Don't reassign workers if no buildings can accept resources
     if !has_dropoff_building {
@@ -171,7 +213,9 @@ fn reassign_workers(
     // First, check resource availability for each allocation
     let mut available_resources: HashMap<ResourceType, usize> = HashMap::new();
     for (_, source, _) in resource_sources.iter() {
-        *available_resources.entry(source.resource_type.clone()).or_insert(0) += 1;
+        *available_resources
+            .entry(source.resource_type.clone())
+            .or_insert(0) += 1;
     }
 
     // Find workers that need reassignment (on low priority resources)
@@ -184,9 +228,10 @@ fn reassign_workers(
 
             // Find workers on this resource to reassign
             for (worker_entity, gatherer, _movement, unit, transform) in workers.iter() {
-                if unit.player_id == player_id &&
-                   gatherer.resource_type.as_ref() == Some(&allocation.resource_type) &&
-                   workers_to_reassign.len() < excess as usize {
+                if unit.player_id == player_id
+                    && gatherer.resource_type.as_ref() == Some(&allocation.resource_type)
+                    && workers_to_reassign.len() < excess as usize
+                {
                     workers_to_reassign.push((worker_entity, transform.translation));
                 }
             }
@@ -195,14 +240,20 @@ fn reassign_workers(
 
     // Reassign workers to high priority resources
     for allocation in allocations.iter() {
-        if allocation.current_workers < allocation.ideal_workers && !workers_to_reassign.is_empty() {
+        if allocation.current_workers < allocation.ideal_workers && !workers_to_reassign.is_empty()
+        {
             let needed = (allocation.ideal_workers - allocation.current_workers) as usize;
 
             // Check if this resource type is actually available
-            let available_count = available_resources.get(&allocation.resource_type).copied().unwrap_or(0);
+            let available_count = available_resources
+                .get(&allocation.resource_type)
+                .copied()
+                .unwrap_or(0);
             if available_count == 0 {
-                warn!("Player {} wants to assign workers to {:?}, but no sources available!",
-                      player_id, allocation.resource_type);
+                warn!(
+                    "Player {} wants to assign workers to {:?}, but no sources available!",
+                    player_id, allocation.resource_type
+                );
                 continue;
             }
 
@@ -224,24 +275,37 @@ fn reassign_workers(
                     sources.sort_by(|a, b| {
                         let dist_a = worker_pos.distance(a.1);
                         let dist_b = worker_pos.distance(b.1);
-                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                        dist_a
+                            .partial_cmp(&dist_b)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     });
 
                     if let Some((source_entity, source_position)) = sources.first() {
-                        if let Ok((_, mut gatherer, mut movement, unit, worker_transform)) = workers.get_mut(worker_entity) {
+                        if let Ok((_, mut gatherer, mut movement, unit, worker_transform)) =
+                            workers.get_mut(worker_entity)
+                        {
                             // Find nearest suitable drop-off building
                             // Only complete Queens, StorageChambers, and Nurseries can accept resources
                             let nearest_building = buildings
                                 .iter()
                                 .filter(|(_, _, building, building_unit)| {
-                                    building_unit.player_id == player_id &&
-                                    building.is_complete &&
-                                    matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
+                                    building_unit.player_id == player_id
+                                        && building.is_complete
+                                        && matches!(
+                                            building.building_type,
+                                            BuildingType::Queen
+                                                | BuildingType::StorageChamber
+                                                | BuildingType::Nursery
+                                        )
                                 })
                                 .min_by(|a, b| {
-                                    let dist_a = worker_transform.translation.distance(a.1.translation);
-                                    let dist_b = worker_transform.translation.distance(b.1.translation);
-                                    dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                                    let dist_a =
+                                        worker_transform.translation.distance(a.1.translation);
+                                    let dist_b =
+                                        worker_transform.translation.distance(b.1.translation);
+                                    dist_a
+                                        .partial_cmp(&dist_b)
+                                        .unwrap_or(std::cmp::Ordering::Equal)
                                 })
                                 .map(|(entity, _, _, _)| entity);
 
@@ -268,7 +332,16 @@ fn reassign_workers(
 /// System to handle worker idle detection and assignment
 pub fn worker_idle_detection_system(
     economy_manager: Res<EconomyManager>,
-    mut workers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &RTSUnit, &Transform), With<ResourceGatherer>>,
+    mut workers: Query<
+        (
+            Entity,
+            &mut ResourceGatherer,
+            &mut Movement,
+            &RTSUnit,
+            &Transform,
+        ),
+        With<ResourceGatherer>,
+    >,
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
@@ -277,13 +350,14 @@ pub fn worker_idle_detection_system(
     for (player_id, economy) in &economy_manager.player_economy {
         // First, check if player has any suitable drop-off buildings
         // Only Queens, StorageChambers, and Nurseries can accept resources
-        let has_dropoff_building = buildings
-            .iter()
-            .any(|(_, _, building, building_unit)| {
-                building_unit.player_id == *player_id &&
-                building.is_complete &&
-                matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
-            });
+        let has_dropoff_building = buildings.iter().any(|(_, _, building, building_unit)| {
+            building_unit.player_id == *player_id
+                && building.is_complete
+                && matches!(
+                    building.building_type,
+                    BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery
+                )
+        });
 
         // Don't assign workers to gather if no buildings can accept resources
         if !has_dropoff_building {
@@ -311,10 +385,13 @@ pub fn worker_idle_detection_system(
         };
 
         // Find idle workers
-        for (_worker_entity, mut gatherer, mut movement, unit, worker_transform) in workers.iter_mut() {
-            if unit.player_id == *player_id &&
-               gatherer.target_resource.is_none() &&
-               gatherer.carried_amount == 0.0 {
+        for (_worker_entity, mut gatherer, mut movement, unit, worker_transform) in
+            workers.iter_mut()
+        {
+            if unit.player_id == *player_id
+                && gatherer.target_resource.is_none()
+                && gatherer.carried_amount == 0.0
+            {
                 // Assign to nearest available resource of the target type
                 if let Some((source_entity, _, resource_transform)) = resource_sources
                     .iter()
@@ -322,7 +399,9 @@ pub fn worker_idle_detection_system(
                     .min_by(|a, b| {
                         let dist_a = worker_transform.translation.distance(a.2.translation);
                         let dist_b = worker_transform.translation.distance(b.2.translation);
-                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                        dist_a
+                            .partial_cmp(&dist_b)
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     })
                 {
                     // Find nearest suitable drop-off building
@@ -330,14 +409,21 @@ pub fn worker_idle_detection_system(
                     let nearest_building = buildings
                         .iter()
                         .filter(|(_, _, building, building_unit)| {
-                            building_unit.player_id == *player_id &&
-                            building.is_complete &&
-                            matches!(building.building_type, BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery)
+                            building_unit.player_id == *player_id
+                                && building.is_complete
+                                && matches!(
+                                    building.building_type,
+                                    BuildingType::Queen
+                                        | BuildingType::StorageChamber
+                                        | BuildingType::Nursery
+                                )
                         })
                         .min_by(|a, b| {
                             let dist_a = worker_transform.translation.distance(a.1.translation);
                             let dist_b = worker_transform.translation.distance(b.1.translation);
-                            dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                            dist_a
+                                .partial_cmp(&dist_b)
+                                .unwrap_or(std::cmp::Ordering::Equal)
                         })
                         .map(|(entity, _, _, _)| entity);
 
@@ -348,9 +434,15 @@ pub fn worker_idle_detection_system(
                         gatherer.drop_off_building = Some(building);
                         // CRITICAL: Tell worker to actually MOVE to the resource!
                         movement.target_position = Some(resource_transform.translation);
-                        info!("🚀 Assigned worker {} (player {}) to gather {:?} at distance {:.1}",
-                              unit.unit_id, unit.player_id, target_resource_type,
-                              worker_transform.translation.distance(resource_transform.translation));
+                        info!(
+                            "🚀 Assigned worker {} (player {}) to gather {:?} at distance {:.1}",
+                            unit.unit_id,
+                            unit.player_id,
+                            target_resource_type,
+                            worker_transform
+                                .translation
+                                .distance(resource_transform.translation)
+                        );
                     }
                 }
             }

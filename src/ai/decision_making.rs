@@ -1,8 +1,8 @@
-use bevy::prelude::*;
+use crate::ai::intelligence::{EnemyStrategy, IntelligenceSystem, ThreatLevel};
+use crate::ai::player_state::{AIDecision, AIPlayer, AIType, PlayerCounts};
 use crate::core::components::*;
 use crate::core::resources::*;
-use crate::ai::player_state::{AIPlayer, AIType, AIDecision, PlayerCounts};
-use crate::ai::intelligence::{IntelligenceSystem, EnemyStrategy, ThreatLevel};
+use bevy::prelude::*;
 
 pub fn ai_decision_system(
     mut ai_players: Query<&mut AIPlayer>,
@@ -32,10 +32,12 @@ pub fn ai_decision_system(
             counts.count_buildings(&buildings, ai_player.player_id);
 
             // Get intelligence data for adaptive decision making
-            let enemy_intel = intelligence.as_ref()
+            let enemy_intel = intelligence
+                .as_ref()
                 .and_then(|intel| intel.get_intel(ai_player.player_id));
 
-            let decision = make_adaptive_ai_decision(&ai_player.ai_type, &resources, &counts, enemy_intel);
+            let decision =
+                make_adaptive_ai_decision(&ai_player.ai_type, &resources, &counts, enemy_intel);
 
             execute_ai_decision(
                 decision,
@@ -99,12 +101,17 @@ fn make_adaptive_ai_decision(
     }
 }
 
-fn make_economic_decision(resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
-    use crate::constants::ai::{AI_MIN_WORKERS_FOR_WARRIOR_CHAMBER, AI_MAX_MILITARY_UNITS_EARLY};
-    
+fn make_economic_decision(
+    resources: &crate::core::resources::PlayerResources,
+    counts: &PlayerCounts,
+) -> AIDecision {
+    use crate::constants::ai::{AI_MAX_MILITARY_UNITS_EARLY, AI_MIN_WORKERS_FOR_WARRIOR_CHAMBER};
+
     if resources.current_population >= resources.max_population && counts.houses < 3 {
         AIDecision::BuildBuilding(BuildingType::Nursery)
-    } else if counts.villager_count < AI_MIN_WORKERS_FOR_WARRIOR_CHAMBER && resources.has_population_space() {
+    } else if counts.villager_count < AI_MIN_WORKERS_FOR_WARRIOR_CHAMBER
+        && resources.has_population_space()
+    {
         AIDecision::BuildWorkerAnt
     } else if counts.barracks == 0 && resources.chitin >= 175.0 {
         AIDecision::BuildBuilding(BuildingType::WarriorChamber)
@@ -115,9 +122,12 @@ fn make_economic_decision(resources: &crate::core::resources::PlayerResources, c
     }
 }
 
-fn make_aggressive_decision(resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
+fn make_aggressive_decision(
+    resources: &crate::core::resources::PlayerResources,
+    counts: &PlayerCounts,
+) -> AIDecision {
     use crate::constants::ai::{AI_MAX_MILITARY_UNITS_MID, AI_MIN_MILITARY_FOR_ATTACK};
-    
+
     if counts.barracks == 0 && resources.chitin >= 175.0 {
         AIDecision::BuildBuilding(BuildingType::WarriorChamber)
     } else if counts.barracks > 0 && counts.military_count < AI_MAX_MILITARY_UNITS_MID {
@@ -131,9 +141,12 @@ fn make_aggressive_decision(resources: &crate::core::resources::PlayerResources,
     }
 }
 
-fn make_balanced_decision(resources: &crate::core::resources::PlayerResources, counts: &PlayerCounts) -> AIDecision {
+fn make_balanced_decision(
+    resources: &crate::core::resources::PlayerResources,
+    counts: &PlayerCounts,
+) -> AIDecision {
     use crate::constants::ai::AI_MIN_MILITARY_FOR_DEFEND;
-    
+
     if resources.current_population >= resources.max_population {
         AIDecision::BuildBuilding(BuildingType::Nursery)
     } else if counts.villager_count < 3 {
@@ -161,19 +174,28 @@ fn execute_ai_decision(
     match decision {
         AIDecision::BuildWorkerAnt => {
             execute_build_worker(player_id, ai_resources, game_costs, buildings);
-        },
+        }
         AIDecision::BuildMilitary(unit_type) => {
             execute_build_military(player_id, unit_type, ai_resources, game_costs, buildings);
-        },
+        }
         AIDecision::BuildBuilding(building_type) => {
-            execute_build_building(player_id, building_type, ai_resources, game_costs, commands, meshes, materials, &model_assets);
-        },
+            execute_build_building(
+                player_id,
+                building_type,
+                ai_resources,
+                game_costs,
+                commands,
+                meshes,
+                materials,
+                &model_assets,
+            );
+        }
         AIDecision::AttackPlayer(_target_player) => {
             info!("AI Player {} initiating attack!", player_id);
-        },
+        }
         AIDecision::GatherResources => {
             info!("AI Player {} focusing on resource gathering", player_id);
-        },
+        }
         AIDecision::Expand => {
             info!("AI Player {} expanding", player_id);
         }
@@ -192,7 +214,10 @@ fn execute_build_worker(
                 // Try to queue using overflow system - inline implementation for AI
                 if try_queue_worker_overflow(buildings, player_id) {
                     resources.spend_resources(cost);
-                    info!("AI Player {} queued worker ant with overflow support", player_id);
+                    info!(
+                        "AI Player {} queued worker ant with overflow support",
+                        player_id
+                    );
                 } else {
                     info!("❌ AI Player {} FAILED to queue WorkerAnt - overflow system returned false", player_id);
                 }
@@ -214,7 +239,10 @@ fn execute_build_military(
                 // Try to queue using overflow system - inline implementation for AI
                 if try_queue_military_overflow(buildings, player_id, unit_type.clone()) {
                     resources.spend_resources(cost);
-                    info!("AI Player {} queued {:?} with overflow support", player_id, unit_type);
+                    info!(
+                        "AI Player {} queued {:?} with overflow support",
+                        player_id, unit_type
+                    );
                 }
             }
         }
@@ -227,58 +255,68 @@ fn try_queue_worker_overflow(
     player_id: u8,
 ) -> bool {
     const MAX_QUEUE_SIZE: usize = 8;
-    
+
     // Debug: count available Queen buildings
-    let queen_buildings: Vec<_> = buildings.iter()
+    let queen_buildings: Vec<_> = buildings
+        .iter()
         .filter(|(_, _, building, unit)| {
-            unit.player_id == player_id && 
-            building.building_type == BuildingType::Queen && 
-            building.is_complete
+            unit.player_id == player_id
+                && building.building_type == BuildingType::Queen
+                && building.is_complete
         })
         .map(|(_, queue, _, _)| queue.queue.len())
         .collect();
-    
-    info!("🏭 AI Player {} has {} Queen buildings with queues: {:?}", 
-          player_id, queen_buildings.len(), queen_buildings);
-    
+
+    info!(
+        "🏭 AI Player {} has {} Queen buildings with queues: {:?}",
+        player_id,
+        queen_buildings.len(),
+        queen_buildings
+    );
+
     // First pass: try to find a building with available queue space
     for (_, mut queue, building, unit) in buildings.iter_mut() {
-        if unit.player_id == player_id && 
-           building.building_type == BuildingType::Queen && 
-           building.is_complete &&
-           queue.queue.len() < MAX_QUEUE_SIZE {
-            
+        if unit.player_id == player_id
+            && building.building_type == BuildingType::Queen
+            && building.is_complete
+            && queue.queue.len() < MAX_QUEUE_SIZE
+        {
             queue.queue.push(UnitType::WorkerAnt);
-            info!("🏭 AI Player {} queued WorkerAnt in Queen (queue: {}/{}, direct placement)", 
-                  player_id, queue.queue.len(), MAX_QUEUE_SIZE);
+            info!(
+                "🏭 AI Player {} queued WorkerAnt in Queen (queue: {}/{}, direct placement)",
+                player_id,
+                queue.queue.len(),
+                MAX_QUEUE_SIZE
+            );
             return true;
         }
     }
-    
+
     // Second pass: find the building with the smallest queue for overflow (but still under max)
     let mut min_queue_size = usize::MAX;
     let mut found_building_under_max = false;
-    
+
     // First find the minimum queue size among buildings that are still under max
     for (_, queue, building, unit) in buildings.iter() {
-        if unit.player_id == player_id && 
-           building.building_type == BuildingType::Queen && 
-           building.is_complete && 
-           queue.queue.len() < MAX_QUEUE_SIZE {
+        if unit.player_id == player_id
+            && building.building_type == BuildingType::Queen
+            && building.is_complete
+            && queue.queue.len() < MAX_QUEUE_SIZE
+        {
             min_queue_size = min_queue_size.min(queue.queue.len());
             found_building_under_max = true;
         }
     }
-    
+
     // If we found buildings under max capacity, queue to the first one with minimum queue size
     if found_building_under_max {
         for (_, mut queue, building, unit) in buildings.iter_mut() {
-            if unit.player_id == player_id && 
-               building.building_type == BuildingType::Queen && 
-               building.is_complete &&
-               queue.queue.len() == min_queue_size &&
-               queue.queue.len() < MAX_QUEUE_SIZE {
-                
+            if unit.player_id == player_id
+                && building.building_type == BuildingType::Queen
+                && building.is_complete
+                && queue.queue.len() == min_queue_size
+                && queue.queue.len() < MAX_QUEUE_SIZE
+            {
                 queue.queue.push(UnitType::WorkerAnt);
                 info!("🔄 AI Player {} overflow: Queued WorkerAnt in different Queen (queue: {}/{}, was least busy at {})", 
                       player_id, queue.queue.len(), MAX_QUEUE_SIZE, min_queue_size);
@@ -286,11 +324,13 @@ fn try_queue_worker_overflow(
             }
         }
     }
-    
+
     // All buildings are at max capacity
-    info!("❌ AI Player {} cannot queue WorkerAnt: All Queen buildings at max capacity ({}/{})", 
-          player_id, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE);
-    
+    info!(
+        "❌ AI Player {} cannot queue WorkerAnt: All Queen buildings at max capacity ({}/{})",
+        player_id, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE
+    );
+
     false
 }
 
@@ -301,45 +341,51 @@ fn try_queue_military_overflow(
     unit_type: UnitType,
 ) -> bool {
     const MAX_QUEUE_SIZE: usize = 8;
-    
+
     // First pass: try to find a building with available queue space
     for (_, mut queue, building, unit) in buildings.iter_mut() {
-        if unit.player_id == player_id && 
-           building.building_type == BuildingType::WarriorChamber && 
-           building.is_complete &&
-           queue.queue.len() < MAX_QUEUE_SIZE {
-            
+        if unit.player_id == player_id
+            && building.building_type == BuildingType::WarriorChamber
+            && building.is_complete
+            && queue.queue.len() < MAX_QUEUE_SIZE
+        {
             queue.queue.push(unit_type.clone());
-            info!("🏭 AI Player {} queued {:?} in WarriorChamber (queue: {}/{}, direct placement)", 
-                  player_id, unit_type, queue.queue.len(), MAX_QUEUE_SIZE);
+            info!(
+                "🏭 AI Player {} queued {:?} in WarriorChamber (queue: {}/{}, direct placement)",
+                player_id,
+                unit_type,
+                queue.queue.len(),
+                MAX_QUEUE_SIZE
+            );
             return true;
         }
     }
-    
+
     // Second pass: find the building with the smallest queue for overflow (but still under max)
     let mut min_queue_size = usize::MAX;
     let mut found_building_under_max = false;
-    
+
     // First find the minimum queue size among buildings that are still under max
     for (_, queue, building, unit) in buildings.iter() {
-        if unit.player_id == player_id && 
-           building.building_type == BuildingType::WarriorChamber && 
-           building.is_complete && 
-           queue.queue.len() < MAX_QUEUE_SIZE {
+        if unit.player_id == player_id
+            && building.building_type == BuildingType::WarriorChamber
+            && building.is_complete
+            && queue.queue.len() < MAX_QUEUE_SIZE
+        {
             min_queue_size = min_queue_size.min(queue.queue.len());
             found_building_under_max = true;
         }
     }
-    
+
     // If we found buildings under max capacity, queue to the first one with minimum queue size
     if found_building_under_max {
         for (_, mut queue, building, unit) in buildings.iter_mut() {
-            if unit.player_id == player_id && 
-               building.building_type == BuildingType::WarriorChamber && 
-               building.is_complete &&
-               queue.queue.len() == min_queue_size &&
-               queue.queue.len() < MAX_QUEUE_SIZE {
-                
+            if unit.player_id == player_id
+                && building.building_type == BuildingType::WarriorChamber
+                && building.is_complete
+                && queue.queue.len() == min_queue_size
+                && queue.queue.len() < MAX_QUEUE_SIZE
+            {
                 queue.queue.push(unit_type.clone());
                 info!("🔄 AI Player {} overflow: Queued {:?} in different WarriorChamber (queue: {}/{}, was least busy at {})", 
                       player_id, unit_type, queue.queue.len(), MAX_QUEUE_SIZE, min_queue_size);
@@ -347,11 +393,13 @@ fn try_queue_military_overflow(
             }
         }
     }
-    
+
     // All buildings are at max capacity
-    info!("❌ AI Player {} cannot queue {:?}: All WarriorChamber buildings at max capacity ({}/{})", 
-          player_id, unit_type, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE);
-    
+    info!(
+        "❌ AI Player {} cannot queue {:?}: All WarriorChamber buildings at max capacity ({}/{})",
+        player_id, unit_type, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE
+    );
+
     false
 }
 
@@ -369,12 +417,16 @@ fn execute_build_building(
         if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
             if resources.can_afford(cost) {
                 resources.spend_resources(cost);
-                
-                let position = generate_ai_building_position();
-                
-                use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
 
-                let config = SpawnConfig::building(EntityType::Building(building_type.clone()), position, player_id);
+                let position = generate_ai_building_position();
+
+                use crate::entities::entity_factory::{EntityFactory, EntityType, SpawnConfig};
+
+                let config = SpawnConfig::building(
+                    EntityType::Building(building_type.clone()),
+                    position,
+                    player_id,
+                );
                 let model_assets_ref = model_assets.as_ref().map(|r| &**r);
                 EntityFactory::spawn(commands, meshes, materials, config, model_assets_ref);
 
@@ -382,7 +434,7 @@ fn execute_build_building(
                 if building_type == BuildingType::Nursery {
                     resources.add_housing(5); // Nurseries provide 5 population
                 }
-                
+
                 info!("AI Player {} built {:?}", player_id, building_type);
             }
         }
@@ -392,7 +444,7 @@ fn execute_build_building(
 fn generate_ai_building_position() -> Vec3 {
     let mut rng = rand::thread_rng();
     use rand::Rng;
-    
+
     Vec3::new(
         rng.gen_range(-100.0..100.0),
         10.0,

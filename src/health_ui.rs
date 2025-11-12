@@ -1,16 +1,19 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 
 pub struct HealthUIPlugin;
 
 impl Plugin for HealthUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-            create_health_bars_for_new_units,
-            update_health_bars,
-            cleanup_orphaned_health_bars,
-            health_status_indicator_system,
-        ));
+        app.add_systems(
+            Update,
+            (
+                create_health_bars_for_new_units,
+                update_health_bars,
+                cleanup_orphaned_health_bars,
+                health_status_indicator_system,
+            ),
+        );
     }
 }
 
@@ -23,9 +26,9 @@ pub struct HealthBarUI {
 
 #[derive(Component, Debug, Clone, PartialEq)]
 pub enum HealthStatus {
-    Healthy,   // 80-100% health
-    Wounded,   // 40-79% health
-    Critical,  // 1-39% health
+    Healthy,  // 80-100% health
+    Wounded,  // 40-79% health
+    Critical, // 1-39% health
 }
 
 impl HealthStatus {
@@ -58,43 +61,61 @@ pub struct HealthStatusIndicator {
 // System to create health bars for new units that don't have them
 pub fn create_health_bars_for_new_units(
     mut commands: Commands,
-    units_without_health_bars: Query<(Entity, &Transform, &RTSHealth), (With<RTSUnit>, Without<HealthBarUI>)>,
+    units_without_health_bars: Query<
+        (Entity, &Transform, &RTSHealth),
+        (With<RTSUnit>, Without<HealthBarUI>),
+    >,
     existing_health_bars: Query<&HealthBarUI>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (entity, transform, _health) in units_without_health_bars.iter() {
         // Check if this unit already has a health bar
-        let has_health_bar = existing_health_bars.iter().any(|hb| hb.target_entity == entity);
-        
+        let has_health_bar = existing_health_bars
+            .iter()
+            .any(|hb| hb.target_entity == entity);
+
         if !has_health_bar {
             use crate::constants::ui_styling::*;
 
             // Create health bar background
-            let background = commands.spawn((
-                Mesh3d(meshes.add(Rectangle::new(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: HEALTH_BAR_BACKGROUND_COLOR,
-                    unlit: true,
-                    alpha_mode: AlphaMode::Blend,
-                    ..default()
-                })),
-                Transform::from_translation(transform.translation + Vec3::new(0.0, HEALTH_BAR_Y_OFFSET, 0.0))
+            let background = commands
+                .spawn((
+                    Mesh3d(meshes.add(Rectangle::new(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: HEALTH_BAR_BACKGROUND_COLOR,
+                        unlit: true,
+                        alpha_mode: AlphaMode::Blend,
+                        ..default()
+                    })),
+                    Transform::from_translation(
+                        transform.translation + Vec3::new(0.0, HEALTH_BAR_Y_OFFSET, 0.0),
+                    )
                     .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-            )).id();
+                ))
+                .id();
 
             // Create health bar foreground
-            let foreground = commands.spawn((
-                Mesh3d(meshes.add(Rectangle::new(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT))),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: HEALTH_BAR_HEALTHY_COLOR,
-                    unlit: true,
-                    alpha_mode: AlphaMode::Blend,
-                    ..default()
-                })),
-                Transform::from_translation(transform.translation + Vec3::new(0.0, HEALTH_BAR_Y_OFFSET + HEALTH_BAR_FOREGROUND_OFFSET, 0.0))
+            let foreground = commands
+                .spawn((
+                    Mesh3d(meshes.add(Rectangle::new(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: HEALTH_BAR_HEALTHY_COLOR,
+                        unlit: true,
+                        alpha_mode: AlphaMode::Blend,
+                        ..default()
+                    })),
+                    Transform::from_translation(
+                        transform.translation
+                            + Vec3::new(
+                                0.0,
+                                HEALTH_BAR_Y_OFFSET + HEALTH_BAR_FOREGROUND_OFFSET,
+                                0.0,
+                            ),
+                    )
                     .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-            )).id();
+                ))
+                .id();
 
             // Add health bar component to the unit
             commands.entity(entity).insert((
@@ -111,9 +132,21 @@ pub fn create_health_bars_for_new_units(
 
 // System to update health bar positions and health display
 pub fn update_health_bars(
-    mut unit_query: Query<(Entity, &Transform, &RTSHealth, &HealthBarUI, &mut HealthStatus), With<RTSUnit>>,
+    mut unit_query: Query<
+        (
+            Entity,
+            &Transform,
+            &RTSHealth,
+            &HealthBarUI,
+            &mut HealthStatus,
+        ),
+        With<RTSUnit>,
+    >,
     mut health_bar_transforms: Query<&mut Transform, (Without<RTSUnit>, Without<Camera3d>)>,
-    health_bar_materials: Query<&MeshMaterial3d<StandardMaterial>, (Without<RTSUnit>, Without<Camera3d>)>,
+    health_bar_materials: Query<
+        &MeshMaterial3d<StandardMaterial>,
+        (Without<RTSUnit>, Without<Camera3d>),
+    >,
     camera_query: Query<&Transform, (With<Camera3d>, Without<RTSUnit>, Without<HealthBarUI>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -126,43 +159,43 @@ pub fn update_health_bars(
 
     for (_entity, unit_transform, health, health_bar, mut health_status) in unit_query.iter_mut() {
         let health_ratio = health.current / health.max;
-        
+
         // Update health status
         let new_status = HealthStatus::from_health_ratio(health_ratio);
         let status_changed = *health_status != new_status;
         *health_status = new_status;
-        
+
         // Always show health bars for units (changed to always be visible)
         let should_show = true;
-        
+
         if should_show {
             let bar_position = unit_transform.translation + Vec3::new(0.0, 3.0, 0.0);
-            
+
             // Calculate camera facing rotation
             let to_camera = (camera_transform.translation - bar_position).normalize();
             let up = Vec3::Y;
             let right = to_camera.cross(up).normalize();
             let forward = up.cross(right);
             let rotation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
-            
+
             // Update background position and rotation
             if let Ok(mut bg_transform) = health_bar_transforms.get_mut(health_bar.background) {
                 bg_transform.translation = bar_position;
                 bg_transform.rotation = rotation;
                 bg_transform.scale = Vec3::ONE;
             }
-            
+
             // Update foreground position, rotation, and scale
             if let Ok(mut fg_transform) = health_bar_transforms.get_mut(health_bar.foreground) {
                 let fg_position = bar_position + Vec3::new(0.0, 0.01, 0.0); // Slightly above background
                 let offset_x = (1.0 - health_ratio) * -1.75; // Adjust for scaling from left (half of 3.5)
                 let final_fg_pos = fg_position + right * offset_x;
-                
+
                 fg_transform.translation = final_fg_pos;
                 fg_transform.rotation = rotation;
                 fg_transform.scale = Vec3::new(health_ratio, 1.0, 1.0);
             }
-            
+
             // Update foreground color based on health status if status changed
             if status_changed {
                 if let Ok(fg_material_handle) = health_bar_materials.get(health_bar.foreground) {
@@ -203,7 +236,10 @@ pub fn cleanup_orphaned_health_bars(
 // System to add visual indicators for different health statuses
 pub fn health_status_indicator_system(
     mut commands: Commands,
-    units_query: Query<(Entity, &Transform, &RTSHealth, &HealthStatus, &Selectable), (With<RTSUnit>, Changed<HealthStatus>)>,
+    units_query: Query<
+        (Entity, &Transform, &RTSHealth, &HealthStatus, &Selectable),
+        (With<RTSUnit>, Changed<HealthStatus>),
+    >,
     existing_indicators: Query<(Entity, &HealthStatusIndicator)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -216,7 +252,7 @@ pub fn health_status_indicator_system(
                 commands.entity(indicator_entity).despawn();
             }
         }
-        
+
         // Add status indicator for wounded or critical units
         match status {
             HealthStatus::Wounded | HealthStatus::Critical => {
@@ -226,25 +262,27 @@ pub fn health_status_indicator_system(
                     HealthStatus::Critical => 0.5,
                     _ => 0.0,
                 };
-                
+
                 // Create a small sphere above the unit to indicate health status
-                let _indicator_entity = commands.spawn((
-                    Mesh3d(meshes.add(Sphere::new(indicator_size))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: indicator_color,
-                        emissive: Color::srgb(0.0, 0.5, 0.0).into(),
-                        unlit: true,
-                        alpha_mode: AlphaMode::Blend,
-                        ..default()
-                    })),
-                    Transform::from_translation(
-                        transform.translation + Vec3::new(0.0, 4.0, 0.0)
-                    ),
-                    HealthStatusIndicator {
-                        target_entity: entity,
-                    },
-                )).id();
-                
+                let _indicator_entity = commands
+                    .spawn((
+                        Mesh3d(meshes.add(Sphere::new(indicator_size))),
+                        MeshMaterial3d(materials.add(StandardMaterial {
+                            base_color: indicator_color,
+                            emissive: Color::srgb(0.0, 0.5, 0.0).into(),
+                            unlit: true,
+                            alpha_mode: AlphaMode::Blend,
+                            ..default()
+                        })),
+                        Transform::from_translation(
+                            transform.translation + Vec3::new(0.0, 4.0, 0.0),
+                        ),
+                        HealthStatusIndicator {
+                            target_entity: entity,
+                        },
+                    ))
+                    .id();
+
                 // Only log critical condition once per unit
                 if matches!(status, HealthStatus::Critical) && !warned_critical.contains(&entity) {
                     warn!("⚠️ Unit {:?} is now in critical condition!", entity);
@@ -257,18 +295,18 @@ pub fn health_status_indicator_system(
             }
         }
     }
-    
+
     // Update indicator positions for moving units
     let mut indicator_updates = Vec::new();
     for (indicator_entity, indicator) in existing_indicators.iter() {
         if let Ok((_, transform, _, _, _)) = units_query.get(indicator.target_entity) {
             indicator_updates.push((
-                indicator_entity, 
-                transform.translation + Vec3::new(0.0, 4.0, 0.0)
+                indicator_entity,
+                transform.translation + Vec3::new(0.0, 4.0, 0.0),
             ));
         }
     }
-    
+
     // Apply position updates - disabled for now
     // for (indicator_entity, new_position) in indicator_updates {
     //     // Position update logic would go here

@@ -1,31 +1,31 @@
 use bevy::prelude::*;
 
-mod core;
-mod world;
-mod entities;
-mod rts;
-mod rendering;
-mod ui;
 mod ai;
-mod health_ui;
-mod combat_systems;
 mod collision;
+mod combat_systems;
+mod core;
+mod entities;
+mod health_ui;
+mod rendering;
+mod rts;
+mod ui;
+mod world;
 
-use core::game::*;
-use core::constants;
-use core::time_controls::TimeControlPlugin;
-use world::terrain_v2::TerrainPluginV2;
-use world::GridPlugin;
+use ai::AIPlugin;
 use combat_systems::CombatPlugin;
+use core::constants;
+use core::game::*;
+use core::time_controls::TimeControlPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;
-use ai::AIPlugin;
+use world::terrain_v2::TerrainPluginV2;
+use world::GridPlugin;
 // use resource_ui::ResourceUIPlugin;  // REMOVED: Duplicate of ui::resource_display
-use rendering::model_loader::ModelLoaderPlugin;
-use rendering::hover_effects::HoverEffectsPlugin;
-use rendering::animation_systems::AnimationPlugin;
-use entities::entity_state_systems::EntityStatePlugin;
 use collision::CollisionPlugin;
+use entities::entity_state_systems::EntityStatePlugin;
+use rendering::animation_systems::AnimationPlugin;
+use rendering::hover_effects::HoverEffectsPlugin;
+use rendering::model_loader::ModelLoaderPlugin;
 
 fn main() {
     App::new()
@@ -45,7 +45,7 @@ fn main() {
             rts::RTSSystemsPlugin,
             CombatPlugin,
             HealthUIPlugin,
-            UIPlugin,  // Contains comprehensive resource display system
+            UIPlugin, // Contains comprehensive resource display system
             AIPlugin,
             // ResourceUIPlugin,  // REMOVED: Duplicate overlapping resource display
             ModelLoaderPlugin,

@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 use std::collections::HashMap;
 
 /// Tracks intelligence about enemy players - scouting data, army composition, threats
@@ -32,11 +32,11 @@ pub struct UnitComposition {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ThreatLevel {
-    None,        // No military threat
-    Low,         // 1-2 military units
-    Medium,      // 3-5 military units
-    High,        // 6-10 military units
-    Critical,    // 10+ military units or imminent attack
+    None,     // No military threat
+    Low,      // 1-2 military units
+    Medium,   // 3-5 military units
+    High,     // 6-10 military units
+    Critical, // 10+ military units or imminent attack
 }
 
 #[derive(Debug, Clone)]
@@ -48,12 +48,12 @@ pub struct EstimatedResources {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnemyStrategy {
     Unknown,
-    EconomyRush,     // Many workers, few military
-    MilitaryRush,    // Early military pressure
+    EconomyRush,  // Many workers, few military
+    MilitaryRush, // Early military pressure
     #[allow(dead_code)]
-    FastExpansion,   // Quick second base
-    Defensive,       // Building defenses
-    Aggressive,      // Active harassment
+    FastExpansion, // Quick second base
+    Defensive,    // Building defenses
+    Aggressive,   // Active harassment
 }
 
 impl Default for IntelligenceSystem {
@@ -66,20 +66,23 @@ impl Default for IntelligenceSystem {
 
 impl IntelligenceSystem {
     pub fn initialize_player(&mut self, ai_player_id: u8, enemy_player_id: u8) {
-        self.player_intel.insert(ai_player_id, PlayerIntelligence {
-            player_id: enemy_player_id,
-            last_scouted: 0.0,
-            enemy_base_location: None,
-            enemy_unit_composition: UnitComposition::default(),
-            enemy_buildings: Vec::new(),
-            threat_level: ThreatLevel::None,
-            estimated_resources: EstimatedResources {
-                total_estimated: 0.0,
-                is_eco_focused: false,
+        self.player_intel.insert(
+            ai_player_id,
+            PlayerIntelligence {
+                player_id: enemy_player_id,
+                last_scouted: 0.0,
+                enemy_base_location: None,
+                enemy_unit_composition: UnitComposition::default(),
+                enemy_buildings: Vec::new(),
+                threat_level: ThreatLevel::None,
+                estimated_resources: EstimatedResources {
+                    total_estimated: 0.0,
+                    is_eco_focused: false,
+                },
+                enemy_strategy: EnemyStrategy::Unknown,
+                scout_unit: None,
             },
-            enemy_strategy: EnemyStrategy::Unknown,
-            scout_unit: None,
-        });
+        );
     }
 
     pub fn get_intel(&self, player_id: u8) -> Option<&PlayerIntelligence> {
@@ -136,7 +139,9 @@ pub fn intelligence_update_system(
 
         // Estimate enemy base location (average of unit positions)
         if !enemy_positions.is_empty() {
-            let avg_pos = enemy_positions.iter().fold(Vec3::ZERO, |acc, pos| acc + *pos)
+            let avg_pos = enemy_positions
+                .iter()
+                .fold(Vec3::ZERO, |acc, pos| acc + *pos)
                 / enemy_positions.len() as f32;
             intel.enemy_base_location = Some(avg_pos);
         }
@@ -159,14 +164,15 @@ pub fn intelligence_update_system(
         };
 
         // Estimate enemy strategy
-        intel.enemy_strategy = determine_enemy_strategy(&composition, &intel.enemy_buildings, current_time);
+        intel.enemy_strategy =
+            determine_enemy_strategy(&composition, &intel.enemy_buildings, current_time);
 
         // Estimate resources based on units and buildings
-        intel.estimated_resources.total_estimated =
-            (composition.workers as f32 * 50.0) +
-            (composition.military_units as f32 * 100.0) +
-            (intel.enemy_buildings.len() as f32 * 200.0);
-        intel.estimated_resources.is_eco_focused = composition.workers > composition.military_units * 2;
+        intel.estimated_resources.total_estimated = (composition.workers as f32 * 50.0)
+            + (composition.military_units as f32 * 100.0)
+            + (intel.enemy_buildings.len() as f32 * 200.0);
+        intel.estimated_resources.is_eco_focused =
+            composition.workers > composition.military_units * 2;
 
         intel.last_scouted = current_time;
     }
@@ -188,7 +194,9 @@ fn determine_enemy_strategy(
     }
 
     // Defensive detection
-    if buildings.iter().any(|b| matches!(b, BuildingType::Nursery)) && composition.military_units < 5 {
+    if buildings.iter().any(|b| matches!(b, BuildingType::Nursery))
+        && composition.military_units < 5
+    {
         return EnemyStrategy::Defensive;
     }
 

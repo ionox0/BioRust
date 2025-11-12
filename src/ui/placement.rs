@@ -1,8 +1,8 @@
-use bevy::prelude::*;
-use bevy::ecs::system::SystemParam;
+use crate::collision::validate_building_placement;
 use crate::core::components::*;
 use crate::ui::resource_display::PlayerResources;
-use crate::collision::validate_building_placement;
+use bevy::ecs::system::SystemParam;
+use bevy::prelude::*;
 
 #[derive(Resource, Default)]
 pub struct BuildingPlacement {
@@ -20,9 +20,28 @@ pub struct PlacementStatusText;
 /// System parameter grouping collision-related queries to reduce parameter count
 #[derive(SystemParam)]
 pub struct CollisionQueries<'w, 's> {
-    pub buildings: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<Building>, Without<PlacementPreview>)>,
-    pub units: Query<'w, 's, (&'static Transform, &'static CollisionRadius), (With<RTSUnit>, Without<PlacementPreview>)>,
-    pub environment_objects: Query<'w, 's, (&'static Transform, &'static CollisionRadius, &'static EnvironmentObject), (With<EnvironmentObject>, Without<PlacementPreview>)>,
+    pub buildings: Query<
+        'w,
+        's,
+        (&'static Transform, &'static CollisionRadius),
+        (With<Building>, Without<PlacementPreview>),
+    >,
+    pub units: Query<
+        'w,
+        's,
+        (&'static Transform, &'static CollisionRadius),
+        (With<RTSUnit>, Without<PlacementPreview>),
+    >,
+    pub environment_objects: Query<
+        'w,
+        's,
+        (
+            &'static Transform,
+            &'static CollisionRadius,
+            &'static EnvironmentObject,
+        ),
+        (With<EnvironmentObject>, Without<PlacementPreview>),
+    >,
 }
 
 /// System parameter grouping preview-related queries to reduce parameter count
@@ -117,7 +136,11 @@ fn handle_active_placement(
         let (camera, camera_transform) = camera_q.single();
 
         if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-            let placement_pos = calculate_placement_position(ray, &terrain_resources.manager, &terrain_resources.settings);
+            let placement_pos = calculate_placement_position(
+                ray,
+                &terrain_resources.manager,
+                &terrain_resources.settings,
+            );
 
             // Get collision radius for this building type
             let building_radius = get_building_collision_radius(&building_type);
@@ -184,11 +207,11 @@ fn calculate_placement_position(
             return Vec3::new(intersection.x, terrain_height, intersection.z);
         }
     }
-    
+
     // Method 2: If looking too horizontal, project forward and down to terrain
     let forward_distance = 100.0;
     let projected_point = ray.origin + ray.direction * forward_distance;
-    
+
     // Sample terrain at the projected point
     let terrain_height = crate::world::terrain_v2::sample_terrain_height(
         projected_point.x,
@@ -196,7 +219,7 @@ fn calculate_placement_position(
         &terrain_manager.noise_generator,
         terrain_settings,
     );
-    
+
     Vec3::new(projected_point.x, terrain_height, projected_point.z)
 }
 
@@ -261,11 +284,12 @@ fn attempt_building_placement(
     let building_cost = get_building_cost(&building_type);
     if can_afford_building(&building_cost, player_resources) {
         deduct_building_cost(&building_cost, player_resources, main_resources);
-        
+
         // Create a building site for player 1 (requires worker to complete)
-        let placeholder_visual = create_placeholder_building_visual(meshes, materials, &building_type, placement_pos);
+        let placeholder_visual =
+            create_placeholder_building_visual(meshes, materials, &building_type, placement_pos);
         let collision_radius = get_building_collision_radius(&building_type);
-        
+
         let _building_site = commands.spawn((
             BuildingSite {
                 building_type: building_type.clone(),
@@ -293,7 +317,10 @@ fn attempt_building_placement(
             commands.entity(preview_entity).despawn();
         }
 
-        info!("Created building site for player 1: {:?} at {:?}", building_type, placement_pos);
+        info!(
+            "Created building site for player 1: {:?} at {:?}",
+            building_type, placement_pos
+        );
     } else {
         warn!("Cannot place building: insufficient resources");
     }
@@ -309,19 +336,19 @@ fn deduct_building_cost(
             ResourceType::Nectar => {
                 player_resources.nectar -= cost_amount;
                 main_resources.nectar -= cost_amount;
-            },
+            }
             ResourceType::Chitin => {
                 player_resources.chitin -= cost_amount;
                 main_resources.chitin -= cost_amount;
-            },
+            }
             ResourceType::Minerals => {
                 player_resources.minerals -= cost_amount;
                 main_resources.minerals -= cost_amount;
-            },
+            }
             ResourceType::Pheromones => {
                 player_resources.pheromones -= cost_amount;
                 main_resources.pheromones -= cost_amount;
-            },
+            }
         }
     }
 }
@@ -334,15 +361,27 @@ pub fn create_building_preview(
     position: Vec3,
     is_valid: bool,
 ) -> Entity {
-    use crate::constants::buildings::*;
     use crate::constants::building_placement::*;
+    use crate::constants::buildings::*;
 
     let (mesh, size) = match building_type {
         BuildingType::Nursery => (meshes.add(Cuboid::from_size(NURSERY_SIZE)), NURSERY_SIZE),
-        BuildingType::WarriorChamber => (meshes.add(Cuboid::from_size(WARRIOR_CHAMBER_SIZE)), WARRIOR_CHAMBER_SIZE),
-        BuildingType::HunterChamber => (meshes.add(Cuboid::from_size(HUNTER_CHAMBER_SIZE)), HUNTER_CHAMBER_SIZE),
-        BuildingType::FungalGarden => (meshes.add(Cuboid::from_size(FUNGAL_GARDEN_SIZE)), FUNGAL_GARDEN_SIZE),
-        _ => (meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)), DEFAULT_BUILDING_SIZE),
+        BuildingType::WarriorChamber => (
+            meshes.add(Cuboid::from_size(WARRIOR_CHAMBER_SIZE)),
+            WARRIOR_CHAMBER_SIZE,
+        ),
+        BuildingType::HunterChamber => (
+            meshes.add(Cuboid::from_size(HUNTER_CHAMBER_SIZE)),
+            HUNTER_CHAMBER_SIZE,
+        ),
+        BuildingType::FungalGarden => (
+            meshes.add(Cuboid::from_size(FUNGAL_GARDEN_SIZE)),
+            FUNGAL_GARDEN_SIZE,
+        ),
+        _ => (
+            meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)),
+            DEFAULT_BUILDING_SIZE,
+        ),
     };
 
     let preview_color = if is_valid {
@@ -351,16 +390,18 @@ pub fn create_building_preview(
         INVALID_PLACEMENT_COLOR
     };
 
-    commands.spawn((
-        Mesh3d(mesh),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: preview_color,
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        })),
-        Transform::from_translation(position + Vec3::new(0.0, size.y / 2.0, 0.0)),
-        PlacementPreview,
-    )).id()
+    commands
+        .spawn((
+            Mesh3d(mesh),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: preview_color,
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            })),
+            Transform::from_translation(position + Vec3::new(0.0, size.y / 2.0, 0.0)),
+            PlacementPreview,
+        ))
+        .id()
 }
 
 /// Create a placeholder visual for a building under construction
@@ -371,15 +412,26 @@ fn create_placeholder_building_visual(
     position: Vec3,
 ) -> (Transform, Mesh3d, MeshMaterial3d<StandardMaterial>) {
     use crate::constants::buildings::*;
-    
 
     // Get building size for placeholder
     let (mesh, size) = match building_type {
         BuildingType::Nursery => (meshes.add(Cuboid::from_size(NURSERY_SIZE)), NURSERY_SIZE),
-        BuildingType::WarriorChamber => (meshes.add(Cuboid::from_size(WARRIOR_CHAMBER_SIZE)), WARRIOR_CHAMBER_SIZE),
-        BuildingType::HunterChamber => (meshes.add(Cuboid::from_size(HUNTER_CHAMBER_SIZE)), HUNTER_CHAMBER_SIZE),
-        BuildingType::FungalGarden => (meshes.add(Cuboid::from_size(FUNGAL_GARDEN_SIZE)), FUNGAL_GARDEN_SIZE),
-        _ => (meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)), DEFAULT_BUILDING_SIZE),
+        BuildingType::WarriorChamber => (
+            meshes.add(Cuboid::from_size(WARRIOR_CHAMBER_SIZE)),
+            WARRIOR_CHAMBER_SIZE,
+        ),
+        BuildingType::HunterChamber => (
+            meshes.add(Cuboid::from_size(HUNTER_CHAMBER_SIZE)),
+            HUNTER_CHAMBER_SIZE,
+        ),
+        BuildingType::FungalGarden => (
+            meshes.add(Cuboid::from_size(FUNGAL_GARDEN_SIZE)),
+            FUNGAL_GARDEN_SIZE,
+        ),
+        _ => (
+            meshes.add(Cuboid::from_size(DEFAULT_BUILDING_SIZE)),
+            DEFAULT_BUILDING_SIZE,
+        ),
     };
 
     // Create a semi-transparent placeholder material
@@ -395,7 +447,6 @@ fn create_placeholder_building_visual(
         MeshMaterial3d(placeholder_material),
     )
 }
-
 
 // Helper functions
 pub fn can_afford_building(cost: &[(ResourceType, f32)], resources: &PlayerResources) -> bool {
@@ -417,11 +468,16 @@ pub fn get_building_cost(building_type: &BuildingType) -> Vec<(ResourceType, f32
     use crate::constants::resources::*;
     match building_type {
         BuildingType::Nursery => vec![(ResourceType::Chitin, NURSERY_CHITIN_COST)],
-        BuildingType::WarriorChamber => vec![(ResourceType::Chitin, WARRIOR_CHAMBER_CHITIN_COST), (ResourceType::Minerals, WARRIOR_CHAMBER_MINERALS_COST)],
+        BuildingType::WarriorChamber => vec![
+            (ResourceType::Chitin, WARRIOR_CHAMBER_CHITIN_COST),
+            (ResourceType::Minerals, WARRIOR_CHAMBER_MINERALS_COST),
+        ],
         BuildingType::HunterChamber => vec![(ResourceType::Chitin, HUNTER_CHAMBER_CHITIN_COST)],
         BuildingType::FungalGarden => vec![(ResourceType::Chitin, FUNGAL_GARDEN_CHITIN_COST)],
         BuildingType::WoodProcessor => vec![(ResourceType::Chitin, WOOD_PROCESSOR_CHITIN_COST)],
-        BuildingType::MineralProcessor => vec![(ResourceType::Chitin, MINERAL_PROCESSOR_CHITIN_COST)],
+        BuildingType::MineralProcessor => {
+            vec![(ResourceType::Chitin, MINERAL_PROCESSOR_CHITIN_COST)]
+        }
         _ => vec![(ResourceType::Chitin, DEFAULT_BUILDING_CHITIN_COST)],
     }
 }
@@ -443,7 +499,10 @@ pub fn update_placement_status(
     if let Ok(mut text) = status_query.get_single_mut() {
         match &placement.active_building {
             Some(building_type) => {
-                **text = format!("Placing {:?} - Click terrain or ESC to cancel", building_type);
+                **text = format!(
+                    "Placing {:?} - Click terrain or ESC to cancel",
+                    building_type
+                );
             }
             None => {
                 **text = "".to_string();

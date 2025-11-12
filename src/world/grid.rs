@@ -1,10 +1,10 @@
 //! Grid overlay system for development and debugging
-//! 
+//!
 //! Provides a toggleable grid overlay that shows 50x50 unit squares
 //! to help with unit placement, distance measurement, and map navigation.
 
-use bevy::prelude::*;
 use crate::core::constants::{grid::*, hotkeys::TOGGLE_GRID};
+use bevy::prelude::*;
 
 /// Resource to track grid visibility state
 #[derive(Resource, Default)]
@@ -21,13 +21,9 @@ pub struct GridPlugin;
 
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<GridSettings>()
+        app.init_resource::<GridSettings>()
             .add_systems(Startup, setup_grid_system)
-            .add_systems(Update, (
-                handle_grid_toggle,
-                update_grid_visibility,
-            ));
+            .add_systems(Update, (handle_grid_toggle, update_grid_visibility));
     }
 }
 
@@ -38,7 +34,10 @@ fn handle_grid_toggle(
 ) {
     if keyboard.just_pressed(TOGGLE_GRID) {
         grid_settings.visible = !grid_settings.visible;
-        info!("Grid overlay: {}", if grid_settings.visible { "ON" } else { "OFF" });
+        info!(
+            "Grid overlay: {}",
+            if grid_settings.visible { "ON" } else { "OFF" }
+        );
     }
 }
 
@@ -68,7 +67,7 @@ pub fn spawn_grid(
 
     for i in 0..=line_count {
         let x = -half_size + (i as f32 * GRID_SPACING);
-        
+
         // Use major line material for every 4th line (every 200 units)
         let is_major_line = i % 4 == 0;
         let material = if is_major_line {
@@ -95,7 +94,7 @@ pub fn spawn_grid(
     // Create horizontal lines (parallel to X-axis)
     for i in 0..=line_count {
         let z = -half_size + (i as f32 * GRID_SPACING);
-        
+
         // Use major line material for every 4th line (every 200 units)
         let is_major_line = i % 4 == 0;
         let material = if is_major_line {
@@ -119,7 +118,75 @@ pub fn spawn_grid(
         ));
     }
 
-    info!("Grid system initialized - Press 'L' to toggle visibility");
+    // Add map boundary lines (thick red lines at map edges)
+    let boundary_material = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 0.0, 0.0, 0.8), // Red with transparency
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+
+    // Map boundary using constants from movement system
+    use crate::constants::movement::MAP_BOUNDARY;
+    let boundary = MAP_BOUNDARY;
+
+    // Top boundary line
+    let top_line = create_thick_line_mesh(
+        Vec3::new(-boundary, GRID_HEIGHT + 0.1, boundary),
+        Vec3::new(boundary, GRID_HEIGHT + 0.1, boundary),
+        2.0, // Thicker boundary line
+    );
+    commands.spawn((
+        Mesh3d(meshes.add(top_line)),
+        MeshMaterial3d(boundary_material.clone()),
+        Transform::IDENTITY,
+        Visibility::Hidden,
+        GridLine,
+    ));
+
+    // Bottom boundary line
+    let bottom_line = create_thick_line_mesh(
+        Vec3::new(-boundary, GRID_HEIGHT + 0.1, -boundary),
+        Vec3::new(boundary, GRID_HEIGHT + 0.1, -boundary),
+        2.0,
+    );
+    commands.spawn((
+        Mesh3d(meshes.add(bottom_line)),
+        MeshMaterial3d(boundary_material.clone()),
+        Transform::IDENTITY,
+        Visibility::Hidden,
+        GridLine,
+    ));
+
+    // Left boundary line
+    let left_line = create_thick_line_mesh(
+        Vec3::new(-boundary, GRID_HEIGHT + 0.1, -boundary),
+        Vec3::new(-boundary, GRID_HEIGHT + 0.1, boundary),
+        2.0,
+    );
+    commands.spawn((
+        Mesh3d(meshes.add(left_line)),
+        MeshMaterial3d(boundary_material.clone()),
+        Transform::IDENTITY,
+        Visibility::Hidden,
+        GridLine,
+    ));
+
+    // Right boundary line
+    let right_line = create_thick_line_mesh(
+        Vec3::new(boundary, GRID_HEIGHT + 0.1, -boundary),
+        Vec3::new(boundary, GRID_HEIGHT + 0.1, boundary),
+        2.0,
+    );
+    commands.spawn((
+        Mesh3d(meshes.add(right_line)),
+        MeshMaterial3d(boundary_material),
+        Transform::IDENTITY,
+        Visibility::Hidden,
+        GridLine,
+    ));
+
+    info!("Grid system initialized with map boundaries - Press 'L' to toggle visibility");
 }
 
 /// Create a simple line mesh between two points
@@ -137,17 +204,47 @@ fn create_line_mesh(start: Vec3, end: Vec3) -> Mesh {
     ];
 
     let indices = vec![
-        0u32, 1, 2,  // First triangle
-        0, 2, 3,     // Second triangle
+        0u32, 1, 2, // First triangle
+        0, 2, 3, // Second triangle
     ];
 
     let normals = vec![Vec3::Y; 4]; // All point up
-    let uvs = vec![
-        [0.0, 0.0],
-        [1.0, 0.0],
-        [1.0, 1.0],
-        [0.0, 1.0],
+    let uvs = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+
+    let mut mesh = Mesh::new(
+        bevy::render::render_resource::PrimitiveTopology::TriangleList,
+        bevy::render::render_asset::RenderAssetUsages::default(),
+    );
+
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
+
+    mesh
+}
+
+/// Create a thick line mesh between two points (for boundary lines)
+fn create_thick_line_mesh(start: Vec3, end: Vec3, width: f32) -> Mesh {
+    let direction = (end - start).normalize();
+    let _length = start.distance(end);
+    let perpendicular = Vec3::new(-direction.z, 0.0, direction.x) * width * 0.5;
+
+    let vertices = vec![
+        // Line quad vertices
+        start - perpendicular,
+        start + perpendicular,
+        end + perpendicular,
+        end - perpendicular,
     ];
+
+    let indices = vec![
+        0u32, 1, 2, // First triangle
+        0, 2, 3, // Second triangle
+    ];
+
+    let normals = vec![Vec3::Y; 4]; // All point up
+    let uvs = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
 
     let mut mesh = Mesh::new(
         bevy::render::render_resource::PrimitiveTopology::TriangleList,

@@ -1,6 +1,6 @@
-use bevy::prelude::*;
-use crate::core::components::*;
 use crate::ai::intelligence::{IntelligenceSystem, ThreatLevel};
+use crate::core::components::*;
+use bevy::prelude::*;
 
 /// Manages tactical decisions and army coordination
 #[derive(Resource, Debug, Clone)]
@@ -21,12 +21,11 @@ pub struct PlayerTactics {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TacticalStance {
-    Defensive,      // Stay near base, defend only
-    Harass,         // Send small raids to disrupt economy
-    Aggressive,     // Full army attack
-    Retreat,        // Pull back and regroup
+    Defensive,  // Stay near base, defend only
+    Harass,     // Send small raids to disrupt economy
+    Aggressive, // Full army attack
     #[allow(dead_code)]
-    Expand,         // Secure expansion locations
+    Expand, // Secure expansion locations
 }
 
 #[derive(Debug, Clone)]
@@ -41,11 +40,11 @@ pub struct ArmyGroup {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArmyRole {
-    MainArmy,       // Primary fighting force
-    Harassers,      // Small raiding party
-    Defenders,      // Base defense
+    MainArmy,  // Primary fighting force
+    Harassers, // Small raiding party
+    Defenders, // Base defense
     #[allow(dead_code)]
-    Scouts,         // Exploration
+    Scouts, // Exploration
 }
 
 /// Component to mark units as part of an army group
@@ -61,14 +60,17 @@ impl Default for TacticalManager {
         let mut player_tactics = std::collections::HashMap::new();
 
         // Initialize AI player 2
-        player_tactics.insert(2, PlayerTactics {
-            current_stance: TacticalStance::Defensive,
-            army_groups: Vec::new(),
-            last_attack_time: 0.0,
-            rally_point: Vec3::new(200.0, 0.0, 0.0),
-            is_attacking: false,
-            target_player: Some(1),
-        });
+        player_tactics.insert(
+            2,
+            PlayerTactics {
+                current_stance: TacticalStance::Defensive,
+                army_groups: Vec::new(),
+                last_attack_time: 0.0,
+                rally_point: Vec3::new(200.0, 0.0, 0.0),
+                is_attacking: false,
+                target_player: Some(1),
+            },
+        );
 
         Self { player_tactics }
     }
@@ -90,7 +92,8 @@ pub fn tactical_decision_system(
         let intel = intelligence.get_intel(*player_id);
 
         // Count our military units
-        let our_military_count = units.iter()
+        let our_military_count = units
+            .iter()
             .filter(|(unit, _, _)| unit.player_id == *player_id)
             .count();
 
@@ -113,8 +116,10 @@ pub fn tactical_decision_system(
         let should_log = stance_changed || (current_time - *last_log_time > 5.0);
 
         if should_log {
-            info!("AI Player {} - Stance: {:?}, Military: {}, Attacking: {}",
-                  player_id, tactics.current_stance, our_military_count, tactics.is_attacking);
+            info!(
+                "AI Player {} - Stance: {:?}, Military: {}, Attacking: {}",
+                player_id, tactics.current_stance, our_military_count, tactics.is_attacking
+            );
             *last_log_time = current_time;
             last_stance.insert(*player_id, tactics.current_stance.clone());
         }
@@ -148,10 +153,6 @@ fn decide_tactical_stance(
             return TacticalStance::Harass;
         }
 
-        // If we're outnumbered significantly, retreat
-        if enemy_military > our_military_count * 2 {
-            return TacticalStance::Retreat;
-        }
 
         // Default to defensive in early game
         if our_military_count < 5 {
@@ -171,10 +172,15 @@ fn update_army_groups(
     tactics.army_groups.clear();
 
     // Collect all military units for this player
-    let military_units: Vec<(Entity, Vec3, f32)> = units.iter()
+    let military_units: Vec<(Entity, Vec3, f32)> = units
+        .iter()
         .filter(|(unit, _, _)| unit.player_id == player_id)
         .map(|(unit, transform, health)| {
-            (Entity::from_raw(unit.unit_id as u32), transform.translation, health.current / health.max)
+            (
+                Entity::from_raw(unit.unit_id as u32),
+                transform.translation,
+                health.current / health.max,
+            )
         })
         .collect();
 
@@ -187,9 +193,11 @@ fn update_army_groups(
         TacticalStance::Aggressive => {
             // All units in one main army
             let unit_entities: Vec<Entity> = military_units.iter().map(|(e, _, _)| *e).collect();
-            let avg_position = military_units.iter()
+            let avg_position = military_units
+                .iter()
                 .map(|(_, pos, _)| *pos)
-                .fold(Vec3::ZERO, |acc, pos| acc + pos) / military_units.len() as f32;
+                .fold(Vec3::ZERO, |acc, pos| acc + pos)
+                / military_units.len() as f32;
 
             tactics.army_groups.push(ArmyGroup {
                 units: unit_entities,
@@ -203,8 +211,16 @@ fn update_army_groups(
             // Split into harassers (2-3 units) and defenders (rest)
             let harass_count = (military_units.len() / 2).min(3).max(2);
 
-            let harassers: Vec<Entity> = military_units.iter().take(harass_count).map(|(e, _, _)| *e).collect();
-            let defenders: Vec<Entity> = military_units.iter().skip(harass_count).map(|(e, _, _)| *e).collect();
+            let harassers: Vec<Entity> = military_units
+                .iter()
+                .take(harass_count)
+                .map(|(e, _, _)| *e)
+                .collect();
+            let defenders: Vec<Entity> = military_units
+                .iter()
+                .skip(harass_count)
+                .map(|(e, _, _)| *e)
+                .collect();
 
             if !harassers.is_empty() {
                 tactics.army_groups.push(ArmyGroup {
@@ -225,7 +241,7 @@ fn update_army_groups(
             }
             tactics.is_attacking = false;
         }
-        TacticalStance::Defensive | TacticalStance::Retreat => {
+        TacticalStance::Defensive => {
             // All units defend at rally point
             let unit_entities: Vec<Entity> = military_units.iter().map(|(e, _, _)| *e).collect();
 
@@ -260,7 +276,9 @@ pub fn army_coordination_system(
                             if let Some(target_location) = intel.enemy_base_location {
                                 // All units in group move together to enemy base
                                 for unit_entity in &group.units {
-                                    if let Ok((_entity, mut movement, _unit, _transform)) = units.get_mut(*unit_entity) {
+                                    if let Ok((_entity, mut movement, _unit, _transform)) =
+                                        units.get_mut(*unit_entity)
+                                    {
                                         movement.target_position = Some(target_location);
                                     }
                                 }
@@ -274,10 +292,15 @@ pub fn army_coordination_system(
                         if let Some(enemy_base) = intel.enemy_base_location {
                             // Harassers target enemy base periphery
                             for (i, unit_entity) in group.units.iter().enumerate() {
-                                if let Ok((_entity, mut movement, _unit, _transform)) = units.get_mut(*unit_entity) {
+                                if let Ok((_entity, mut movement, _unit, _transform)) =
+                                    units.get_mut(*unit_entity)
+                                {
                                     // Spread harassers around enemy base
-                                    let angle = (i as f32 / group.units.len() as f32) * std::f32::consts::PI * 2.0;
-                                    let offset = Vec3::new(angle.cos() * 40.0, 0.0, angle.sin() * 40.0);
+                                    let angle = (i as f32 / group.units.len() as f32)
+                                        * std::f32::consts::PI
+                                        * 2.0;
+                                    let offset =
+                                        Vec3::new(angle.cos() * 40.0, 0.0, angle.sin() * 40.0);
                                     movement.target_position = Some(enemy_base + offset);
                                 }
                             }
@@ -287,7 +310,9 @@ pub fn army_coordination_system(
                 ArmyRole::Defenders => {
                     // Keep defenders at rally point
                     for unit_entity in &group.units {
-                        if let Ok((_entity, mut movement, _unit, transform)) = units.get_mut(*unit_entity) {
+                        if let Ok((_entity, mut movement, _unit, transform)) =
+                            units.get_mut(*unit_entity)
+                        {
                             // Only move if far from rally point
                             if transform.translation.distance(tactics.rally_point) > 30.0 {
                                 movement.target_position = Some(tactics.rally_point);

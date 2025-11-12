@@ -1,186 +1,369 @@
-#![allow(dead_code)] // Allow unused state functionality for future features
-use bevy::prelude::*;
+//! Specialized State Management Systems
+//! 
+//! This module provides state management using specialized components
+//! instead of a single monolithic EntityState component.
+
 use crate::core::components::*;
+use bevy::prelude::*;
 
 pub struct EntityStatePlugin;
 
 impl Plugin for EntityStatePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(Update, (
-                add_entity_state_to_units,
-                update_entity_states,
-                sync_animation_with_entity_state,
-            ).chain())
-            .add_event::<EntityStateChangeEvent>();
+        app.add_systems(
+            Update,
+            (
+                add_gathering_state_to_gatherers,
+                add_combat_state_to_fighters,
+                update_gathering_states,
+                update_building_states, 
+                update_movement_states,
+                update_combat_states,
+                sync_animations_with_specialized_states,
+                cleanup_dead_units,
+            )
+                .chain(),
+        )
+        .add_event::<GatheringStateChangeEvent>()
+        .add_event::<BuildingStateChangeEvent>()
+        .add_event::<MovementStateChangeEvent>()
+        .add_event::<CombatStateChangeEvent>();
     }
 }
 
-/// Event fired when an entity changes state
+// State change events for each specialized component
 #[derive(Event, Debug)]
-pub struct EntityStateChangeEvent {
+pub struct GatheringStateChangeEvent {
     pub entity: Entity,
-    pub old_state: UnitState,
-    pub new_state: UnitState,
+    pub old_state: GatheringStateType,
+    pub new_state: GatheringStateType,
 }
 
-/// System that updates entity states based on their current activities
-pub fn update_entity_states(
-    mut commands: Commands,
-    mut entity_query: Query<(Entity, &mut EntityState, Option<&Movement>, Option<&Combat>, Option<&RTSHealth>, Option<&ResourceGatherer>), Without<Dying>>,
-    mut state_events: EventWriter<EntityStateChangeEvent>,
+#[derive(Event, Debug)]
+pub struct BuildingStateChangeEvent {
+    pub entity: Entity,
+    pub old_state: BuildingStateType,
+    pub new_state: BuildingStateType,
+}
+
+#[derive(Event, Debug)]
+pub struct MovementStateChangeEvent {
+    pub entity: Entity,
+    pub old_state: MovementStateType,
+    pub new_state: MovementStateType,
+}
+
+#[derive(Event, Debug)]
+pub struct CombatStateChangeEvent {
+    pub entity: Entity,
+    pub old_state: CombatStateType,
+    pub new_state: CombatStateType,
+}
+
+/// Update gathering state component based on ResourceGatherer data
+pub fn update_gathering_states(
+    mut gathering_query: Query<(Entity, &mut GatheringState, &ResourceGatherer, Option<&Movement>)>,
+    _commands: Commands,
+    mut events: EventWriter<GatheringStateChangeEvent>,
     time: Res<Time>,
 ) {
-    for (entity, mut entity_state, movement, combat, health, gatherer) in entity_query.iter_mut() {
-        entity_state.state_timer += time.delta_secs();
-        
-        let old_state = entity_state.current.clone();
-        let new_state = determine_entity_state(movement, combat, health, gatherer);
+    let current_time = time.elapsed_secs();
+    
+    for (entity, mut gathering_state, gatherer, movement) in gathering_query.iter_mut() {
+        let old_state = gathering_state.state.clone();
+        let new_state = determine_gathering_state(gatherer, movement);
         
         if new_state != old_state {
-            entity_state.previous = old_state.clone();
-            entity_state.current = new_state.clone();
-            entity_state.state_timer = 0.0;
+            gathering_state.state = new_state.clone();
+            gathering_state.last_state_change = current_time;
             
-            // Fire state change event
-            state_events.send(EntityStateChangeEvent {
+            events.send(GatheringStateChangeEvent {
                 entity,
                 old_state,
-                new_state: new_state.clone(),
+                new_state,
             });
+        }
+    }
+    
+    // Add GatheringState to units with ResourceGatherer but no state
+    // This is handled by the add_gathering_state_to_gatherers system
+}
+
+/// Add gathering state to resource gatherers that don't have it
+pub fn add_gathering_state_to_gatherers(
+    mut commands: Commands,
+    gatherers_without_state: Query<Entity, (With<ResourceGatherer>, Without<GatheringState>)>,
+) {
+    for entity in gatherers_without_state.iter() {
+        commands.entity(entity).insert(GatheringState::default());
+    }
+}
+
+/// Add combat state to units with Combat component that don't have it (only auto-attacking units)
+pub fn add_combat_state_to_fighters(
+    mut commands: Commands,
+    fighters_without_state: Query<(Entity, &Combat), Without<CombatState>>,
+) {
+    for (entity, combat) in fighters_without_state.iter() {
+        // Only add combat state to units that auto-attack (not economic units like workers)
+        if combat.auto_attack {
+            commands.entity(entity).insert(CombatState::default());
+        }
+    }
+}
+
+/// Determine gathering state based on ResourceGatherer component
+fn determine_gathering_state(
+    gatherer: &ResourceGatherer,
+    movement: Option<&Movement>,
+) -> GatheringStateType {
+    // If carrying resources
+    if gatherer.carried_amount > 0.0 {
+        // Should return if at capacity or no target resource
+        if gatherer.carried_amount >= gatherer.capacity || gatherer.target_resource.is_none() {
+            // Check if actually moving to return
+            if let Some(movement) = movement {
+                if movement.target_position.is_some() {
+                    return GatheringStateType::ReturningToBase;
+                }
+            }
+            // Has resources but not moving = delivering
+            return GatheringStateType::DeliveringResources;
+        }
+    }
+    
+    // If has target resource
+    if gatherer.target_resource.is_some() {
+        // Check if moving to resource or at resource
+        if let Some(movement) = movement {
+            if movement.target_position.is_some() {
+                return GatheringStateType::MovingToResource;
+            }
+        }
+        // At resource location, gathering
+        return GatheringStateType::Gathering;
+    }
+    
+    // Default to moving to resource (looking for work)
+    GatheringStateType::MovingToResource
+}
+
+/// Update building states (placeholder for now)
+pub fn update_building_states(
+    mut building_query: Query<(Entity, &mut BuildingState)>,
+    _events: EventWriter<BuildingStateChangeEvent>,
+    time: Res<Time>,
+) {
+    // Placeholder - implement based on actual construction system
+    let _current_time = time.elapsed_secs();
+    
+    for (_entity, _building_state) in building_query.iter_mut() {
+        // TODO: Implement building state logic when construction system is available
+    }
+}
+
+/// Update movement states (placeholder for now) 
+pub fn update_movement_states(
+    mut movement_query: Query<(Entity, &mut MovementState, &Movement)>,
+    _events: EventWriter<MovementStateChangeEvent>,
+    time: Res<Time>,
+) {
+    let _current_time = time.elapsed_secs();
+    
+    for (_entity, _movement_state, _movement) in movement_query.iter_mut() {
+        // TODO: Implement movement state logic for following, patrolling, etc.
+    }
+}
+
+/// Update combat states based on Combat component data
+pub fn update_combat_states(
+    mut combat_query: Query<(Entity, &mut CombatState, &Combat, &Transform, Option<&Movement>)>,
+    targets_query: Query<&Transform, (With<RTSHealth>, Without<DeathEvent>)>,
+    mut _events: EventWriter<CombatStateChangeEvent>,
+    time: Res<Time>,
+) {
+    let current_time = time.elapsed_secs();
+    
+    for (_entity, mut combat_state, combat, transform, movement) in combat_query.iter_mut() {
+        let old_state = combat_state.state.clone();
+        let new_state = determine_combat_state(combat, transform, movement, &targets_query);
+        
+        if new_state != old_state {
+            combat_state.state = new_state.clone();
+            combat_state.last_state_change = current_time;
             
-            // Handle special state transitions
-            match new_state {
-                UnitState::Dead => {
-                    // Ensure the entity is marked as dying, but check if entity still exists first
-                    if let Some(mut entity_commands) = commands.get_entity(entity) {
-                        entity_commands.insert(Dying);
-                    }
-                },
-                _ => {},
+            // Update target position and entity references
+            if let Some(target_entity) = combat.target {
+                if let Ok(target_transform) = targets_query.get(target_entity) {
+                    combat_state.target_entity = Some(target_entity);
+                    combat_state.target_position = Some(target_transform.translation);
+                } else {
+                    combat_state.target_entity = None;
+                    combat_state.target_position = None;
+                }
+            } else {
+                combat_state.target_entity = None;
+                combat_state.target_position = None;
             }
         }
     }
 }
 
-/// Determine what state an entity should be in based on its components
-fn determine_entity_state(
-    movement: Option<&Movement>, 
-    combat: Option<&Combat>, 
-    health: Option<&RTSHealth>,
-    gatherer: Option<&ResourceGatherer>
-) -> UnitState {
-    // Check for death first (highest priority)
-    if let Some(health) = health {
-        if health.current <= 0.0 {
-            return UnitState::Dead;
-        }
+/// Determine combat state based on Combat component and related data
+fn determine_combat_state(
+    combat: &Combat,
+    transform: &Transform,
+    movement: Option<&Movement>,
+    targets_query: &Query<&Transform, (With<RTSHealth>, Without<DeathEvent>)>,
+) -> CombatStateType {
+    // If no target, unit is idle
+    let Some(target_entity) = combat.target else {
+        return CombatStateType::Idle;
+    };
+    
+    // If target doesn't exist, unit should be idle
+    let Ok(target_transform) = targets_query.get(target_entity) else {
+        return CombatStateType::Idle;
+    };
+    
+    let distance = transform.translation.distance(target_transform.translation);
+    
+    // If actively attacking (within range and attacking), in combat
+    if distance <= combat.attack_range && combat.is_attacking {
+        return CombatStateType::InCombat;
     }
     
-    // Check for combat (high priority)
-    if let Some(combat) = combat {
-        if combat.is_attacking || combat.target.is_some() {
-            return UnitState::Fighting;
-        }
+    // If within range but not attacking (cooling down), still in combat
+    if distance <= combat.attack_range {
+        return CombatStateType::InCombat;
     }
-
-    // Check for resource gathering/delivery
-    if let Some(gatherer) = gatherer {
-        // Check if returning to base with resources
-        // Unit is returning if: carrying resources AND (at capacity OR no target resource) AND actually moving
-        if gatherer.carried_amount > 0.0 {
-            let should_be_returning = gatherer.carried_amount >= gatherer.capacity ||
-                                     gatherer.target_resource.is_none();
-
-            if should_be_returning {
-                // Only mark as "returning" if actually moving toward dropoff
-                if let Some(movement) = movement {
-                    if movement.target_position.is_some() {
-                        return UnitState::ReturningWithResources;
-                    }
-                }
-                // Has resources and should return, but no movement = waiting idle for building
-                // Fall through to Idle state below
-                return UnitState::Idle;
-            }
-        }
-
-        // Check if actively gathering at a resource
-        // This includes traveling TO the resource and gathering AT the resource
-        if gatherer.target_resource.is_some() {
-            return UnitState::Gathering;
-        }
-    }
-
-    // Check for movement
+    
+    // If moving towards target (has movement target), moving to attack
     if let Some(movement) = movement {
         if movement.target_position.is_some() {
-            // Determine if this is fast or slow movement
-            return UnitState::Moving;
+            return CombatStateType::MovingToAttack;
         }
     }
     
-    // Default to idle
-    UnitState::Idle
+    // If has target but not moving, consider it moving to combat
+    CombatStateType::MovingToCombat
 }
 
-/// System that synchronizes animation states with entity states
-pub fn sync_animation_with_entity_state(
-    animation_controllers: Query<(Entity, &crate::rendering::animation_systems::UnitAnimationController)>,
-    entity_states: Query<&EntityState>,
-    mut animation_events: EventWriter<crate::rendering::animation_systems::AnimationStateChangeEvent>,
+/// Sync animations with specialized states
+pub fn sync_animations_with_specialized_states(
+    animation_controllers: Query<(
+        Entity,
+        &crate::rendering::animation_systems::UnitAnimationController,
+    )>,
+    gathering_states: Query<&GatheringState>,
+    building_states: Query<&BuildingState>, 
+    movement_states: Query<&MovementState>,
+    combat_states: Query<&CombatState>,
+    health_query: Query<&RTSHealth>,
+    movement_query: Query<&Movement>,
+    mut animation_events: EventWriter<
+        crate::rendering::animation_systems::AnimationStateChangeEvent,
+    >,
 ) {
-    use crate::rendering::animation_systems::AnimationState;
     
     for (entity, controller) in animation_controllers.iter() {
-        if let Ok(entity_state) = entity_states.get(entity) {
-            let desired_animation = match entity_state.current {
-                UnitState::Idle => AnimationState::Idle,
-                UnitState::Moving => {
-                    // Could differentiate between walking and running based on speed
-                    AnimationState::Walking
-                },
-                UnitState::Fighting => AnimationState::Attacking,
-                UnitState::Gathering => AnimationState::Special, // Use special animation for gathering
-                UnitState::ReturningWithResources => AnimationState::Walking, // Walking back with resources
-                UnitState::Building => AnimationState::Special,  // Use special animation for building
-                UnitState::Dead => AnimationState::Death,
-                UnitState::Following => AnimationState::Walking,
-                UnitState::Patrolling => AnimationState::Walking,
-                UnitState::Guarding => AnimationState::Idle,
-            };
-            
-            if controller.current_state != desired_animation {
-                animation_events.send(crate::rendering::animation_systems::AnimationStateChangeEvent {
+        let desired_animation = determine_animation_from_states(
+            entity,
+            &gathering_states,
+            &building_states,
+            &movement_states,
+            &combat_states,
+            &health_query,
+            &movement_query,
+        );
+        
+        if controller.current_state != desired_animation {
+            animation_events.send(
+                crate::rendering::animation_systems::AnimationStateChangeEvent {
                     entity,
                     new_state: desired_animation,
-                    force: false, // Use smooth transitions for entity state changes
-                });
+                    force: false,
+                },
+            );
+        }
+    }
+}
+
+/// Determine animation based on specialized state components (priority order)
+fn determine_animation_from_states(
+    entity: Entity,
+    gathering_states: &Query<&GatheringState>,
+    _building_states: &Query<&BuildingState>,
+    _movement_states: &Query<&MovementState>,
+    combat_states: &Query<&CombatState>,
+    health_query: &Query<&RTSHealth>,
+    movement_query: &Query<&Movement>,
+) -> crate::rendering::animation_systems::AnimationState {
+    
+    // 1. Check for death (highest priority)
+    if let Ok(health) = health_query.get(entity) {
+        if health.current <= 0.0 {
+            return crate::rendering::animation_systems::AnimationState::Death;
+        }
+    }
+    
+    // 2. Check for combat
+    if let Ok(combat_state) = combat_states.get(entity) {
+        if matches!(combat_state.state, CombatStateType::InCombat) {
+            return crate::rendering::animation_systems::AnimationState::Attacking;
+        }
+    }
+    
+    // 3. Check for gathering
+    if let Ok(gathering_state) = gathering_states.get(entity) {
+        match gathering_state.state {
+            GatheringStateType::Gathering => return crate::rendering::animation_systems::AnimationState::Special,
+            GatheringStateType::MovingToResource | GatheringStateType::ReturningToBase => {
+                return crate::rendering::animation_systems::AnimationState::Walking;
+            }
+            GatheringStateType::DeliveringResources => return crate::rendering::animation_systems::AnimationState::Idle,
+        }
+    }
+    
+    // 4. Check for movement
+    if let Ok(movement) = movement_query.get(entity) {
+        if movement.target_position.is_some() {
+            return crate::rendering::animation_systems::AnimationState::Walking;
+        }
+    }
+    
+    // 5. Default to idle
+    crate::rendering::animation_systems::AnimationState::Idle
+}
+
+/// Clean up dead units
+pub fn cleanup_dead_units(
+    mut commands: Commands,
+    health_query: Query<(Entity, &RTSHealth), Without<Dying>>,
+) {
+    for (entity, health) in health_query.iter() {
+        if health.current <= 0.0 {
+            if let Some(mut entity_commands) = commands.get_entity(entity) {
+                entity_commands.insert(Dying);
             }
         }
     }
 }
 
-/// Helper function to add EntityState component to entities that don't have it
-pub fn add_entity_state_to_units(
-    mut commands: Commands,
-    units_without_state: Query<Entity, (With<RTSUnit>, Without<EntityState>)>,
-) {
-    for entity in units_without_state.iter() {
-        commands.entity(entity).insert(EntityState::default());
-    }
-}
+// Legacy compatibility functions (deprecated)
 
-/// Helper function to get the current state of an entity
-pub fn get_entity_state(entity: Entity, states: &Query<&EntityState>) -> Option<UnitState> {
-    states.get(entity).ok().map(|state| state.current.clone())
-}
-
-/// Helper function to check if an entity is in a specific state
-pub fn is_entity_in_state(entity: Entity, target_state: UnitState, states: &Query<&EntityState>) -> bool {
-    if let Ok(state) = states.get(entity) {
-        state.current == target_state
+/// Get a simplified state representation for debugging
+#[allow(dead_code)]
+pub fn get_entity_activity(entity: Entity, world: &World) -> &'static str {
+    if world.get::<GatheringState>(entity).is_some() {
+        "Gathering"
+    } else if world.get::<BuildingState>(entity).is_some() {
+        "Building"
+    } else if world.get::<CombatState>(entity).is_some() {
+        "Combat"
+    } else if world.get::<Movement>(entity).and_then(|m| m.target_position).is_some() {
+        "Moving"
     } else {
-        false
+        "Idle"
     }
 }

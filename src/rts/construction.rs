@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 
 // Construction distance threshold - matches gathering distance to account for collision constraints
 const CONSTRUCTION_DISTANCE: f32 = 20.0;
@@ -17,33 +17,47 @@ pub fn construction_system(
 /// System to handle AI construction workflow with worker movement
 pub fn ai_construction_workflow_system(
     mut commands: Commands,
-    mut workers: Query<(Entity, &mut Movement, &mut ConstructionTask, &mut Transform, &RTSUnit), With<ConstructionTask>>,
+    mut workers: Query<
+        (
+            Entity,
+            &mut Movement,
+            &mut ConstructionTask,
+            &mut Transform,
+            &RTSUnit,
+        ),
+        With<ConstructionTask>,
+    >,
     mut building_sites: Query<(Entity, &mut BuildingSite), With<BuildingSite>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
 ) {
     let delta_time = time.delta_secs();
-    
+
     for (worker_entity, mut movement, mut task, mut worker_transform, unit) in workers.iter_mut() {
         if task.is_moving_to_site {
             // Check if worker has reached the construction site
             let distance = worker_transform.translation.distance(task.target_position);
-            
-            if distance <= CONSTRUCTION_DISTANCE { // Close enough to start construction
+
+            if distance <= CONSTRUCTION_DISTANCE {
+                // Close enough to start construction
                 task.is_moving_to_site = false;
-                
+
                 // Ensure worker is positioned at a safe distance from the building center
                 // to prevent getting stuck inside when the building is completed
-                let direction_away = (worker_transform.translation - task.target_position).normalize();
+                let direction_away =
+                    (worker_transform.translation - task.target_position).normalize();
                 let safe_construction_position = task.target_position + direction_away * 15.0; // Keep worker 15 units away
                 worker_transform.translation = safe_construction_position;
-                
+
                 // Mark the building site as construction started
                 if let Ok((_, mut site)) = building_sites.get_mut(task.building_site) {
                     site.construction_started = true;
-                    
-                    info!("AI Worker {} reached construction site for {:?}", unit.unit_id, task.building_type);
+
+                    info!(
+                        "AI Worker {} reached construction site for {:?}",
+                        unit.unit_id, task.building_type
+                    );
                 }
             }
         } else {
@@ -51,50 +65,56 @@ pub fn ai_construction_workflow_system(
             // Only increment progress if not already complete
             if task.construction_progress < task.total_build_time {
                 task.construction_progress += 50.0 * delta_time; // Construction speed
-                // Cap at total build time to prevent overrun
+                                                                 // Cap at total build time to prevent overrun
                 task.construction_progress = task.construction_progress.min(task.total_build_time);
             }
-            
+
             // Check if construction is complete
             if task.construction_progress >= task.total_build_time {
                 // Construction finished - spawn the actual building
                 if let Ok((site_entity, site)) = building_sites.get(task.building_site) {
                     spawn_completed_building(
-                        &mut commands, 
-                        &mut meshes, 
-                        &mut materials, 
-                        &site, 
-                        unit.player_id
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        &site,
+                        unit.player_id,
                     );
-                    
+
                     // Move worker away from the completed building to prevent getting stuck
                     let safe_distance = 25.0; // Distance to move away from building
-                    let angle = worker_transform.translation.x * 0.1 + worker_transform.translation.z * 0.1; // Pseudo-random angle based on position
+                    let angle =
+                        worker_transform.translation.x * 0.1 + worker_transform.translation.z * 0.1; // Pseudo-random angle based on position
                     let offset = Vec3::new(
                         safe_distance * angle.cos(),
                         0.0,
-                        safe_distance * angle.sin()
+                        safe_distance * angle.sin(),
                     );
                     let safe_position = site.position + offset;
-                    
+
                     // Set worker to move away from the building
                     movement.target_position = Some(safe_position);
                     info!("🚶 Moving worker away from completed building to avoid getting stuck at {:?}", safe_position);
-                    
+
                     // Clean up the building site and task
                     commands.entity(site_entity).despawn();
                     commands.entity(worker_entity).remove::<ConstructionTask>();
-                    
+
                     info!("🏗️ AI Player {} completed construction of {:?} - building spawned and worker moved away", unit.player_id, task.building_type);
                 } else {
                     warn!("⚠️ Construction task completed but building site not found - possible cleanup issue");
                 }
             } else {
                 // Log construction progress occasionally
-                if task.construction_progress % 20.0 < 5.0 { // Log every ~20 progress units
-                    info!("🔨 Construction progress: {:.1}/{:.1} ({:.0}%) for {:?}", 
-                          task.construction_progress, task.total_build_time, 
-                          (task.construction_progress / task.total_build_time * 100.0), task.building_type);
+                if task.construction_progress % 20.0 < 5.0 {
+                    // Log every ~20 progress units
+                    info!(
+                        "🔨 Construction progress: {:.1}/{:.1} ({:.0}%) for {:?}",
+                        task.construction_progress,
+                        task.total_build_time,
+                        (task.construction_progress / task.total_build_time * 100.0),
+                        task.building_type
+                    );
                 }
             }
         }
@@ -109,14 +129,14 @@ fn spawn_completed_building(
     site: &BuildingSite,
     player_id: u8,
 ) {
-    use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-    
+    use crate::entities::entity_factory::{EntityFactory, EntityType, SpawnConfig};
+
     let building_config = SpawnConfig::building(
         EntityType::from_building(site.building_type.clone()),
         site.position,
         player_id,
     );
-    
+
     EntityFactory::spawn(
         commands,
         meshes,
@@ -131,20 +151,22 @@ fn process_construction_work(
     buildings: &mut Query<(Entity, &mut Building)>,
     delta_time: f32,
 ) {
-    let Some(target_entity) = constructor.current_target else { return };
-    
+    let Some(target_entity) = constructor.current_target else {
+        return;
+    };
+
     let Ok((_, mut building)) = buildings.get_mut(target_entity) else {
         constructor.current_target = None;
         return;
     };
-    
+
     if building.is_complete {
         constructor.current_target = None;
         return;
     }
-    
+
     building.construction_progress += constructor.build_speed * delta_time;
-    
+
     if building.construction_progress >= building.max_construction {
         complete_building(&mut building, constructor);
     }

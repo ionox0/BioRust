@@ -1,17 +1,19 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 
 /// Plugin for handling model hover effects
 pub struct HoverEffectsPlugin;
 
 impl Plugin for HoverEffectsPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(Update, (
+        app.add_systems(
+            Update,
+            (
                 hover_detection_system,
                 apply_hover_effects.after(hover_detection_system),
                 remove_hover_effects.after(hover_detection_system),
-            ));
+            ),
+        );
     }
 }
 
@@ -33,42 +35,52 @@ pub struct HoverEffectApplied;
 pub fn hover_detection_system(
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    
+
     // Query all hoverable entities (units, buildings, and resources)
-    hoverable_entities: Query<(Entity, &Transform, &Selectable), Or<(With<RTSUnit>, With<Building>, With<ResourceSource>)>>,
-    
+    hoverable_entities: Query<
+        (Entity, &Transform, &Selectable),
+        Or<(With<RTSUnit>, With<Building>, With<ResourceSource>)>,
+    >,
+
     // Track currently hovered entities
     currently_hovered: Query<Entity, With<HoveredEntity>>,
-    
+
     mut commands: Commands,
 ) {
     let window = windows.single();
-    let Some(cursor_position) = window.cursor_position() else { return };
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
     let (camera, camera_transform) = camera_q.single();
-    
-    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else { return };
-    
+
+    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
+
     // Find entity closest to the cursor within hover radius
     let mut closest_entity = None;
     let mut closest_distance = f32::INFINITY;
-    
+
     for (entity, transform, selectable) in hoverable_entities.iter() {
         if let Some(projected_distance) = calculate_projected_distance(ray, transform.translation) {
-            let distance_to_ray = calculate_distance_to_ray(ray, transform.translation, projected_distance);
-            
+            let distance_to_ray =
+                calculate_distance_to_ray(ray, transform.translation, projected_distance);
+
             // Use each entity's individual selection radius (same as click selection)
-            if distance_to_ray < selectable.selection_radius && projected_distance < closest_distance {
+            if distance_to_ray < selectable.selection_radius
+                && projected_distance < closest_distance
+            {
                 closest_distance = projected_distance;
                 closest_entity = Some(entity);
             }
         }
     }
-    
+
     // Remove hover from all currently hovered entities
     for entity in currently_hovered.iter() {
         commands.entity(entity).remove::<HoveredEntity>();
     }
-    
+
     // Add hover to the closest entity if found
     if let Some(entity) = closest_entity {
         commands.entity(entity).insert(HoveredEntity);
@@ -79,10 +91,10 @@ pub fn hover_detection_system(
 pub fn apply_hover_effects(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    
+
     // Query entities that are hovered but don't have hover effects yet
     newly_hovered: Query<Entity, (With<HoveredEntity>, Without<HoverEffectApplied>)>,
-    
+
     // Query to find materials in entity hierarchy
     material_query: Query<&MeshMaterial3d<StandardMaterial>>,
     children_query: Query<&Children>,
@@ -95,9 +107,9 @@ pub fn apply_hover_effects(
             &material_query,
             &children_query,
             &mut material_updates,
-            0
+            0,
         );
-        
+
         let material_count = material_updates.len();
         if !material_updates.is_empty() {
             // Store original materials and create hover versions
@@ -106,39 +118,44 @@ pub fn apply_hover_effects(
                 commands.entity(entity_to_update).insert(OriginalMaterial {
                     handle: original_handle.clone(),
                 });
-                
+
                 // Create hover material (green tint)
                 if let Some(original_material) = materials.get(&original_handle) {
                     let mut hover_material = original_material.clone();
-                    
+
                     // Apply green tint (mix with existing color)
                     let original_color = hover_material.base_color;
-                    
+
                     // Convert to linear RGB for blending
                     let original_linear = LinearRgba::from(original_color);
                     let green_tint = LinearRgba::rgb(0.0, 1.0, 0.0);
-                    
+
                     // Blend with green (70% original, 30% green)
                     let blended = LinearRgba::rgb(
                         original_linear.red * 0.7 + green_tint.red * 0.3,
                         original_linear.green * 0.7 + green_tint.green * 0.3,
                         original_linear.blue * 0.7 + green_tint.blue * 0.3,
                     );
-                    
+
                     hover_material.base_color = Color::from(blended);
-                    
+
                     // Increase emissive for glow effect
                     hover_material.emissive = LinearRgba::rgb(0.0, 0.2, 0.0);
-                    
+
                     let hover_handle = materials.add(hover_material);
-                    commands.entity(entity_to_update).insert(MeshMaterial3d(hover_handle));
+                    commands
+                        .entity(entity_to_update)
+                        .insert(MeshMaterial3d(hover_handle));
                 }
             }
-            
+
             // Mark hover effect as applied
             commands.entity(entity).insert(HoverEffectApplied);
-            
-            debug!("Applied hover effect to entity {:?} with {} materials", entity, material_count);
+
+            debug!(
+                "Applied hover effect to entity {:?} with {} materials",
+                entity, material_count
+            );
         }
     }
 }
@@ -146,10 +163,10 @@ pub fn apply_hover_effects(
 /// System to remove hover effects from entities no longer hovered
 pub fn remove_hover_effects(
     mut commands: Commands,
-    
+
     // Query entities with hover effects that are no longer hovered
     no_longer_hovered: Query<Entity, (With<HoverEffectApplied>, Without<HoveredEntity>)>,
-    
+
     // Query to restore original materials
     original_materials: Query<&OriginalMaterial>,
     children_query: Query<&Children>,
@@ -161,12 +178,12 @@ pub fn remove_hover_effects(
             &original_materials,
             &children_query,
             &mut commands,
-            0
+            0,
         );
-        
+
         // Remove hover components
         commands.entity(entity).remove::<HoverEffectApplied>();
-        
+
         debug!("Removed hover effect from entity {:?}", entity);
     }
 }
@@ -179,13 +196,15 @@ fn collect_material_updates_for_hover(
     material_updates: &mut Vec<(Entity, Handle<StandardMaterial>)>,
     depth: usize,
 ) {
-    if depth > 10 { return; } // Prevent infinite recursion
-    
+    if depth > 10 {
+        return;
+    } // Prevent infinite recursion
+
     // Check if this entity has a material
     if let Ok(material) = material_query.get(entity) {
         material_updates.push((entity, material.0.clone()));
     }
-    
+
     // Check children
     if let Ok(children) = children_query.get(entity) {
         for &child in children.iter() {
@@ -194,7 +213,7 @@ fn collect_material_updates_for_hover(
                 material_query,
                 children_query,
                 material_updates,
-                depth + 1
+                depth + 1,
             );
         }
     }
@@ -208,15 +227,18 @@ fn restore_original_materials_recursive(
     commands: &mut Commands,
     depth: usize,
 ) {
-    if depth > 10 { return; } // Prevent infinite recursion
-    
+    if depth > 10 {
+        return;
+    } // Prevent infinite recursion
+
     // Restore material for this entity if it has one
     if let Ok(original) = original_materials.get(entity) {
-        commands.entity(entity)
+        commands
+            .entity(entity)
             .insert(MeshMaterial3d(original.handle.clone()))
             .remove::<OriginalMaterial>();
     }
-    
+
     // Check children
     if let Ok(children) = children_query.get(entity) {
         for &child in children.iter() {
@@ -225,7 +247,7 @@ fn restore_original_materials_recursive(
                 original_materials,
                 children_query,
                 commands,
-                depth + 1
+                depth + 1,
             );
         }
     }
@@ -235,7 +257,7 @@ fn restore_original_materials_recursive(
 fn calculate_projected_distance(ray: Ray3d, target_position: Vec3) -> Option<f32> {
     let to_target = target_position - ray.origin;
     let projected_distance = to_target.dot(ray.direction.normalize());
-    
+
     if projected_distance > 0.0 {
         Some(projected_distance)
     } else {

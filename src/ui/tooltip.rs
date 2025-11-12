@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 
 /// Resource to track which unit is currently being hovered
 #[derive(Resource, Default)]
@@ -18,31 +18,33 @@ pub struct TooltipText;
 
 /// Setup the tooltip UI (invisible by default)
 pub fn setup_tooltip(mut commands: Commands) {
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(0.0),
-            top: Val::Px(0.0),
-            padding: UiRect::all(Val::Px(8.0)),
-            border: UiRect::all(Val::Px(2.0)),
-            display: Display::None, // Hidden by default
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.95)),
-        BorderColor(Color::srgb(0.6, 0.6, 0.6)),
-        UnitTooltip,
-        ZIndex(1000),
-    )).with_children(|parent| {
-        parent.spawn((
-            Text::new(""),
-            TextFont {
-                font_size: 16.0,
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                border: UiRect::all(Val::Px(2.0)),
+                display: Display::None, // Hidden by default
                 ..default()
             },
-            TextColor(Color::WHITE),
-            TooltipText,
-        ));
-    });
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.95)),
+            BorderColor(Color::srgb(0.6, 0.6, 0.6)),
+            UnitTooltip,
+            ZIndex(1000),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                TooltipText,
+            ));
+        });
 }
 
 /// System to detect which unit is under the cursor
@@ -53,8 +55,12 @@ pub fn unit_hover_detection_system(
     units: Query<(Entity, &Transform, &RTSUnit, &Selectable)>,
     time: Res<Time>,
 ) {
-    let Ok(window) = windows.get_single() else { return };
-    let Ok((camera, camera_transform)) = camera_q.get_single() else { return };
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
+    let Ok((camera, camera_transform)) = camera_q.get_single() else {
+        return;
+    };
 
     let Some(cursor_position) = window.cursor_position() else {
         hovered_unit.entity = None;
@@ -107,12 +113,18 @@ fn get_unit_task(
     movement_query: &Query<&Movement>,
     construction_query: &Query<&ConstructionTask>,
     building_query: &Query<&Building>,
-    entity_state_query: &Query<&EntityState>,
+    gathering_state_query: &Query<&GatheringState>,
+    combat_state_query: &Query<&CombatState>,
+    health_query: &Query<&RTSHealth>,
 ) -> String {
     // Check if it's a building first
     if let Ok(building) = building_query.get(entity) {
-        let completion_percent = (building.construction_progress / building.max_construction * 100.0) as i32;
-        return format!("{:?} ({}% complete)", building.building_type, completion_percent);
+        let completion_percent =
+            (building.construction_progress / building.max_construction * 100.0) as i32;
+        return format!(
+            "{:?} ({}% complete)",
+            building.building_type, completion_percent
+        );
     }
 
     // Check if constructing
@@ -120,7 +132,11 @@ fn get_unit_task(
         if construction.is_moving_to_site {
             return format!("Moving to construction site");
         } else {
-            return format!("Constructing {:?} ({}%)", construction.building_type, (construction.construction_progress * 100.0) as i32);
+            return format!(
+                "Constructing {:?} ({}%)",
+                construction.building_type,
+                (construction.construction_progress * 100.0) as i32
+            );
         }
     }
 
@@ -128,32 +144,55 @@ fn get_unit_task(
     if let Ok(gatherer) = gatherer_query.get(entity) {
         if let Some(ref resource_type) = gatherer.resource_type {
             if gatherer.carried_amount > 0.0 {
-                return format!("Returning {:?} ({:.0})", resource_type, gatherer.carried_amount);
+                return format!(
+                    "Returning {:?} ({:.0})",
+                    resource_type, gatherer.carried_amount
+                );
             } else if gatherer.target_resource.is_some() {
                 return format!("Gathering {:?}", resource_type);
             }
         }
     }
 
-    // Check entity state for more accurate state information
-    if let Ok(entity_state) = entity_state_query.get(entity) {
-        match entity_state.current {
-            UnitState::Gathering => return "Gathering Resources".to_string(),
-            UnitState::Fighting => return "In Combat".to_string(),
-            UnitState::Moving => return "Moving".to_string(),
-            UnitState::Dead => return "Dead".to_string(),
+    // Check specialized states for more accurate state information
+    
+    // Check for death first
+    if let Ok(health) = health_query.get(entity) {
+        if health.current <= 0.0 {
+            return "Dead".to_string();
+        }
+    }
+    
+    // Check gathering state
+    if let Ok(gathering_state) = gathering_state_query.get(entity) {
+        match gathering_state.state {
+            GatheringStateType::MovingToResource => return "Moving to Resource".to_string(),
+            GatheringStateType::Gathering => return "Gathering Resources".to_string(),
+            GatheringStateType::ReturningToBase => return "Returning to Base".to_string(),
+            GatheringStateType::DeliveringResources => return "Delivering Resources".to_string(),
+        }
+    }
+    
+    // Check combat state
+    if let Ok(combat_state) = combat_state_query.get(entity) {
+        match combat_state.state {
+            CombatStateType::InCombat => return "In Combat".to_string(),
+            CombatStateType::MovingToAttack => return "Moving to Attack".to_string(),
+            CombatStateType::MovingToCombat => return "Engaging Enemy".to_string(),
             _ => {} // Continue to other checks
         }
     }
 
-    // Check if in combat
-    if let Ok(_combat) = combat_query.get(entity) {
-        if let Ok(movement) = movement_query.get(entity) {
-            if movement.target_position.is_some() {
-                return "Moving to attack".to_string();
+    // Check if in combat (only for units that actually auto-attack)
+    if let Ok(combat) = combat_query.get(entity) {
+        if combat.auto_attack {
+            if let Ok(movement) = movement_query.get(entity) {
+                if movement.target_position.is_some() {
+                    return "Moving to attack".to_string();
+                }
             }
+            return "In combat".to_string();
         }
-        return "In combat".to_string();
     }
 
     // Check if just moving
@@ -176,13 +215,19 @@ pub fn update_tooltip_system(
     movement_query: Query<&Movement>,
     construction_query: Query<&ConstructionTask>,
     building_query: Query<&Building>,
-    entity_state_query: Query<&EntityState>,
+    gathering_state_query: Query<&GatheringState>,
+    combat_state_query: Query<&CombatState>,
+    health_query: Query<&RTSHealth>,
     mut tooltip_query: Query<(&mut Node, &mut BackgroundColor), With<UnitTooltip>>,
     mut text_query: Query<&mut Text, With<TooltipText>>,
     windows: Query<&Window>,
 ) {
-    let Ok((mut tooltip_style, mut tooltip_bg)) = tooltip_query.get_single_mut() else { return };
-    let Ok(mut tooltip_text) = text_query.get_single_mut() else { return };
+    let Ok((mut tooltip_style, mut tooltip_bg)) = tooltip_query.get_single_mut() else {
+        return;
+    };
+    let Ok(mut tooltip_text) = text_query.get_single_mut() else {
+        return;
+    };
 
     if let Some(hovered_entity) = hovered_unit.entity {
         // Get unit info
@@ -194,7 +239,9 @@ pub fn update_tooltip_system(
                 &movement_query,
                 &construction_query,
                 &building_query,
-                &entity_state_query,
+                &gathering_state_query,
+                &combat_state_query,
+                &health_query,
             );
 
             let unit_type = match unit.unit_type {
@@ -217,11 +264,7 @@ pub fn update_tooltip_system(
             // Update tooltip text
             **tooltip_text = format!(
                 "{} ({})\nHealth: {:.0}/{:.0}\nTask: {}",
-                unit_type,
-                player_name,
-                health.current,
-                health.max,
-                task
+                unit_type, player_name, health.current, health.max, task
             );
 
             // Position tooltip near cursor

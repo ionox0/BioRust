@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::core::components::*;
+use bevy::prelude::*;
 
 #[derive(Component, Debug)]
 pub struct AIPlayer {
@@ -37,34 +37,48 @@ impl PlayerCounts {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn count_units(&mut self, units: &Query<&RTSUnit, With<RTSUnit>>, player_id: u8) {
         self.reset();
-        
+
         for unit in units.iter() {
             if unit.player_id == player_id {
                 if let Some(unit_type) = &unit.unit_type {
                     match unit_type {
                         UnitType::WorkerAnt | UnitType::TermiteWorker => self.villager_count += 1,
-                        UnitType::SoldierAnt | UnitType::HunterWasp |
-                        UnitType::BeetleKnight | UnitType::SpearMantis |
-                        UnitType::ScoutAnt | UnitType::BatteringBeetle |
-                        UnitType::AcidSpitter | UnitType::DragonFly |
-                        UnitType::DefenderBug | UnitType::EliteSpider |
-                        UnitType::HoneyBee | UnitType::Scorpion |
-                        UnitType::SpiderHunter | UnitType::WolfSpider |
-                        UnitType::Ladybug | UnitType::LadybugScout |
-                        UnitType::Housefly | UnitType::TermiteWarrior |
-                        UnitType::LegBeetle | UnitType::Stinkbug => {
+                        UnitType::SoldierAnt
+                        | UnitType::HunterWasp
+                        | UnitType::BeetleKnight
+                        | UnitType::SpearMantis
+                        | UnitType::ScoutAnt
+                        | UnitType::BatteringBeetle
+                        | UnitType::AcidSpitter
+                        | UnitType::DragonFly
+                        | UnitType::DefenderBug
+                        | UnitType::EliteSpider
+                        | UnitType::HoneyBee
+                        | UnitType::Scorpion
+                        | UnitType::SpiderHunter
+                        | UnitType::WolfSpider
+                        | UnitType::Ladybug
+                        | UnitType::LadybugScout
+                        | UnitType::Housefly
+                        | UnitType::TermiteWarrior
+                        | UnitType::LegBeetle
+                        | UnitType::Stinkbug => {
                             self.military_count += 1;
-                        },
+                        }
                     }
                 }
             }
         }
     }
-    
-    pub fn count_buildings(&mut self, buildings: &Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>, player_id: u8) {
+
+    pub fn count_buildings(
+        &mut self,
+        buildings: &Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+        player_id: u8,
+    ) {
         for (_, _, building, unit) in buildings.iter() {
             if unit.player_id == player_id {
                 match building.building_type {
@@ -75,11 +89,10 @@ impl PlayerCounts {
             }
         }
     }
-    
+
     fn reset(&mut self) {
         self.villager_count = 0;
         self.military_count = 0;
         // Don't reset building counts as they're counted separately
     }
 }
-

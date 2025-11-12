@@ -1,13 +1,22 @@
-use bevy::prelude::*;
 use crate::core::components::*;
-use std::sync::{LazyLock, Mutex};
+use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
 
 // Use centralized constants from core module
-use crate::constants::resource_interaction::{GATHERING_DISTANCE, DROPOFF_TRAVEL_DISTANCE};
+use crate::constants::resource_interaction::{DROPOFF_TRAVEL_DISTANCE, GATHERING_DISTANCE};
 
 pub fn resource_gathering_system(
-    mut gatherers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), With<RTSUnit>>,
+    mut gatherers: Query<
+        (
+            Entity,
+            &mut ResourceGatherer,
+            &mut Movement,
+            &Transform,
+            &RTSUnit,
+        ),
+        With<RTSUnit>,
+    >,
     mut resources: Query<(Entity, &mut ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
     mut player_resources: ResMut<crate::core::resources::PlayerResources>,
@@ -17,12 +26,30 @@ pub fn resource_gathering_system(
 ) {
     let delta_time = time.delta_secs();
 
-    for (_gatherer_entity, mut gatherer, mut movement, gatherer_transform, unit) in gatherers.iter_mut() {
+    for (_gatherer_entity, mut gatherer, mut movement, gatherer_transform, unit) in
+        gatherers.iter_mut()
+    {
         // Ensure worker has a drop-off building assigned
         ensure_dropoff_building_assigned(&mut gatherer, gatherer_transform, unit, &buildings);
 
-        process_resource_gathering(&mut gatherer, gatherer_transform, unit, &mut resources, delta_time, &mut commands);
-        process_resource_delivery(&mut gatherer, &mut movement, gatherer_transform, unit, &resources, &buildings, &mut player_resources, &mut ai_resources);
+        process_resource_gathering(
+            &mut gatherer,
+            gatherer_transform,
+            unit,
+            &mut resources,
+            delta_time,
+            &mut commands,
+        );
+        process_resource_delivery(
+            &mut gatherer,
+            &mut movement,
+            gatherer_transform,
+            unit,
+            &resources,
+            &buildings,
+            &mut player_resources,
+            &mut ai_resources,
+        );
     }
 }
 
@@ -35,13 +62,17 @@ fn ensure_dropoff_building_assigned(
 ) {
     // If gatherer already has a drop-off building, verify it still exists and is valid
     if let Some(current_dropoff) = gatherer.drop_off_building {
-        if let Ok((_, _building_transform, building, building_unit)) = buildings.get(current_dropoff) {
+        if let Ok((_, _building_transform, building, building_unit)) =
+            buildings.get(current_dropoff)
+        {
             // Check if building is still valid (same player, complete, can accept resources)
-            let is_correct_type = matches!(building.building_type,
-                BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery);
-            let is_valid = building_unit.player_id == unit.player_id &&
-                          building.is_complete &&
-                          is_correct_type;
+            let is_correct_type = matches!(
+                building.building_type,
+                BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery
+            );
+            let is_valid = building_unit.player_id == unit.player_id
+                && building.is_complete
+                && is_correct_type;
 
             if is_valid {
                 // Building is valid - keep it assigned!
@@ -61,11 +92,18 @@ fn ensure_dropoff_building_assigned(
 
     // DEBUG: Count buildings to diagnose the issue
     let total_buildings = buildings.iter().count();
-    let player_buildings = buildings.iter().filter(|(_, _, _, b)| b.player_id == unit.player_id).count();
-    let complete_buildings = buildings.iter().filter(|(_, _, b, u)| u.player_id == unit.player_id && b.is_complete).count();
+    let player_buildings = buildings
+        .iter()
+        .filter(|(_, _, _, b)| b.player_id == unit.player_id)
+        .count();
+    let complete_buildings = buildings
+        .iter()
+        .filter(|(_, _, b, u)| u.player_id == unit.player_id && b.is_complete)
+        .count();
 
     // Throttle the building debugging logs to avoid spam
-    static BUILDING_DEBUG_LOG: LazyLock<Mutex<HashMap<u8, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    static BUILDING_DEBUG_LOG: LazyLock<Mutex<HashMap<u8, f32>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
     if player_buildings == 0 && gatherer.drop_off_building.is_none() {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -74,7 +112,8 @@ fn ensure_dropoff_building_assigned(
 
         let mut log = BUILDING_DEBUG_LOG.lock().unwrap();
         let last_time = log.get(&unit.player_id).copied().unwrap_or(0.0);
-        if current_time - last_time > 5.0 {  // Only log every 5 seconds per player
+        if current_time - last_time > 5.0 {
+            // Only log every 5 seconds per player
             warn!("🏛️ DEBUG: Player {} - Total buildings on map: {}, Player's buildings: {}, Complete: {}",
                   unit.player_id, total_buildings, player_buildings, complete_buildings);
             log.insert(unit.player_id, current_time);
@@ -94,10 +133,10 @@ fn ensure_dropoff_building_assigned(
 
         // Check if building type can accept resources
         match building.building_type {
-            BuildingType::Queen |
-            BuildingType::StorageChamber |
-            BuildingType::Nursery => {
-                let distance = worker_transform.translation.distance(building_transform.translation);
+            BuildingType::Queen | BuildingType::StorageChamber | BuildingType::Nursery => {
+                let distance = worker_transform
+                    .translation
+                    .distance(building_transform.translation);
 
                 // Find the closest building
                 if distance < closest_distance {
@@ -114,8 +153,10 @@ fn ensure_dropoff_building_assigned(
         gatherer.drop_off_building = Some(building);
         // Only log if worker has resources or is actively gathering (not at startup)
         if gatherer.carried_amount > 0.0 || gatherer.target_resource.is_some() {
-            info!("✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
-                  unit.unit_id, unit.player_id, closest_distance);
+            info!(
+                "✅ Assigned drop-off building to worker {} (player {}) at distance {:.1}",
+                unit.unit_id, unit.player_id, closest_distance
+            );
         }
     } else if gatherer.drop_off_building.is_none() {
         // Worker needs dropoff but none found - log this as it's a problem
@@ -130,8 +171,10 @@ fn ensure_dropoff_building_assigned(
         if current_time - *last_time > 1.0 {
             warn!("⚠️  Worker {} (player {}) needs drop-off building but none available (no Queen/StorageChamber/Nursery found)",
                   unit.unit_id, unit.player_id);
-            warn!("   Buildings check: {} total, {} for player {}, {} complete",
-                  total_buildings, player_buildings, unit.player_id, complete_buildings);
+            warn!(
+                "   Buildings check: {} total, {} for player {}, {} complete",
+                total_buildings, player_buildings, unit.player_id, complete_buildings
+            );
             *last_time = current_time;
         }
     }
@@ -145,17 +188,22 @@ fn process_resource_gathering(
     delta_time: f32,
     commands: &mut Commands,
 ) {
-    let Some(resource_entity) = gatherer.target_resource else { return };
+    let Some(resource_entity) = gatherer.target_resource else {
+        return;
+    };
 
     let Ok((_, mut resource, resource_transform)) = resources.get_mut(resource_entity) else {
         gatherer.target_resource = None;
         return;
     };
 
-    let distance = gatherer_transform.translation.distance(resource_transform.translation);
+    let distance = gatherer_transform
+        .translation
+        .distance(resource_transform.translation);
 
     // Log distance for debugging collision issues
-    static DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    static DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -164,8 +212,10 @@ fn process_resource_gathering(
     let mut log = DISTANCE_LOG.lock().unwrap();
     let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
     if current_time - last_time > 2.0 {
-        info!("🎯 Worker {} (player {}) distance to resource: {:.1} units (need < {:.1})",
-              unit.unit_id, unit.player_id, distance, GATHERING_DISTANCE);
+        info!(
+            "🎯 Worker {} (player {}) distance to resource: {:.1} units (need < {:.1})",
+            unit.unit_id, unit.player_id, distance, GATHERING_DISTANCE
+        );
         log.insert(unit.unit_id, current_time);
     }
 
@@ -176,7 +226,8 @@ fn process_resource_gathering(
     // If at full capacity, stop gathering but keep target_resource so we can return after delivery
     if gatherer.carried_amount >= gatherer.capacity {
         // Log when worker reaches full capacity and stops gathering
-        static LAST_FULL_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+        static LAST_FULL_LOG: LazyLock<Mutex<HashMap<u32, f32>>> =
+            LazyLock::new(|| Mutex::new(HashMap::new()));
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -185,8 +236,10 @@ fn process_resource_gathering(
         let mut log = LAST_FULL_LOG.lock().unwrap();
         let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
         if current_time - last_time > 2.0 {
-            info!("📦 Worker {} (player {}) FULL: {:.1}/{:.1} - waiting to return",
-                  unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
+            info!(
+                "📦 Worker {} (player {}) FULL: {:.1}/{:.1} - waiting to return",
+                unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity
+            );
             log.insert(unit.unit_id, current_time);
         }
         return;
@@ -196,7 +249,8 @@ fn process_resource_gathering(
 
     // Log gathering progress periodically
     if gather_amount > 0.0 {
-        static LAST_GATHER_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+        static LAST_GATHER_LOG: LazyLock<Mutex<HashMap<u32, f32>>> =
+            LazyLock::new(|| Mutex::new(HashMap::new()));
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -205,9 +259,15 @@ fn process_resource_gathering(
         let mut log = LAST_GATHER_LOG.lock().unwrap();
         let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
         if current_time - last_time > 1.0 {
-            info!("⛏️  Worker {} (player {}) gathering {:?}: {:.1}/{:.1} (resource has {:.1} left)",
-                  unit.unit_id, unit.player_id, gatherer.resource_type,
-                  gatherer.carried_amount, gatherer.capacity, resource.amount);
+            info!(
+                "⛏️  Worker {} (player {}) gathering {:?}: {:.1}/{:.1} (resource has {:.1} left)",
+                unit.unit_id,
+                unit.player_id,
+                gatherer.resource_type,
+                gatherer.carried_amount,
+                gatherer.capacity,
+                resource.amount
+            );
             log.insert(unit.unit_id, current_time);
         }
     }
@@ -215,18 +275,24 @@ fn process_resource_gathering(
     apply_gathering(gatherer, &mut resource, gather_amount);
 
     if resource.amount <= 0.0 {
-        info!("🔴 Resource depleted! Worker {} (player {}) has {:.1}/{:.1} resources",
-              unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity);
+        info!(
+            "🔴 Resource depleted! Worker {} (player {}) has {:.1}/{:.1} resources",
+            unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity
+        );
         commands.entity(resource_entity).despawn();
         gatherer.target_resource = None;
     }
 }
 
-fn calculate_gather_amount(gatherer: &ResourceGatherer, resource: &ResourceSource, delta_time: f32) -> f32 {
+fn calculate_gather_amount(
+    gatherer: &ResourceGatherer,
+    resource: &ResourceSource,
+    delta_time: f32,
+) -> f32 {
     let base_amount = gatherer.gather_rate * delta_time;
     let capacity_limited = gatherer.capacity - gatherer.carried_amount;
     let resource_limited = resource.amount;
-    
+
     base_amount.min(capacity_limited).min(resource_limited)
 }
 
@@ -262,7 +328,9 @@ fn process_resource_delivery(
         return;
     };
 
-    let distance = gatherer_transform.translation.distance(building_transform.translation);
+    let distance = gatherer_transform
+        .translation
+        .distance(building_transform.translation);
     log_dropoff_distance(distance, unit);
 
     if distance > DROPOFF_TRAVEL_DISTANCE {
@@ -270,7 +338,14 @@ fn process_resource_delivery(
         return;
     }
 
-    handle_resource_delivery_at_dropoff(gatherer, movement, unit, resources, player_resources, ai_resources);
+    handle_resource_delivery_at_dropoff(
+        gatherer,
+        movement,
+        unit,
+        resources,
+        player_resources,
+        ai_resources,
+    );
 }
 
 fn deliver_resources_to_player(
@@ -286,7 +361,10 @@ fn deliver_resources_to_player(
     if player_id == 1 {
         info!("Player delivered {:.1} {:?}", amount, resource_type);
     } else {
-        info!("AI Player {} delivered {:.1} {:?}", player_id, amount, resource_type);
+        info!(
+            "AI Player {} delivered {:.1} {:?}",
+            player_id, amount, resource_type
+        );
     }
 }
 
@@ -300,19 +378,20 @@ fn should_start_delivery(gatherer: &ResourceGatherer) -> bool {
 }
 
 fn log_delivery_decision(gatherer: &ResourceGatherer, unit: &RTSUnit) {
-    static DELIVERY_DECISION_LOGGED: LazyLock<Mutex<(HashSet<u32>, f32)>> = LazyLock::new(|| Mutex::new((HashSet::new(), 0.0)));
+    static DELIVERY_DECISION_LOGGED: LazyLock<Mutex<(HashSet<u32>, f32)>> =
+        LazyLock::new(|| Mutex::new((HashSet::new(), 0.0)));
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs_f32();
-    
+
     let mut logged = DELIVERY_DECISION_LOGGED.lock().unwrap();
     // Clear the set every 60 seconds to prevent memory leaks and allow repeated logging
     if current_time - logged.1 > 60.0 {
         logged.0.clear();
         logged.1 = current_time;
     }
-    
+
     if !logged.0.contains(&unit.unit_id) {
         let reason = if gatherer.carried_amount >= gatherer.capacity {
             "FULL CAPACITY"
@@ -321,30 +400,37 @@ fn log_delivery_decision(gatherer: &ResourceGatherer, unit: &RTSUnit) {
         } else {
             "UNKNOWN"
         };
-        info!("🔵 Worker {} (player {}) READY TO RETURN: {:.1}/{:.1} resources (reason: {})",
-              unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity, reason);
+        info!(
+            "🔵 Worker {} (player {}) READY TO RETURN: {:.1}/{:.1} resources (reason: {})",
+            unit.unit_id, unit.player_id, gatherer.carried_amount, gatherer.capacity, reason
+        );
         logged.0.insert(unit.unit_id);
     }
 }
 
-fn handle_no_dropoff_building(gatherer: &mut ResourceGatherer, movement: &mut Movement, unit: &RTSUnit) {
+fn handle_no_dropoff_building(
+    gatherer: &mut ResourceGatherer,
+    movement: &mut Movement,
+    unit: &RTSUnit,
+) {
     // Worker has resources but no drop-off building (likely no buildings built yet)
     // Clear target_resource and movement so worker waits idle until a building is assigned
     if gatherer.target_resource.is_some() || movement.target_position.is_some() {
         gatherer.target_resource = None;
         movement.target_position = None;
-        
+
         // Rate limit this warning to once every 30 seconds per worker to prevent spam
         use std::collections::HashMap;
         use std::sync::Mutex;
-        static LAST_WARN_TIMES: std::sync::LazyLock<Mutex<HashMap<u32, f32>>> = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
-        
+        static LAST_WARN_TIMES: std::sync::LazyLock<Mutex<HashMap<u32, f32>>> =
+            std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
         if let Ok(mut warn_times) = LAST_WARN_TIMES.lock() {
             let current_time = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs_f32();
-            
+
             let last_warn = warn_times.get(&unit.unit_id).copied().unwrap_or(0.0);
             if current_time - last_warn > 30.0 {
                 debug!("Worker {} (player {}) has {:.1} resources but no drop-off building available - waiting for building to be constructed",
@@ -356,12 +442,16 @@ fn handle_no_dropoff_building(gatherer: &mut ResourceGatherer, movement: &mut Mo
 }
 
 fn handle_invalid_dropoff_building(gatherer: &mut ResourceGatherer, unit: &RTSUnit) {
-    warn!("Drop-off building not found for worker {} (player {})!", unit.unit_id, unit.player_id);
+    warn!(
+        "Drop-off building not found for worker {} (player {})!",
+        unit.unit_id, unit.player_id
+    );
     gatherer.drop_off_building = None;
 }
 
 fn log_dropoff_distance(distance: f32, unit: &RTSUnit) {
-    static DROPOFF_DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+    static DROPOFF_DISTANCE_LOG: LazyLock<Mutex<HashMap<u32, f32>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -369,25 +459,34 @@ fn log_dropoff_distance(distance: f32, unit: &RTSUnit) {
     let mut log = DROPOFF_DISTANCE_LOG.lock().unwrap();
     let last_time = log.get(&unit.unit_id).copied().unwrap_or(0.0);
     if current_time - last_time > 2.0 {
-        info!("🏠 Worker {} (player {}) distance to dropoff: {:.1} units (need < {:.1} to deliver)",
-              unit.unit_id, unit.player_id, distance, DROPOFF_TRAVEL_DISTANCE);
+        info!(
+            "🏠 Worker {} (player {}) distance to dropoff: {:.1} units (need < {:.1} to deliver)",
+            unit.unit_id, unit.player_id, distance, DROPOFF_TRAVEL_DISTANCE
+        );
         log.insert(unit.unit_id, current_time);
     }
 }
 
 fn handle_travel_to_dropoff(
-    movement: &mut Movement, 
-    building_transform: &Transform, 
-    gatherer: &ResourceGatherer, 
-    unit: &RTSUnit, 
-    distance: f32
+    movement: &mut Movement,
+    building_transform: &Transform,
+    gatherer: &ResourceGatherer,
+    unit: &RTSUnit,
+    distance: f32,
 ) {
     // Set movement target to building if not already moving there
-    if movement.target_position.is_none() ||
-       movement.target_position.unwrap().distance(building_transform.translation) > 5.0 {
+    if movement.target_position.is_none()
+        || movement
+            .target_position
+            .unwrap()
+            .distance(building_transform.translation)
+            > 5.0
+    {
         movement.target_position = Some(building_transform.translation);
-        info!("🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
-              unit.unit_id, unit.player_id, gatherer.carried_amount, distance);
+        info!(
+            "🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
+            unit.unit_id, unit.player_id, gatherer.carried_amount, distance
+        );
     }
 }
 
@@ -401,7 +500,13 @@ fn handle_resource_delivery_at_dropoff(
 ) {
     // Close enough to deliver
     if let Some(resource_type) = gatherer.resource_type.clone() {
-        deliver_resources_to_player(unit.player_id, resource_type, gatherer.carried_amount, player_resources, ai_resources);
+        deliver_resources_to_player(
+            unit.player_id,
+            resource_type,
+            gatherer.carried_amount,
+            player_resources,
+            ai_resources,
+        );
         reset_gatherer_cargo(gatherer);
 
         handle_post_delivery_movement(gatherer, movement, unit, resources);
@@ -418,17 +523,26 @@ fn handle_post_delivery_movement(
     if let Some(resource_entity) = gatherer.target_resource {
         if let Ok((_, _, resource_transform)) = resources.get(resource_entity) {
             movement.target_position = Some(resource_transform.translation);
-            info!("🔄 Worker {:?} returning to gather more resources", unit.unit_id);
+            info!(
+                "🔄 Worker {:?} returning to gather more resources",
+                unit.unit_id
+            );
         } else {
             // Resource no longer exists, clear target and movement so AI can assign new resource
             gatherer.target_resource = None;
             movement.target_position = None;
-            info!("🏁 Worker {:?} completed delivery, resource depleted, becoming idle", unit.unit_id);
+            info!(
+                "🏁 Worker {:?} completed delivery, resource depleted, becoming idle",
+                unit.unit_id
+            );
         }
     } else {
         // No target resource (was depleted before delivery), clear movement so AI can assign new resource
         movement.target_position = None;
-        info!("🏁 Worker {:?} completed delivery, becoming idle", unit.unit_id);
+        info!(
+            "🏁 Worker {:?} completed delivery, becoming idle",
+            unit.unit_id
+        );
     }
 }
 

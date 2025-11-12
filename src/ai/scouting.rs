@@ -1,6 +1,6 @@
-use bevy::prelude::*;
-use crate::core::components::*;
 use crate::ai::intelligence::IntelligenceSystem;
+use crate::core::components::*;
+use bevy::prelude::*;
 
 /// Component to mark units as scouts
 #[derive(Component, Debug, Clone)]
@@ -18,7 +18,10 @@ pub fn scouting_system(
     mut intelligence: ResMut<IntelligenceSystem>,
     mut scouts: Query<(Entity, &mut Movement, &mut ScoutUnit, &Transform, &RTSUnit)>,
     enemy_units: Query<(&Transform, &RTSUnit), (With<RTSUnit>, Without<ScoutUnit>)>,
-    workers: Query<(Entity, &RTSUnit), (With<ResourceGatherer>, Without<ScoutUnit>, Without<Combat>)>,
+    workers: Query<
+        (Entity, &RTSUnit),
+        (With<ResourceGatherer>, Without<ScoutUnit>, Without<Combat>),
+    >,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
@@ -28,7 +31,10 @@ pub fn scouting_system(
         // Send scout early in the game if we don't have one
         if intel.scout_unit.is_none() && current_time > 10.0 && current_time < 120.0 {
             // Find a worker to send as scout
-            if let Some((worker_entity, _worker_unit)) = workers.iter().find(|(_, unit)| unit.player_id == *ai_player_id) {
+            if let Some((worker_entity, _worker_unit)) = workers
+                .iter()
+                .find(|(_, unit)| unit.player_id == *ai_player_id)
+            {
                 // Estimate enemy base location (opposite side of map)
                 let scout_target = estimate_enemy_base_location(*ai_player_id);
 
@@ -40,7 +46,10 @@ pub fn scouting_system(
                 });
 
                 intel.scout_unit = Some(worker_entity);
-                info!("AI Player {} sending scout to {:?}", ai_player_id, scout_target);
+                info!(
+                    "AI Player {} sending scout to {:?}",
+                    ai_player_id, scout_target
+                );
             }
         }
     }
@@ -58,7 +67,10 @@ pub fn scouting_system(
                         // Update intelligence with enemy base location
                         if let Some(intel) = intelligence.get_intel_mut(unit.player_id) {
                             intel.enemy_base_location = Some(enemy_transform.translation);
-                            info!("Scout from Player {} found enemy base at {:?}", unit.player_id, enemy_transform.translation);
+                            info!(
+                                "Scout from Player {} found enemy base at {:?}",
+                                unit.player_id, enemy_transform.translation
+                            );
                         }
 
                         // Start returning home
@@ -104,7 +116,7 @@ fn estimate_enemy_base_location(ai_player_id: u8) -> Vec3 {
     // Enemies are typically on opposite side of map
     // Player 1 is at x = 0, Player 2 is at x = 200
     match ai_player_id {
-        2 => Vec3::new(0.0, 0.0, 0.0), // AI player 2 scouts towards player 1
+        2 => Vec3::new(0.0, 0.0, 0.0),   // AI player 2 scouts towards player 1
         _ => Vec3::new(200.0, 0.0, 0.0), // Other AI players scout opposite direction
     }
 }
@@ -120,7 +132,13 @@ fn estimate_home_base_location(player_id: u8) -> Vec3 {
 
 /// System to handle scout survival - retreat if under attack
 pub fn scout_survival_system(
-    mut scouts: Query<(&mut Movement, &mut ScoutUnit, &Transform, &RTSHealth, &RTSUnit)>,
+    mut scouts: Query<(
+        &mut Movement,
+        &mut ScoutUnit,
+        &Transform,
+        &RTSHealth,
+        &RTSUnit,
+    )>,
     enemy_units: Query<(&Transform, &RTSUnit, &Combat), (With<Combat>, Without<ScoutUnit>)>,
 ) {
     for (mut movement, mut scout, transform, health, unit) in scouts.iter_mut() {
@@ -137,8 +155,10 @@ pub fn scout_survival_system(
                 if distance < 30.0 {
                     // Enemy military nearby - retreat!
                     scout.is_returning = true;
-                    let retreat_direction = (transform.translation - enemy_transform.translation).normalize();
-                    movement.target_position = Some(transform.translation + retreat_direction * 50.0);
+                    let retreat_direction =
+                        (transform.translation - enemy_transform.translation).normalize();
+                    movement.target_position =
+                        Some(transform.translation + retreat_direction * 50.0);
                     break;
                 }
             }

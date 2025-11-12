@@ -1,25 +1,28 @@
+use crate::core::components::*;
+use crate::rendering::model_loader::UseGLBModel;
 use bevy::prelude::*;
 use bevy_animation::graph::AnimationNodeIndex;
 use bevy_animation::prelude::{AnimationGraph, AnimationGraphHandle};
-use crate::core::components::*;
-use crate::rendering::model_loader::UseGLBModel;
 
 pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(Update, (
+        app.add_systems(
+            Update,
+            (
                 add_missing_animation_controllers, // Add this first
-                setup_glb_animations, // NEW: Set up animations for GLB models
+                setup_glb_animations,              // NEW: Set up animations for GLB models
                 animation_state_manager,
                 update_animations,
                 find_animation_players,
                 start_idle_animations, // Start animations for newly found players
                 // animation_speed_compensation, // DISABLED: Causes panics in Bevy animation system
                 animation_debug_system,
-            ).chain())
-            .add_event::<AnimationStateChangeEvent>();
+            )
+                .chain(),
+        )
+        .add_event::<AnimationStateChangeEvent>();
     }
 }
 
@@ -41,7 +44,6 @@ pub enum AnimationState {
     Special, // For unit-specific animations like flying, eating, etc.
 }
 
-
 #[derive(Event, Debug)]
 pub struct AnimationStateChangeEvent {
     pub entity: Entity,
@@ -55,7 +57,16 @@ pub struct AnimationStateChangeEvent {
 pub fn animation_state_manager(
     mut animation_events: EventWriter<AnimationStateChangeEvent>,
     // All units with animation controllers
-    units: Query<(Entity, &Movement, &Combat, Option<&RTSHealth>, &UnitAnimationController), With<RTSUnit>>,
+    units: Query<
+        (
+            Entity,
+            &Movement,
+            &Combat,
+            Option<&RTSHealth>,
+            &UnitAnimationController,
+        ),
+        With<RTSUnit>,
+    >,
 ) {
     for (entity, movement, combat, health, controller) in units.iter() {
         // Determine the appropriate animation state based on unit behavior
@@ -127,17 +138,27 @@ pub fn update_animations(
                     if let Some(node_index) = controller.animation_node_index {
                         player.play(node_index).repeat();
 
-                        debug!("🎬 Animation state changed: {:?} → {:?} for entity {:?}",
-                              controller.previous_state, event.new_state, event.entity);
+                        debug!(
+                            "🎬 Animation state changed: {:?} → {:?} for entity {:?}",
+                            controller.previous_state, event.new_state, event.entity
+                        );
                     } else {
-                        debug!("No animation node index stored for entity {:?}", event.entity);
+                        debug!(
+                            "No animation node index stored for entity {:?}",
+                            event.entity
+                        );
                     }
                 } else {
-                    warn!("AnimationPlayer entity {:?} not found for controller on entity {:?}",
-                          player_entity, event.entity);
+                    warn!(
+                        "AnimationPlayer entity {:?} not found for controller on entity {:?}",
+                        player_entity, event.entity
+                    );
                 }
             } else {
-                debug!("No AnimationPlayer assigned to controller on entity {:?}", event.entity);
+                debug!(
+                    "No AnimationPlayer assigned to controller on entity {:?}",
+                    event.entity
+                );
             }
         }
     }
@@ -162,17 +183,16 @@ pub fn find_animation_players(
                     // No children yet, scene still loading
                     continue;
                 }
-                
+
                 // Scene is ready (has children), now search for animation players
-                if let Some(player) = search_recursive_for_player(
-                    controller_entity, 
-                    &children, 
-                    &animation_players, 
-                    0
-                ) {
+                if let Some(player) =
+                    search_recursive_for_player(controller_entity, &children, &animation_players, 0)
+                {
                     controller.animation_player = Some(player);
-                    debug!("Found AnimationPlayer for GLB scene controller {:?} -> {:?}", 
-                          controller_entity, player);
+                    debug!(
+                        "Found AnimationPlayer for GLB scene controller {:?} -> {:?}",
+                        controller_entity, player
+                    );
                 }
             } else {
                 // Non-GLB entity, use simpler search
@@ -183,8 +203,10 @@ pub fn find_animation_players(
                     &animation_players,
                 ) {
                     controller.animation_player = Some(player);
-                    debug!("Found AnimationPlayer for non-GLB controller {:?} -> {:?}", 
-                          controller_entity, player);
+                    debug!(
+                        "Found AnimationPlayer for non-GLB controller {:?} -> {:?}",
+                        controller_entity, player
+                    );
                 }
             }
         }
@@ -198,22 +220,26 @@ fn search_recursive_for_player(
     animation_players: &Query<Entity, With<AnimationPlayer>>,
     depth: usize,
 ) -> Option<Entity> {
-    if depth > 8 { return None; } // Prevent infinite recursion, deeper limit for GLB scenes
-    
+    if depth > 8 {
+        return None;
+    } // Prevent infinite recursion, deeper limit for GLB scenes
+
     // Check if this entity is an animation player
     if animation_players.get(entity).is_ok() {
         return Some(entity);
     }
-    
+
     // Search children
     if let Ok(children_list) = children.get(entity) {
         for &child in children_list.iter() {
-            if let Some(player) = search_recursive_for_player(child, children, animation_players, depth + 1) {
+            if let Some(player) =
+                search_recursive_for_player(child, children, animation_players, depth + 1)
+            {
                 return Some(player);
             }
         }
     }
-    
+
     None
 }
 
@@ -232,7 +258,7 @@ fn search_simple_for_player(
             }
         }
     }
-    
+
     // Check siblings
     if let Ok(parent) = parents.get(entity) {
         if let Ok(siblings) = children.get(parent.get()) {
@@ -243,13 +269,16 @@ fn search_simple_for_player(
             }
         }
     }
-    
+
     None
 }
 
 // System to start idle animations for units that just got their animation player assigned
 pub fn start_idle_animations(
-    mut controllers: Query<(Entity, &mut UnitAnimationController), Changed<UnitAnimationController>>,
+    mut controllers: Query<
+        (Entity, &mut UnitAnimationController),
+        Changed<UnitAnimationController>,
+    >,
     mut animation_players: Query<&mut AnimationPlayer>,
 ) {
     for (entity, controller) in controllers.iter_mut() {
@@ -257,39 +286,48 @@ pub fn start_idle_animations(
         if let Some(player_entity) = controller.animation_player {
             if let Ok(mut player) = animation_players.get_mut(player_entity) {
                 // Use the stored node index if available, otherwise fall back to index 0
-                let node_index = controller.animation_node_index.unwrap_or(AnimationNodeIndex::new(0));
+                let node_index = controller
+                    .animation_node_index
+                    .unwrap_or(AnimationNodeIndex::new(0));
                 player.play(node_index).repeat();
-                debug!("Started idle animation for newly assigned player on entity {:?}", entity);
+                debug!(
+                    "Started idle animation for newly assigned player on entity {:?}",
+                    entity
+                );
             }
         }
     }
 }
 
-
-
 // System to retroactively add animation controllers to units that don't have them
 pub fn add_missing_animation_controllers(
     mut commands: Commands,
-    units_without_controllers: Query<(Entity, &RTSUnit), (Without<UnitAnimationController>, With<RTSUnit>)>,
+    units_without_controllers: Query<
+        (Entity, &RTSUnit),
+        (Without<UnitAnimationController>, With<RTSUnit>),
+    >,
 ) {
     for (entity, unit) in units_without_controllers.iter() {
         // Only add animation controller to units with a specific type
         let Some(unit_type) = &unit.unit_type else {
             continue;
         };
-        
+
         let animation_controller = UnitAnimationController {
             current_state: AnimationState::Idle,
             previous_state: AnimationState::Idle,
             animation_player: None, // Will be populated by find_animation_players system
             animation_node_index: None, // Will be populated by setup_glb_animations system
         };
-        
+
         // Check if entity still exists before trying to add components
         if let Some(mut entity_commands) = commands.get_entity(entity) {
             // Add the animation controller to the entity
             entity_commands.insert(animation_controller);
-            debug!("Retroactively added animation controller to unit {:?} (entity {:?})", unit_type, entity);
+            debug!(
+                "Retroactively added animation controller to unit {:?} (entity {:?})",
+                unit_type, entity
+            );
         }
     }
 }
@@ -297,7 +335,10 @@ pub fn add_missing_animation_controllers(
 // System to set up animations for GLB models
 // In Bevy 0.15, GLB animations are loaded automatically, but AnimationPlayer might be on child entities
 pub fn setup_glb_animations(
-    mut glb_models: Query<(Entity, &SceneRoot, &mut UnitAnimationController), Without<AnimationPlayerSearched>>,
+    mut glb_models: Query<
+        (Entity, &SceneRoot, &mut UnitAnimationController),
+        Without<AnimationPlayerSearched>,
+    >,
     mut animation_players: Query<&mut AnimationPlayer>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
     mut commands: Commands,
@@ -320,7 +361,9 @@ pub fn setup_glb_animations(
         }
 
         // Search for AnimationPlayer in the entity hierarchy
-        if let Some(player_entity) = search_for_animation_player_entity(entity, &children, &animation_players) {
+        if let Some(player_entity) =
+            search_for_animation_player_entity(entity, &children, &animation_players)
+        {
             // Store the AnimationPlayer entity in the controller
             controller.animation_player = Some(player_entity);
 
@@ -387,7 +430,9 @@ fn search_for_animation_player_recursive(
     animation_players: &Query<&mut AnimationPlayer>,
     depth: usize,
 ) -> Option<Entity> {
-    if depth > 10 { return None; } // Prevent infinite recursion
+    if depth > 10 {
+        return None;
+    } // Prevent infinite recursion
 
     // Check if this entity has AnimationPlayer
     if animation_players.get(entity).is_ok() {
@@ -397,7 +442,9 @@ fn search_for_animation_player_recursive(
     // Search children
     if let Ok(children_list) = children.get(entity) {
         for &child in children_list.iter() {
-            if let Some(player) = search_for_animation_player_recursive(child, children, animation_players, depth + 1) {
+            if let Some(player) =
+                search_for_animation_player_recursive(child, children, animation_players, depth + 1)
+            {
                 return Some(player);
             }
         }
@@ -419,7 +466,7 @@ pub fn animation_debug_system(
     mut run_count: Local<u32>,
 ) {
     *run_count += 1;
-    
+
     // Log system is running every 300 frames (about once per 5 seconds)
     if *run_count % 300 == 1 {
         let controller_count = animation_controllers.iter().count();
@@ -429,37 +476,48 @@ pub fn animation_debug_system(
         let scene_count = scene_roots.iter().count();
         info!("Animation debug: {} controllers, {} players, {} total RTSUnits, {} GLB models, {} scene roots (frame {})", 
               controller_count, player_count, unit_count, glb_count, scene_count, *run_count);
-        
+
         // Every 30 seconds, do a deep hierarchy analysis
         if *run_count % 1800 == 1 {
             info!("=== DEEP HIERARCHY ANALYSIS ===");
-            
+
             // Find all units with SceneRoot and examine their children
             for (controller_entity, _controller, unit_opt) in animation_controllers.iter().take(3) {
                 let unit_type = unit_opt.and_then(|u| u.unit_type.as_ref());
-                info!("Analyzing entity {:?} (unit: {:?})", controller_entity, unit_type);
-                
+                info!(
+                    "Analyzing entity {:?} (unit: {:?})",
+                    controller_entity, unit_type
+                );
+
                 // Check if this entity has children
                 if let Ok(children_list) = children.get(controller_entity) {
                     info!("  Entity has {} children", children_list.len());
-                    
+
                     // Examine each child
                     for &child in children_list.iter() {
                         let child_name = names.get(child).map(|n| n.as_str()).unwrap_or("unnamed");
                         let has_animation_player = animation_players.get(child).is_ok();
                         let has_children = children.get(child).map(|c| c.len()).unwrap_or(0);
-                        
-                        info!("    Child {:?} '{}' - AnimPlayer: {}, Children: {}", 
-                              child, child_name, has_animation_player, has_children);
-                        
+
+                        info!(
+                            "    Child {:?} '{}' - AnimPlayer: {}, Children: {}",
+                            child, child_name, has_animation_player, has_children
+                        );
+
                         // Check grandchildren too
                         if let Ok(grandchildren) = children.get(child) {
                             for &grandchild in grandchildren.iter() {
-                                let grandchild_name = names.get(grandchild).map(|n| n.as_str()).unwrap_or("unnamed");
-                                let grandchild_has_player = animation_players.get(grandchild).is_ok();
-                                
-                                info!("      Grandchild {:?} '{}' - AnimPlayer: {}", 
-                                      grandchild, grandchild_name, grandchild_has_player);
+                                let grandchild_name = names
+                                    .get(grandchild)
+                                    .map(|n| n.as_str())
+                                    .unwrap_or("unnamed");
+                                let grandchild_has_player =
+                                    animation_players.get(grandchild).is_ok();
+
+                                info!(
+                                    "      Grandchild {:?} '{}' - AnimPlayer: {}",
+                                    grandchild, grandchild_name, grandchild_has_player
+                                );
                             }
                         }
                     }
@@ -467,11 +525,11 @@ pub fn animation_debug_system(
                     info!("  Entity has no children");
                 }
             }
-            
+
             info!("=== END HIERARCHY ANALYSIS ===");
         }
     }
-    
+
     for (entity, controller, unit_opt) in animation_controllers.iter() {
         // Only log each entity once to avoid spam
         if !logged_entities.contains(&entity) {
