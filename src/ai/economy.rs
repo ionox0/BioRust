@@ -91,7 +91,7 @@ pub fn economy_optimization_system(
         }
 
         // Sort by priority (highest first)
-        allocations.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap());
+        allocations.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap_or(std::cmp::Ordering::Equal));
         economy.resource_priorities = allocations.clone();
 
         // Reassign workers based on priorities
@@ -224,7 +224,7 @@ fn reassign_workers(
                     sources.sort_by(|a, b| {
                         let dist_a = worker_pos.distance(a.1);
                         let dist_b = worker_pos.distance(b.1);
-                        dist_a.partial_cmp(&dist_b).unwrap()
+                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
                     });
 
                     if let Some((source_entity, source_position)) = sources.first() {
@@ -241,7 +241,7 @@ fn reassign_workers(
                                 .min_by(|a, b| {
                                     let dist_a = worker_transform.translation.distance(a.1.translation);
                                     let dist_b = worker_transform.translation.distance(b.1.translation);
-                                    dist_a.partial_cmp(&dist_b).unwrap()
+                                    dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
                                 })
                                 .map(|(entity, _, _, _)| entity);
 
@@ -322,7 +322,7 @@ pub fn worker_idle_detection_system(
                     .min_by(|a, b| {
                         let dist_a = worker_transform.translation.distance(a.2.translation);
                         let dist_b = worker_transform.translation.distance(b.2.translation);
-                        dist_a.partial_cmp(&dist_b).unwrap()
+                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
                     })
                 {
                     // Find nearest suitable drop-off building
@@ -337,7 +337,7 @@ pub fn worker_idle_detection_system(
                         .min_by(|a, b| {
                             let dist_a = worker_transform.translation.distance(a.1.translation);
                             let dist_b = worker_transform.translation.distance(b.1.translation);
-                            dist_a.partial_cmp(&dist_b).unwrap()
+                            dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
                         })
                         .map(|(entity, _, _, _)| entity);
 

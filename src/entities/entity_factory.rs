@@ -117,8 +117,8 @@ impl EntityFactory {
         };
         
         // Create the visual representation
-        let mut entity = if config.prefer_glb && model_assets.is_some() {
-            Self::spawn_unit_with_glb(commands, &unit_type, &config, model_scale, model_assets.unwrap())
+        let mut entity = if let (true, Some(assets)) = (config.prefer_glb, model_assets) {
+            Self::spawn_unit_with_glb(commands, &unit_type, &config, model_scale, assets)
         } else {
             Self::spawn_unit_with_primitive(commands, meshes, materials, &unit_type, &config, model_scale)
         };
@@ -281,8 +281,8 @@ impl EntityFactory {
         let building_stats = Self::get_building_stats(&building_type);
         
         // Create the visual representation - prefer GLB models if available
-        let mut entity = if config.prefer_glb && model_assets.is_some() {
-            Self::spawn_building_with_glb(commands, &building_type, &config, model_assets.unwrap())
+        let mut entity = if let (true, Some(assets)) = (config.prefer_glb, model_assets) {
+            Self::spawn_building_with_glb(commands, &building_type, &config, assets)
         } else {
             Self::spawn_building_with_primitive(commands, meshes, materials, &building_type, &config)
         };

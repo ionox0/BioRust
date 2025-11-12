@@ -426,7 +426,7 @@ fn calculate_smart_attack_position(
     
     // Find closest enemy
     let closest_enemy = enemy_positions.iter()
-        .min_by(|a, b| current_pos.distance(**a).partial_cmp(&current_pos.distance(**b)).unwrap())
+        .min_by(|a, b| current_pos.distance(**a).partial_cmp(&current_pos.distance(**b)).unwrap_or(std::cmp::Ordering::Equal))
         .copied()?;
     
     // Calculate formation position around the closest enemy

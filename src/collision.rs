@@ -1,11 +1,60 @@
 use bevy::prelude::*;
 use crate::core::components::*;
+use std::collections::HashMap;
 
 pub struct CollisionPlugin;
 
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, unit_collision_avoidance_system);
+    }
+}
+
+// Spatial grid for efficient collision detection
+const GRID_CELL_SIZE: f32 = 50.0;
+
+struct SpatialGrid {
+    cells: HashMap<(i32, i32), Vec<(Entity, Vec3, f32)>>,
+}
+
+impl SpatialGrid {
+    fn new() -> Self {
+        Self {
+            cells: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, entity: Entity, position: Vec3, radius: f32) {
+        let cell = Self::get_cell(position);
+        self.cells.entry(cell).or_default().push((entity, position, radius));
+    }
+
+    fn get_cell(position: Vec3) -> (i32, i32) {
+        (
+            (position.x / GRID_CELL_SIZE).floor() as i32,
+            (position.z / GRID_CELL_SIZE).floor() as i32,
+        )
+    }
+
+    fn query_nearby(&self, position: Vec3, radius: f32) -> Vec<(Entity, Vec3, f32)> {
+        let cell = Self::get_cell(position);
+        let mut results = Vec::new();
+
+        // Check current cell and neighboring cells
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                let neighbor_cell = (cell.0 + dx, cell.1 + dz);
+                if let Some(entities) = self.cells.get(&neighbor_cell) {
+                    for &(entity, pos, r) in entities {
+                        // Only include if within range
+                        if position.distance(pos) <= radius + r + GRID_CELL_SIZE {
+                            results.push((entity, pos, r));
+                        }
+                    }
+                }
+            }
+        }
+        results
     }
 }
 
@@ -44,6 +93,30 @@ struct CollisionInfo {
     min_distance: f32,
 }
 
+// Collision constants
+mod collision_constants {
+    pub const MAX_DELTA_TIME: f32 = 0.1;
+    pub const MOVING_VELOCITY_THRESHOLD: f32 = 2.0;
+    pub const BUILDING_BUFFER: f32 = 1.5;
+    pub const UNIT_BUFFER: f32 = 0.8;
+    pub const OVERLAP_THRESHOLD: f32 = 0.3;
+    pub const AVOIDANCE_FORCE_BASE: f32 = 40.0;
+    pub const SERIOUS_OVERLAP_RATIO: f32 = 0.85;
+    pub const PUSH_MULTIPLIER: f32 = 0.3;
+    pub const UNIT_OVERLAP_THRESHOLD: f32 = 0.8;
+    pub const CONVERGENCE_THRESHOLD: f32 = 2.0;
+    pub const CONVERGING_FORCE: f32 = 3.0;
+    pub const MOVING_FORCE: f32 = 1.0;
+    pub const STATIONARY_FORCE: f32 = 0.5;
+    pub const SERIOUS_UNIT_OVERLAP_RATIO: f32 = 0.6;
+    pub const GENTLE_PUSH_MULTIPLIER: f32 = 0.05;
+    pub const MIN_AVOIDANCE_MAGNITUDE: f32 = 0.1;
+    pub const VELOCITY_ADJUSTMENT_FACTOR: f32 = 0.3;
+    pub const MAX_SPEED_MULTIPLIER: f32 = 1.2;
+    pub const STATIONARY_ADJUSTMENT_FACTOR: f32 = 0.5;
+    pub const VELOCITY_DAMPING: f32 = 0.98;
+}
+
 /// System to prevent units from overlapping with buildings, environment objects, and other units
 ///
 /// This system handles collision avoidance for all moving units by:
@@ -52,137 +125,169 @@ struct CollisionInfo {
 /// 3. Applying appropriate avoidance forces
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
-    // Query for static obstacles: buildings use Position+GlobalTransform for GLB model compatibility
     buildings: Query<(&Position, &CollisionRadius), (With<Building>, Without<Movement>)>,
-    // Environment objects use Transform directly
     environment_objects: Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<Movement>)>,
     time: Res<Time>,
 ) {
-    let dt = time.delta_secs().min(0.1); // Cap delta time to prevent large jumps
+    use collision_constants::*;
 
-    // Store unit transformations BEFORE mutating (immutable borrow, then release)
-    let unit_positions: Vec<(Entity, Vec3, f32, Vec3)> = units.iter()
-        .map(|(e, t, m, r)| {
-            (e, t.translation, r.radius, m.current_velocity)
-        })
+    let dt = time.delta_secs().min(MAX_DELTA_TIME);
+
+    // Build spatial grid for units
+    let mut unit_grid = SpatialGrid::new();
+    let unit_data: Vec<_> = units.iter()
+        .map(|(e, t, m, r)| (e, t.translation, r.radius, m.current_velocity))
         .collect();
 
-    // Now do mutable iteration
+    for &(entity, position, radius, _) in &unit_data {
+        unit_grid.insert(entity, position, radius);
+    }
+
+    // Process each unit
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
         let mut avoidance_force = Vec3::ZERO;
-        let velocity_magnitude = movement.current_velocity.length();
-        let is_moving = velocity_magnitude > 2.0; // Much higher threshold to reduce collision interference
+        let is_moving = movement.current_velocity.length() > MOVING_VELOCITY_THRESHOLD;
 
-        // Check collision with buildings (static obstacles)
-        // Buildings use Position component for their world location (GLB models)
-        for (building_position, building_radius) in buildings.iter() {
-            if let Some(collision) = check_collision(
-                unit_transform.translation,
-                unit_radius.radius,
-                building_position.translation,
-                building_radius.radius,
-                1.5, // Larger buffer for buildings
-            ) {
-                // Only apply force if significantly overlapping
-                if collision.overlap > 0.3 {
-                    let force_magnitude = (collision.overlap / collision.min_distance).min(1.0);
-                    avoidance_force += collision.direction * force_magnitude * 40.0;
+        // Check collisions with static obstacles
+        avoidance_force += process_static_collisions(
+            unit_transform.translation,
+            unit_radius.radius,
+            &buildings,
+            BUILDING_BUFFER,
+            &mut unit_transform,
+        );
 
-                    // If seriously overlapping, push directly away
-                    if collision.distance < collision.min_distance * 0.85 {
-                        unit_transform.translation += collision.direction * collision.overlap * 0.3;
-                    }
-                }
-            }
-        }
+        avoidance_force += process_environment_collisions(
+            unit_transform.translation,
+            unit_radius.radius,
+            &environment_objects,
+            BUILDING_BUFFER,
+            &mut unit_transform,
+        );
 
-        // Check collision with environment objects and resources (static obstacles)
-        for (env_transform, env_radius) in environment_objects.iter() {
-            if let Some(collision) = check_collision(
-                unit_transform.translation,
-                unit_radius.radius,
-                env_transform.translation,
-                env_radius.radius,
-                1.5, // Larger buffer
-            ) {
-                // Only apply force if significantly overlapping
-                if collision.overlap > 0.3 {
-                    let force_magnitude = (collision.overlap / collision.min_distance).min(1.0);
-                    avoidance_force += collision.direction * force_magnitude * 40.0;
-
-                    // If seriously overlapping, push directly away
-                    if collision.distance < collision.min_distance * 0.85 {
-                        unit_transform.translation += collision.direction * collision.overlap * 0.3;
-                    }
-                }
-            }
-        }
-
-        // Check collision with other units for separation
-        for (other_entity, other_pos, other_radius, other_velocity) in &unit_positions {
-            if unit_entity == *other_entity {
+        // Check collisions with nearby units using spatial grid
+        let nearby_units = unit_grid.query_nearby(unit_transform.translation, unit_radius.radius * 5.0);
+        for (other_entity, other_pos, other_radius) in nearby_units {
+            if unit_entity == other_entity {
                 continue;
             }
 
+            // Find velocity of other unit
+            let other_velocity = unit_data.iter()
+                .find(|(e, _, _, _)| *e == other_entity)
+                .map(|(_, _, _, v)| *v)
+                .unwrap_or(Vec3::ZERO);
+
             if let Some(collision) = check_collision(
                 unit_transform.translation,
                 unit_radius.radius,
-                *other_pos,
-                *other_radius,
-                0.8, // Smaller buffer for units to allow tighter formations
+                other_pos,
+                other_radius,
+                UNIT_BUFFER,
             ) {
-                // Add dead zone - don't apply forces for minor overlaps
-                if collision.overlap > 0.8 {
-                    // Use relative velocity to determine force strength
+                if collision.overlap > UNIT_OVERLAP_THRESHOLD {
                     let relative_velocity = (movement.current_velocity - other_velocity).length();
-                    let is_converging = relative_velocity > 2.0;
+                    let is_converging = relative_velocity > CONVERGENCE_THRESHOLD;
 
-                    // Much reduced forces to prevent oscillation in formations
                     let force_multiplier = if is_converging {
-                        3.0 // Apply force when units are moving toward each other
+                        CONVERGING_FORCE
                     } else if is_moving {
-                        1.0 // Very gentle force when moving
+                        MOVING_FORCE
                     } else {
-                        0.5 // Minimal force when stationary
+                        STATIONARY_FORCE
                     };
 
                     let force_magnitude = (collision.overlap / collision.min_distance).min(1.0);
                     avoidance_force += collision.direction * force_magnitude * force_multiplier;
 
-                    // Only push apart if seriously overlapping
-                    if collision.overlap > collision.min_distance * 0.6 {
-                        let push_distance = collision.overlap * 0.05; // Very gentle push
-                        unit_transform.translation += collision.direction * push_distance;
+                    if collision.overlap > collision.min_distance * SERIOUS_UNIT_OVERLAP_RATIO {
+                        unit_transform.translation += collision.direction * collision.overlap * GENTLE_PUSH_MULTIPLIER;
                     }
                 }
             }
         }
 
-        // Apply avoidance force to movement with strong damping
-        let avoidance_magnitude = avoidance_force.length();
-        if avoidance_magnitude > 0.1 {
+        // Apply avoidance force
+        if avoidance_force.length() > MIN_AVOIDANCE_MAGNITUDE {
             if is_moving {
-                // Smooth velocity adjustment with clamping
-                let adjustment = avoidance_force * dt * 0.3; // Reduced from 0.5
+                let adjustment = avoidance_force * dt * VELOCITY_ADJUSTMENT_FACTOR;
                 let new_velocity = movement.current_velocity + adjustment;
+                let max_avoidance_speed = movement.max_speed * MAX_SPEED_MULTIPLIER;
 
-                // Clamp velocity to prevent excessive speeds
-                let max_avoidance_speed = movement.max_speed * 1.2;
-                if new_velocity.length() > max_avoidance_speed {
-                    movement.current_velocity = new_velocity.normalize() * max_avoidance_speed;
+                movement.current_velocity = if new_velocity.length() > max_avoidance_speed {
+                    new_velocity.normalize() * max_avoidance_speed
                 } else {
-                    movement.current_velocity = new_velocity;
-                }
+                    new_velocity
+                };
             } else {
-                // For stationary units, minimal adjustment with exponential smoothing
-                let adjustment = avoidance_force.normalize() * dt * 0.5; // Reduced from 2.0
-                unit_transform.translation += adjustment;
+                unit_transform.translation += avoidance_force.normalize() * dt * STATIONARY_ADJUSTMENT_FACTOR;
             }
 
-            // Apply velocity damping to reduce oscillation
-            movement.current_velocity *= 0.98; // Add slight damping
+            movement.current_velocity *= VELOCITY_DAMPING;
         }
     }
+}
+
+fn process_static_collisions(
+    position: Vec3,
+    radius: f32,
+    buildings: &Query<(&Position, &CollisionRadius), (With<Building>, Without<Movement>)>,
+    buffer: f32,
+    transform: &mut Transform,
+) -> Vec3 {
+    use collision_constants::*;
+
+    let mut force = Vec3::ZERO;
+    for (building_position, building_radius) in buildings.iter() {
+        if let Some(collision) = check_collision(
+            position,
+            radius,
+            building_position.translation,
+            building_radius.radius,
+            buffer,
+        ) {
+            if collision.overlap > OVERLAP_THRESHOLD {
+                let force_magnitude = (collision.overlap / collision.min_distance).min(1.0);
+                force += collision.direction * force_magnitude * AVOIDANCE_FORCE_BASE;
+
+                if collision.distance < collision.min_distance * SERIOUS_OVERLAP_RATIO {
+                    transform.translation += collision.direction * collision.overlap * PUSH_MULTIPLIER;
+                }
+            }
+        }
+    }
+    force
+}
+
+fn process_environment_collisions(
+    position: Vec3,
+    radius: f32,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<Movement>)>,
+    buffer: f32,
+    transform: &mut Transform,
+) -> Vec3 {
+    use collision_constants::*;
+
+    let mut force = Vec3::ZERO;
+    for (env_transform, env_radius) in environment_objects.iter() {
+        if let Some(collision) = check_collision(
+            position,
+            radius,
+            env_transform.translation,
+            env_radius.radius,
+            buffer,
+        ) {
+            if collision.overlap > OVERLAP_THRESHOLD {
+                let force_magnitude = (collision.overlap / collision.min_distance).min(1.0);
+                force += collision.direction * force_magnitude * AVOIDANCE_FORCE_BASE;
+
+                if collision.distance < collision.min_distance * SERIOUS_OVERLAP_RATIO {
+                    transform.translation += collision.direction * collision.overlap * PUSH_MULTIPLIER;
+                }
+            }
+        }
+    }
+    force
 }
 
 
