@@ -139,12 +139,15 @@ impl Default for AIStrategy {
                 ],
             },
             military_targets: MilitaryTargets {
-                desired_military_units: 20, // Large army for enemy elimination (increased from 12 to 20)
+                desired_military_units: 35, // MASSIVE army for enemy elimination (increased from 20 to 35)
                 preferred_unit_types: vec![
-                    UnitType::SoldierAnt,    // Core army unit
-                    UnitType::BeetleKnight,  // Heavy assault for enemy elimination
-                    UnitType::HunterWasp,    // Fast raiders
-                    UnitType::SpearMantis,   // Anti-building siege units
+                    UnitType::DragonFly,       // STRONGEST - 5x speed air superiority
+                    UnitType::BeetleKnight,    // Heavy assault for enemy elimination
+                    UnitType::SpearMantis,     // Anti-building siege units
+                    UnitType::BatteringBeetle, // Siege warfare specialists
+                    UnitType::HunterWasp,      // Fast air raiders
+                    UnitType::EliteSpider,     // Elite predator units
+                    UnitType::SoldierAnt,      // Core army unit
                 ],
                 next_military_building: Some(BuildingType::WarriorChamber),
             },
@@ -306,7 +309,13 @@ fn update_strategy_phase(
         matches!(unit_type, UnitType::WorkerAnt)
     });
     let military_count = count_player_units_of_type(units, player_id, |unit_type| {
-        matches!(unit_type, UnitType::SoldierAnt | UnitType::BeetleKnight | UnitType::HunterWasp | UnitType::SpearMantis)
+        matches!(unit_type, 
+            UnitType::SoldierAnt | UnitType::BeetleKnight | UnitType::HunterWasp | 
+            UnitType::SpearMantis | UnitType::DragonFly | UnitType::BatteringBeetle |
+            UnitType::EliteSpider | UnitType::ScoutAnt | UnitType::AcidSpitter |
+            UnitType::DefenderBug | UnitType::SpiderHunter | UnitType::WolfSpider |
+            UnitType::Ladybug | UnitType::LegBeetle | UnitType::Scorpion |
+            UnitType::TermiteWarrior | UnitType::Stinkbug)
     });
     
     // GOAL-BASED STRATEGY PHASES: 1. Population Growth → 2. Enemy Elimination
@@ -321,15 +330,15 @@ fn update_strategy_phase(
         
         // MID GAME: Transition Phase - Population achieved, building military  
         // Begin military buildup once we have strong worker base
-        (workers, military, _) if workers >= 20 && military < 15 => {
+        (workers, military, _) if workers >= 15 && military < 20 => { // Lower worker requirement, higher military target
             // Switch to Balanced strategy during transition
             strategy.strategy_type = StrategyType::Balanced;
             StrategyPhase::MidGame
         },
         
         // LATE GAME: Enemy Elimination Phase - Large army, focus on attack
-        // Full military focus once both population and army goals are met
-        (workers, military, total) if workers >= 20 && military >= 15 || total >= 40 => {
+        // Full military focus once both population and army goals are met - ENHANCED for faster aggression
+        (workers, military, total) if (workers >= 15 && military >= 12) || total >= 30 => { // Lower thresholds for faster attack
             // Switch to Military strategy for enemy elimination
             strategy.strategy_type = StrategyType::Military;
             StrategyPhase::LateGame
@@ -339,25 +348,40 @@ fn update_strategy_phase(
         _ => StrategyPhase::EarlyGame,
     };
     
-    // Log phase transitions for debugging
-    match strategy.phase {
-        StrategyPhase::EarlyGame => debug!("AI Player {} in POPULATION GROWTH phase: {} workers, {} military", 
-                                         player_id, worker_count, military_count),
-        StrategyPhase::MidGame => debug!("🔄 AI Player {} transitioning: {} workers, {} military - Building army", 
-                                        player_id, worker_count, military_count),
-        StrategyPhase::LateGame => info!("⚔️ AI Player {} in ENEMY ELIMINATION phase: {} workers, {} military - ATTACKING!", 
-                                        player_id, worker_count, military_count),
+    // Rate limit phase logging to every 10 seconds to reduce spam
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static PHASE_LOG_TIMES: std::sync::LazyLock<Mutex<HashMap<u8, f32>>> = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+    
+    if let Ok(mut log_times) = PHASE_LOG_TIMES.lock() {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f32();
+        
+        let last_log = log_times.get(&player_id).copied().unwrap_or(0.0);
+        if current_time - last_log > 10.0 {
+            match strategy.phase {
+                StrategyPhase::EarlyGame => debug!("AI Player {} in POPULATION GROWTH phase: {} workers, {} military", 
+                                                 player_id, worker_count, military_count),
+                StrategyPhase::MidGame => debug!("🔄 AI Player {} transitioning: {} workers, {} military - Building army", 
+                                                player_id, worker_count, military_count),
+                StrategyPhase::LateGame => debug!("⚔️ AI Player {} in ENEMY ELIMINATION phase: {} workers, {} military - ATTACKING!", 
+                                                player_id, worker_count, military_count),
+            }
+            log_times.insert(player_id, current_time);
+        }
     }
 }
 
 fn should_execute_next_goal(strategy: &PlayerStrategy, current_time: f32) -> bool {
     let time_since_last_action = current_time - strategy.last_building_time.max(strategy.last_unit_time);
     
-    // Very aggressive timing for rapid unit production
+    // SUPER AGGRESSIVE timing for rapid military unit production
     match strategy.phase {
-        StrategyPhase::EarlyGame => time_since_last_action > 0.8, // Much faster worker production
-        StrategyPhase::MidGame => time_since_last_action > 0.6,   // Fast military buildup
-        StrategyPhase::LateGame => time_since_last_action > 0.4,  // Constant unit production
+        StrategyPhase::EarlyGame => time_since_last_action > 0.6,  // Faster worker production
+        StrategyPhase::MidGame => time_since_last_action > 0.4,    // Very fast military buildup
+        StrategyPhase::LateGame => time_since_last_action > 0.2,   // CONSTANT military production for overwhelming force
     }
 }
 
@@ -407,6 +431,10 @@ fn execute_next_goal(
                 strategy.priority_queue.remove(0);
                 strategy.last_unit_time = current_time;
                 info!("AI Player {} queued {:?} for production", player_id, unit_type);
+            } else {
+                // Remove failed military unit goal to prevent blocking the queue
+                strategy.priority_queue.remove(0);
+                debug!("❌ AI Player {} failed to queue {:?} - removing from queue", player_id, unit_type);
             }
         },
         StrategyGoal::ConstructBuilding(building_type) => {
@@ -415,7 +443,37 @@ fn execute_next_goal(
                 strategy.last_building_time = current_time;
                 info!("✅ AI Player {} started building {:?}", player_id, building_type);
             } else {
-                warn!("❌ AI Player {} failed to start building {:?} - removing from queue", player_id, building_type);
+                // Rate limit building failure logging to prevent spam AND record failure for cooldown
+                use std::collections::HashMap;
+                use std::sync::Mutex;
+                static BUILDING_FAILURE_LOG: std::sync::LazyLock<Mutex<HashMap<(u8, BuildingType), f32>>> = 
+                    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+                static BUILDING_COOLDOWNS: std::sync::LazyLock<Mutex<HashMap<(u8, BuildingType), f32>>> = 
+                    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+                
+                let key = (player_id, building_type.clone());
+                
+                // Record failure time for cooldown mechanism
+                if let Ok(mut cooldowns) = BUILDING_COOLDOWNS.lock() {
+                    cooldowns.insert(key.clone(), current_time);
+                }
+                
+                let should_log = if let Ok(mut log_times) = BUILDING_FAILURE_LOG.lock() {
+                    let last_log = log_times.get(&key).copied().unwrap_or(0.0);
+                    if current_time - last_log > 5.0 {  // Only log every 5 seconds per building type
+                        log_times.insert(key, current_time);
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    true  // Log if mutex fails
+                };
+                
+                if should_log {
+                    warn!("❌ AI Player {} failed to start building {:?} - removing from queue", player_id, building_type);
+                }
+                
                 strategy.priority_queue.remove(0); // Remove failed building attempts to prevent infinite retry
                 strategy.last_building_failure_time = current_time; // Track failure time to prevent immediate retries
             }
@@ -423,7 +481,7 @@ fn execute_next_goal(
         StrategyGoal::AttackEnemy(target_player_id) => {
             // Execute attack strategy - mark goal as processed
             strategy.priority_queue.remove(0);
-            info!("⚔️ AI Player {} executing ATTACK on Player {} - ENEMY ELIMINATION PHASE!", player_id, target_player_id);
+            debug!("⚔️ AI Player {} executing ATTACK on Player {} - ENEMY ELIMINATION PHASE!", player_id, target_player_id);
             
             // Attack goal is handled by the combat AI system which will make units seek enemies
             // The combat AI already has aggressive behavior for Late Game phase
@@ -476,10 +534,22 @@ fn try_build_unit(
         // Beetle/Heavy units from WarriorChamber (Pine Cone)
         UnitType::BeetleKnight => BuildingType::WarriorChamber,
         UnitType::BatteringBeetle => BuildingType::WarriorChamber,
-        _ => {
-            warn!("❌ AI Player {} unsupported unit type: {:?}", player_id, unit_type);
-            return false;
-        }
+        UnitType::LegBeetle => BuildingType::WarriorChamber,
+        UnitType::TermiteWarrior => BuildingType::WarriorChamber,
+        UnitType::Scorpion => BuildingType::WarriorChamber,
+        UnitType::Stinkbug => BuildingType::WarriorChamber,
+        // Spider/Predator units from HunterChamber
+        UnitType::EliteSpider => BuildingType::HunterChamber,
+        UnitType::DefenderBug => BuildingType::HunterChamber,
+        UnitType::SpiderHunter => BuildingType::HunterChamber,
+        UnitType::WolfSpider => BuildingType::HunterChamber,
+        UnitType::Ladybug => BuildingType::HunterChamber,
+        UnitType::LadybugScout => BuildingType::HunterChamber,
+        // Flying units from Nursery
+        UnitType::HoneyBee => BuildingType::Nursery,
+        UnitType::Housefly => BuildingType::Nursery,
+        // Worker variants
+        UnitType::TermiteWorker => BuildingType::Queen,
     };
     
     // Debug: Count available buildings
@@ -508,20 +578,12 @@ fn try_build_unit(
     debug!("🏗️ AI Player {} building check for {:?}: total={}, player={}, type_match={}, complete={}, available={}", 
            player_id, required_building, total_buildings, player_buildings, matching_buildings, complete_matching_buildings, available_buildings);
     
-    // Find a suitable building to queue the unit in
-    for (mut queue, building, unit) in buildings.iter_mut() {
-        if unit.player_id == player_id && 
-           building.building_type == required_building && 
-           building.is_complete &&
-           queue.queue.len() < 8 { // Allow larger queue for military production
-            
-            queue.queue.push(unit_type.clone());
-            info!("✅ AI Player {} queued {:?} in {:?} (queue: {}/8)", player_id, unit_type, required_building, queue.queue.len());
-            return true;
-        }
+    // Use the shared overflow system for AI unit queuing
+    if crate::rts::production::try_queue_unit_with_overflow(unit_type.clone(), required_building.clone(), buildings, player_id) {
+        return true;
     }
     
-    warn!("❌ AI Player {} failed to find suitable {:?} building for {:?} - need: complete building owned by player with queue < 8", 
+    warn!("❌ AI Player {} failed to find suitable {:?} building for {:?} - no buildings available", 
           player_id, required_building, unit_type);
     false
 }
@@ -542,242 +604,33 @@ fn try_build_building(
     unit_collisions: &Vec<(Vec3, f32)>,
     environment_collisions: &Vec<(Vec3, f32, EnvironmentObjectType)>,
 ) -> bool {
-    // Check if we can afford the building
-    if let Some(cost) = game_costs.building_costs.get(&building_type) {
-        if !resources.can_afford(cost) {
-            return false;
-        }
-        
-        // Deduct resources immediately when creating building site
-        if let Some(player_resources) = ai_resources.resources.get_mut(&player_id) {
-            if !player_resources.spend_resources(cost) {
-                warn!("AI Player {} failed to spend resources for {:?} - insufficient resources", player_id, building_type);
-                return false;
-            }
-            info!("💰 AI Player {} spent resources for {:?}: {:?}", player_id, building_type, cost);
-        } else {
-            warn!("AI Player {} not found in resource manager", player_id);
-            return false;
-        }
+    if !can_afford_building(resources, game_costs, &building_type) {
+        return false;
     }
     
-    // Helper function to get terrain-aware position
-    let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-            x, z, &terrain_manager.noise_generator, &terrain_settings
-        );
-        Vec3::new(x, terrain_height + height_offset, z)
-    };
+    let terrain_helper = TerrainHelper::new(terrain_manager, terrain_settings);
+    let placement_context = BuildingPlacementContext::new(
+        player_id, 
+        building_type.clone(), 
+        building_collisions, 
+        resource_sources
+    );
     
-    // STRATEGIC BUILDING PLACEMENT: Place buildings near resources for faster collection
-    // Updated to match the new base positions from world/systems.rs
-    let base_x = if player_id == 1 { -800.0 } else { 800.0 };
-    let base_z = 0.0;
-    let base_position = Vec3::new(base_x, 0.0, base_z);
-    
-    let mut building_position = None;
-    
-    // IMPROVED PLACEMENT STRATEGY: Consider building density, resource proximity, and strategic positioning
-    
-    // Count existing buildings by type and calculate their center of mass for spacing
-    let mut existing_buildings: Vec<(Vec3, BuildingType)> = Vec::new();
-    for collision in building_collisions {
-        existing_buildings.push((collision.0, BuildingType::Queen)); // Simplified - we'll improve this if needed
-    }
-    
-    // For ALL buildings, prioritize placement near relevant resources for better economy
-    let should_place_near_resources = true; // Always try to place near resources first
-    
-    if should_place_near_resources {
-        // Find the best resource cluster for this building type - prioritize Nectar for most buildings
-        let target_resource_types = match building_type {
-            BuildingType::FungalGarden => vec![ResourceType::Nectar], // Nectar processing
-            BuildingType::StorageChamber => vec![ResourceType::Nectar, ResourceType::Minerals, ResourceType::Chitin], // General storage
-            BuildingType::Queen => vec![ResourceType::Nectar], // Queen is critical - prioritize Nectar (food) access
-            BuildingType::Nursery => vec![ResourceType::Nectar, ResourceType::Chitin], // Housing needs Nectar and building materials
-            BuildingType::WarriorChamber => vec![ResourceType::Nectar, ResourceType::Pheromones], // Military units need food and special resources
-            BuildingType::HunterChamber => vec![ResourceType::Nectar, ResourceType::Pheromones], // Flying units need food and special resources
-            _ => vec![ResourceType::Nectar], // Default: all buildings benefit from Nectar access
-        };
-        
-        // Find relevant resource sources
-        let mut relevant_resources = Vec::new();
-        for (_, source, transform) in resource_sources.iter() {
-            if target_resource_types.contains(&source.resource_type) && source.amount > 0.0 {
-                let distance_to_base = transform.translation.distance(base_position);
-                // Expanded search radius to find more resources for better placement options
-                if distance_to_base < 250.0 { // Increased from 150 to 250 for more resource options
-                    relevant_resources.push((transform.translation, source.resource_type.clone(), distance_to_base));
-                }
-            }
-        }
-        
-        // Sort by distance to base to prioritize closer resources
-        relevant_resources.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
-        
-        // Try to place building near the best resource clusters with improved spacing logic
-        for (resource_pos, resource_type, _distance) in relevant_resources.iter().take(5) { // Try top 5 closest resources
-            // SMART SPACING: Avoid overcrowded areas around resources
-            let nearby_buildings = existing_buildings.iter()
-                .filter(|(pos, _)| pos.distance(*resource_pos) < 60.0)
-                .count();
-            
-            // Skip overcrowded resources (more than 2 buildings nearby)
-            if nearby_buildings >= 2 {
-                debug!("AI Player {} skipping overcrowded {:?} resource ({}  nearby buildings)", 
-                       player_id, resource_type, nearby_buildings);
-                continue;
-            }
-            
-            // Try positions around this resource with strategic spacing
-            for ring in 0..5 { // More rings for better placement options
-                for attempt in 0..16 { // More attempts per ring for precise placement
-                    let angle = (attempt as f32) * std::f32::consts::PI / 8.0; // More precise angles
-                    
-                    // DYNAMIC RADIUS: Larger radius based on existing building density
-                    let base_radius = 25.0 + (nearby_buildings as f32 * 8.0); // Start further from crowded areas
-                    let radius = base_radius + (ring as f32 * 15.0); // 25-85+ range for good spacing
-                    
-                    let pos_x = resource_pos.x + radius * angle.cos();
-                    let pos_z = resource_pos.z + radius * angle.sin();
-                    
-                    let position = get_terrain_position(pos_x, pos_z, 0.0);
-                    
-                    // Validate position is reasonable and maintains strategic distance from base
-                    let distance_to_base = position.distance(base_position);
-                    if position.x.abs() < 1000.0 && position.z.abs() < 1000.0 && 
-                       distance_to_base > 40.0 && distance_to_base < 350.0 { // Minimum distance from base to avoid crowding
-                        
-                        // DENSITY CHECK: Ensure minimum spacing from other buildings
-                        let min_building_distance = existing_buildings.iter()
-                            .map(|(pos, _)| pos.distance(position))
-                            .min_by(|a, b| a.partial_cmp(b).unwrap())
-                            .unwrap_or(1000.0);
-                        
-                        if min_building_distance < 35.0 { // Enforce minimum 35 unit spacing between buildings
-                            continue; // Too close to existing buildings
-                        }
-                        
-                        // Get building radius for collision checking
-                        let building_radius = get_building_collision_radius(&building_type);
-                        
-                        // Validate that this position doesn't overlap with existing buildings/units
-                        if validate_ai_building_placement(
-                            position,
-                            building_radius,
-                            building_collisions,
-                            unit_collisions,
-                            environment_collisions,
-                        ) {
-                            building_position = Some(position);
-                            info!("🏗️ AI Player {} placing {:?} near {:?} resource (distance: {:.1} from base, {:.1} from nearest building)", 
-                                  player_id, building_type, resource_type, distance_to_base, min_building_distance);
-                            break;
-                        } else {
-                            debug!("AI Player {} resource-based position validation failed for {:?} at {:?}", player_id, building_type, position);
-                        }
-                    }
-                }
-                if building_position.is_some() {
-                    break;
-                }
-            }
-            if building_position.is_some() {
-                break;
-            }
-        }
-    }
-    
-    // IMPROVED FALLBACK: Strategic base-area placement with anti-crowding measures
-    if building_position.is_none() {
-        info!("AI Player {} using fallback placement for {:?} - no suitable resource locations found", player_id, building_type);
-        
-        // Calculate building density near base to determine starting radius
-        let base_area_buildings = existing_buildings.iter()
-            .filter(|(pos, _)| pos.distance(base_position) < 80.0)
-            .count();
-        
-        // Start placement further from base if area is crowded
-        let base_crowding_offset = (base_area_buildings as f32 * 10.0).min(40.0);
-        
-        // Add some randomness to make each building placement unique but predictable
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        
-        let mut hasher = DefaultHasher::new();
-        building_type.hash(&mut hasher);
-        player_id.hash(&mut hasher);
-        let seed = hasher.finish();
-        
-        let random_offset_x = ((seed % 80) as f32 - 40.0) * 0.5; // Smaller, controlled randomization  
-        let random_offset_z = (((seed / 80) % 80) as f32 - 40.0) * 0.5;
-        
-        // Try positions in expanding rings around the base with smart spacing
-        for ring in 0..6 { // More rings for better placement options
-            for attempt in 0..12 { // More attempts per ring
-                let angle = (attempt as f32) * std::f32::consts::PI / 6.0;
-                // STRATEGIC RADIUS: Start further out if base is crowded, expand more gradually
-                let radius = 50.0 + base_crowding_offset + (ring as f32 * 25.0); // 50-175+ range
-                
-                let pos_x = base_x + random_offset_x + radius * angle.cos();
-                let pos_z = base_z + random_offset_z + radius * angle.sin();
-                
-                let position = get_terrain_position(pos_x, pos_z, 0.0);
-                
-                if position.x.abs() < 1000.0 && position.z.abs() < 1000.0 {
-                    // DENSITY CHECK: Ensure proper spacing from existing buildings
-                    let min_building_distance = existing_buildings.iter()
-                        .map(|(pos, _)| pos.distance(position))
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap_or(1000.0);
-                    
-                    if min_building_distance < 30.0 { // Minimum spacing requirement
-                        continue; // Too close to existing buildings
-                    }
-                    
-                    // Get building radius for collision checking
-                    let building_radius = get_building_collision_radius(&building_type);
-                    
-                    // Validate that this position doesn't overlap with existing buildings/units
-                    if validate_ai_building_placement(
-                        position,
-                        building_radius,
-                        building_collisions,
-                        unit_collisions,
-                        environment_collisions,
-                    ) {
-                        building_position = Some(position);
-                        info!("🏗️ AI Player {} placing {:?} near base (ring {}, distance: {:.1} from base, {:.1} from nearest building)", 
-                              player_id, building_type, ring, position.distance(base_position), min_building_distance);
-                        break;
-                    } else {
-                        debug!("AI Player {} fallback position validation failed for {:?} at {:?}", player_id, building_type, position);
-                    }
-                }
-            }
-            if building_position.is_some() {
-                break;
-            }
-        }
-    }
-    
-    let Some(building_position) = building_position else {
+    let Some(building_position) = find_optimal_building_position(
+        placement_context,
+        &terrain_helper,
+        unit_collisions,
+        environment_collisions
+    ) else {
         warn!("AI Player {} could not find suitable position for {:?}", player_id, building_type);
         return false;
     };
     
-    // Create a building site instead of directly spawning the building
-    let _building_site = commands.spawn(BuildingSite {
-        building_type: building_type.clone(),
-        position: building_position,
-        player_id,
-        assigned_worker: None,
-        construction_started: false,
-        site_reserved: false,
-    }).id();
+    if !deduct_building_resources(player_id, &building_type, game_costs, ai_resources) {
+        return false;
+    }
     
-    info!("AI Player {} created building site for {:?} at {:?} (unique position)", player_id, building_type, building_position);
-    
+    create_building_site(commands, building_type, building_position, player_id);
     true
 }
 
@@ -790,220 +643,17 @@ fn add_dynamic_goals(
     player_id: u8,
     current_time: f32,
 ) {
-    let worker_count = count_player_units_of_type(units, player_id, |unit_type| {
-        matches!(unit_type, UnitType::WorkerAnt)
-    });
+    let unit_counts = calculate_unit_counts(units, player_id);
     
-    let military_count = count_player_units_of_type(units, player_id, |unit_type| {
-        matches!(unit_type, UnitType::SoldierAnt | UnitType::HunterWasp | UnitType::BeetleKnight | UnitType::SpearMantis)
-    });
-    
-    // GOAL-BASED DYNAMIC PLANNING: 1. Population Growth → 2. Enemy Elimination
     match strategy.phase {
-        
-        // PHASE 1: POPULATION GROWTH - Maximum worker priority, housing support
         StrategyPhase::EarlyGame => {
-            // CRITICAL PREREQUISITE: Queen buildings for worker production
-            let queen_count = buildings.iter().filter(|(_, building, unit)| {
-                unit.player_id == player_id && building.building_type == BuildingType::Queen
-            }).count();
-            
-            // Absolute priority: Must have Queen buildings to produce workers
-            if queen_count == 0 && !strategy.priority_queue.iter().any(|goal| {
-                matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
-            }) {
-                strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
-                info!("🔥 CRITICAL: AI Player {} has no Queen buildings - adding to priority queue", player_id);
-            }
-            
-            // Build multiple Queen buildings for exponential worker production
-            if queen_count < 3 && !strategy.priority_queue.iter().any(|goal| { // Reduced from 5 to 3 for balance
-                matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
-            }) {
-                // Only add Queen building if enough time has passed since last failure (5 second cooldown)
-                let time_since_failure = current_time - strategy.last_building_failure_time;
-                if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
-                    strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
-                    info!("📈 AI Player {} needs more Queen buildings ({} < 3) - adding to priority queue", player_id, queen_count);
-                } else {
-                    debug!("⏰ AI Player {} waiting for building failure cooldown ({:.1}s remaining)", 
-                           player_id, 5.0 - time_since_failure);
-                }
-            }
-            
-            // SUPREME PRIORITY: Workers for exponential population growth
-            if worker_count < 40 { // Massive population target for true exponential growth
-                let workers_needed = (40 - worker_count).min(10); // Add up to 10 workers at once for exponential growth
-                let current_worker_goals = strategy.priority_queue.iter().filter(|goal| 
-                    matches!(goal, StrategyGoal::BuildWorker)).count() as u32;
-                
-                let goals_to_add = workers_needed.saturating_sub(current_worker_goals);
-                if goals_to_add > 0 {
-                    info!("📈 AI Player {} adding {} worker goals (current: {}, needed: {}, in queue: {})", 
-                          player_id, goals_to_add, worker_count, workers_needed, current_worker_goals);
-                }
-                
-                // Spam workers at the very front of the queue for exponential growth
-                for _ in 0..goals_to_add {
-                    strategy.priority_queue.insert(0, StrategyGoal::BuildWorker);
-                }
-            }
-            
-            // Housing for population support - prioritize Nursery buildings
-            let nursery_count = buildings.iter().filter(|(_, building, unit)| {
-                unit.player_id == player_id && building.building_type == BuildingType::Nursery
-            }).count();
-            
-            if nursery_count < 3 && !strategy.priority_queue.iter().any(|goal| {
-                matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Nursery))
-            }) {
-                strategy.priority_queue.insert(1, StrategyGoal::ConstructBuilding(BuildingType::Nursery));
-            }
-            
-            // Basic resource economy for population sustenance
-            let economic_buildings = [BuildingType::FungalGarden, BuildingType::StorageChamber];
-            for building_type in &economic_buildings {
-                let has_building = buildings.iter().any(|(_, building, unit)| {
-                    unit.player_id == player_id && building.building_type == *building_type
-                });
-                
-                if !has_building && !strategy.priority_queue.iter().any(|goal| {
-                    matches!(goal, StrategyGoal::ConstructBuilding(ref bt) if bt == building_type)
-                }) {
-                    strategy.priority_queue.push(StrategyGoal::ConstructBuilding(building_type.clone()));
-                }
-            }
+            handle_early_game_goals(strategy, buildings, player_id, current_time, &unit_counts);
         },
-        
-        // PHASE 2: TRANSITION - Balance population maintenance with military buildup
         StrategyPhase::MidGame => {
-            // Ensure Queen buildings for continued worker production
-            let queen_count = buildings.iter().filter(|(_, building, unit)| {
-                unit.player_id == player_id && building.building_type == BuildingType::Queen
-            }).count();
-            
-            if queen_count < 3 && !strategy.priority_queue.iter().any(|goal| {
-                matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
-            }) {
-                // Apply cooldown for MidGame Queen buildings too
-                let time_since_failure = current_time - strategy.last_building_failure_time;
-                if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
-                    strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
-                }
-            }
-            
-            // Maintain worker population while building military infrastructure
-            if worker_count < 20 {
-                let workers_needed = (20 - worker_count).min(2);
-                for _ in 0..workers_needed {
-                    strategy.priority_queue.insert(0, StrategyGoal::BuildWorker);
-                }
-            }
-            
-            // Military infrastructure for army buildup
-            let military_buildings = [BuildingType::WarriorChamber, BuildingType::HunterChamber];
-            for building_type in &military_buildings {
-                let has_building = buildings.iter().any(|(_, building, unit)| {
-                    unit.player_id == player_id && building.building_type == *building_type
-                });
-                
-                if !has_building && !strategy.priority_queue.iter().any(|goal| {
-                    matches!(goal, StrategyGoal::ConstructBuilding(ref bt) if bt == building_type)
-                }) {
-                    // High priority for military buildings in transition phase
-                    strategy.priority_queue.insert(1, StrategyGoal::ConstructBuilding(building_type.clone()));
-                }
-            }
-            
-            // Begin military unit production
-            if military_count < 15 {
-                let units_needed = (15 - military_count).min(3);
-                let mut units_added = 0;
-                for unit_type in &strategy.military_targets.preferred_unit_types {
-                    if units_added >= units_needed { break; }
-                    strategy.priority_queue.push(StrategyGoal::BuildMilitaryUnit(unit_type.clone()));
-                    units_added += 1;
-                }
-            }
+            handle_mid_game_goals(strategy, buildings, player_id, current_time, &unit_counts);
         },
-        
-        // PHASE 3: ENEMY ELIMINATION - Full military focus, mass army production
         StrategyPhase::LateGame => {
-            // Ensure Queen buildings remain available for worker production
-            let queen_count = buildings.iter().filter(|(_, building, unit)| {
-                unit.player_id == player_id && building.building_type == BuildingType::Queen
-            }).count();
-            
-            if queen_count < 1 && !strategy.priority_queue.iter().any(|goal| {
-                matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
-            }) {
-                // Apply cooldown for LateGame Queen buildings too
-                let time_since_failure = current_time - strategy.last_building_failure_time;
-                if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
-                    strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
-                }
-            }
-            
-            // Maintain minimal worker population for economy
-            if worker_count < 15 {
-                strategy.priority_queue.insert(0, StrategyGoal::BuildWorker);
-            }
-            
-            // MASSIVE MILITARY PRODUCTION for enemy elimination
-            if military_count < strategy.military_targets.desired_military_units {
-                let units_needed = (strategy.military_targets.desired_military_units - military_count).min(6); // Up to 6 units at once
-                
-                // Prioritize siege units for enemy elimination
-                let elimination_unit_priority = vec![
-                    UnitType::BeetleKnight,  // Heavy assault
-                    UnitType::SpearMantis,   // Anti-building
-                    UnitType::SoldierAnt,    // Core army
-                    UnitType::HunterWasp,    // Fast raiders
-                ];
-                
-                let mut units_added = 0;
-                for unit_type in &elimination_unit_priority {
-                    if units_added >= units_needed { break; }
-                    
-                    let current_count = strategy.priority_queue.iter().filter(|goal| {
-                        matches!(goal, StrategyGoal::BuildMilitaryUnit(ref ut) if ut == unit_type)
-                    }).count();
-                    
-                    if current_count < 3 { // Allow up to 3 of each unit type for massive army
-                        strategy.priority_queue.insert(0, StrategyGoal::BuildMilitaryUnit(unit_type.clone())); // High priority
-                        units_added += 1;
-                    }
-                }
-            }
-            
-            // Additional military infrastructure if needed
-            let warrior_chambers = buildings.iter().filter(|(_, building, unit)| {
-                unit.player_id == player_id && building.building_type == BuildingType::WarriorChamber
-            }).count();
-            
-            if warrior_chambers < 2 && !strategy.priority_queue.iter().any(|goal| {
-                matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::WarriorChamber))
-            }) {
-                strategy.priority_queue.insert(1, StrategyGoal::ConstructBuilding(BuildingType::WarriorChamber));
-            }
-            
-            // ENEMY ELIMINATION GOAL: Add attack goals when we have sufficient army
-            // First check if there are any enemies left to attack
-            let enemy_count = count_player_units(units, 1); // Count Player 1 units
-            
-            if enemy_count == 0 {
-                // VICTORY! All enemies eliminated - clear attack goals and celebrate
-                strategy.priority_queue.retain(|goal| !matches!(goal, StrategyGoal::AttackEnemy(_)));
-                info!("🏆 VICTORY! AI Player {} has eliminated all enemies - {} workers, {} military units celebrating!", 
-                      player_id, worker_count, military_count);
-            } else if military_count >= 15 && !strategy.priority_queue.iter().any(|goal| {
-                matches!(goal, StrategyGoal::AttackEnemy(_))
-            }) {
-                // AI Player 2 attacks Player 1 (the human player)
-                strategy.priority_queue.insert(0, StrategyGoal::AttackEnemy(1));
-                info!("🎯 AI Player {} adding ATTACK GOAL - targeting Player 1 for elimination! (Enemy units remaining: {})", 
-                      player_id, enemy_count);
-            }
+            handle_late_game_goals(strategy, buildings, units, player_id, current_time, &unit_counts);
         },
     }
 }
@@ -1064,7 +714,7 @@ fn assign_workers_to_resources(
                     // Set movement target to the resource location
                     if let Ok((_, _, source_transform)) = resource_sources.get(source_entity) {
                         movement.target_position = Some(source_transform.translation);
-                        info!("AI Player {} assigned worker {} to harvest {:?} at distance {:.1}", 
+                        debug!("AI Player {} assigned worker {} to harvest {:?} at distance {:.1}", 
                               player_id, unit.unit_id, priority_resource, closest_distance);
                     }
                     
@@ -1269,4 +919,599 @@ fn validate_ai_building_placement(
     }
     
     true // Position is valid
+}
+
+struct TerrainHelper<'a> {
+    terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
+    terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
+}
+
+impl<'a> TerrainHelper<'a> {
+    fn new(
+        terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
+        terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
+    ) -> Self {
+        Self { terrain_manager, terrain_settings }
+    }
+    
+    fn get_terrain_position(&self, x: f32, z: f32, height_offset: f32) -> Vec3 {
+        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
+            x, z, &self.terrain_manager.noise_generator, &self.terrain_settings
+        );
+        Vec3::new(x, terrain_height + height_offset, z)
+    }
+}
+
+struct BuildingPlacementContext {
+    player_id: u8,
+    building_type: BuildingType,
+    base_position: Vec3,
+    existing_buildings: Vec<(Vec3, BuildingType)>,
+    target_resource_types: Vec<ResourceType>,
+    relevant_resources: Vec<(Vec3, ResourceType, f32)>,
+}
+
+impl BuildingPlacementContext {
+    fn new(
+        player_id: u8,
+        building_type: BuildingType,
+        building_collisions: &[(Vec3, f32)],
+        resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    ) -> Self {
+        let base_x = if player_id == 1 { -800.0 } else { 800.0 };
+        let base_position = Vec3::new(base_x, 0.0, 0.0);
+        
+        let existing_buildings = building_collisions.iter()
+            .map(|(pos, _)| (*pos, BuildingType::Queen))
+            .collect();
+        
+        let target_resource_types = get_target_resource_types(&building_type);
+        let relevant_resources = collect_relevant_resources(
+            resource_sources, &target_resource_types, base_position
+        );
+        
+        Self {
+            player_id,
+            building_type,
+            base_position,
+            existing_buildings,
+            target_resource_types,
+            relevant_resources,
+        }
+    }
+}
+
+fn can_afford_building(
+    resources: &PlayerResources,
+    game_costs: &GameCosts,
+    building_type: &BuildingType,
+) -> bool {
+    if let Some(cost) = game_costs.building_costs.get(building_type) {
+        resources.can_afford(cost)
+    } else {
+        false
+    }
+}
+
+fn get_target_resource_types(building_type: &BuildingType) -> Vec<ResourceType> {
+    match building_type {
+        BuildingType::FungalGarden => vec![ResourceType::Nectar],
+        BuildingType::StorageChamber => vec![ResourceType::Nectar, ResourceType::Minerals, ResourceType::Chitin],
+        BuildingType::Queen => vec![ResourceType::Nectar],
+        BuildingType::Nursery => vec![ResourceType::Nectar, ResourceType::Chitin],
+        BuildingType::WarriorChamber => vec![ResourceType::Nectar, ResourceType::Pheromones],
+        BuildingType::HunterChamber => vec![ResourceType::Nectar, ResourceType::Pheromones],
+        _ => vec![ResourceType::Nectar],
+    }
+}
+
+fn collect_relevant_resources(
+    resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    target_resource_types: &[ResourceType],
+    base_position: Vec3,
+) -> Vec<(Vec3, ResourceType, f32)> {
+    let mut relevant_resources = Vec::new();
+    for (_, source, transform) in resource_sources.iter() {
+        if target_resource_types.contains(&source.resource_type) && source.amount > 0.0 {
+            let distance_to_base = transform.translation.distance(base_position);
+            if distance_to_base < 250.0 {
+                relevant_resources.push((transform.translation, source.resource_type.clone(), distance_to_base));
+            }
+        }
+    }
+    relevant_resources.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+    relevant_resources
+}
+
+fn find_optimal_building_position(
+    context: BuildingPlacementContext,
+    terrain_helper: &TerrainHelper,
+    unit_collisions: &[(Vec3, f32)],
+    environment_collisions: &[(Vec3, f32, EnvironmentObjectType)],
+) -> Option<Vec3> {
+    if let Some(position) = try_resource_based_placement(&context, terrain_helper, unit_collisions, environment_collisions) {
+        return Some(position);
+    }
+    
+    try_base_area_placement(&context, terrain_helper, unit_collisions, environment_collisions)
+}
+
+fn try_resource_based_placement(
+    context: &BuildingPlacementContext,
+    terrain_helper: &TerrainHelper,
+    unit_collisions: &[(Vec3, f32)],
+    environment_collisions: &[(Vec3, f32, EnvironmentObjectType)],
+) -> Option<Vec3> {
+    for (resource_pos, resource_type, _distance) in context.relevant_resources.iter().take(5) {
+        let nearby_buildings = context.existing_buildings.iter()
+            .filter(|(pos, _)| pos.distance(*resource_pos) < 60.0)
+            .count();
+            
+        if nearby_buildings >= 2 {
+            debug!("AI Player {} skipping overcrowded {:?} resource ({} nearby buildings)", 
+                   context.player_id, resource_type, nearby_buildings);
+            continue;
+        }
+        
+        if let Some(position) = try_positions_around_resource(
+            context, resource_pos, nearby_buildings, terrain_helper, unit_collisions, environment_collisions
+        ) {
+            return Some(position);
+        }
+    }
+    None
+}
+
+fn try_positions_around_resource(
+    context: &BuildingPlacementContext,
+    resource_pos: &Vec3,
+    nearby_buildings: usize,
+    terrain_helper: &TerrainHelper,
+    unit_collisions: &[(Vec3, f32)],
+    environment_collisions: &[(Vec3, f32, EnvironmentObjectType)],
+) -> Option<Vec3> {
+    for ring in 0..5 {
+        for attempt in 0..16 {
+            let angle = (attempt as f32) * std::f32::consts::PI / 8.0;
+            let base_radius = 25.0 + (nearby_buildings as f32 * 8.0);
+            let radius = base_radius + (ring as f32 * 15.0);
+            
+            let pos_x = resource_pos.x + radius * angle.cos();
+            let pos_z = resource_pos.z + radius * angle.sin();
+            let position = terrain_helper.get_terrain_position(pos_x, pos_z, 0.0);
+            
+            if is_valid_resource_position(context, position, unit_collisions, environment_collisions) {
+                return Some(position);
+            }
+        }
+    }
+    None
+}
+
+fn is_valid_resource_position(
+    context: &BuildingPlacementContext,
+    position: Vec3,
+    unit_collisions: &[(Vec3, f32)],
+    environment_collisions: &[(Vec3, f32, EnvironmentObjectType)],
+) -> bool {
+    let distance_to_base = position.distance(context.base_position);
+    if !(position.x.abs() < 1000.0 && position.z.abs() < 1000.0 && 
+         distance_to_base > 40.0 && distance_to_base < 350.0) {
+        return false;
+    }
+    
+    let min_building_distance = context.existing_buildings.iter()
+        .map(|(pos, _)| pos.distance(position))
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or(1000.0);
+        
+    if min_building_distance < 35.0 {
+        return false;
+    }
+    
+    let building_radius = get_building_collision_radius(&context.building_type);
+    validate_ai_building_placement(
+        position,
+        building_radius,
+        &context.existing_buildings.iter().map(|(pos, _)| (*pos, building_radius)).collect::<Vec<_>>(),
+        &unit_collisions.to_vec(),
+        &environment_collisions.to_vec(),
+    )
+}
+
+fn try_base_area_placement(
+    context: &BuildingPlacementContext,
+    terrain_helper: &TerrainHelper,
+    unit_collisions: &[(Vec3, f32)],
+    environment_collisions: &[(Vec3, f32, EnvironmentObjectType)],
+) -> Option<Vec3> {
+    info!("AI Player {} using fallback placement for {:?} - no suitable resource locations found", 
+          context.player_id, context.building_type);
+    
+    let base_area_buildings = context.existing_buildings.iter()
+        .filter(|(pos, _)| pos.distance(context.base_position) < 80.0)
+        .count();
+    let base_crowding_offset = (base_area_buildings as f32 * 10.0).min(40.0);
+    
+    let (random_offset_x, random_offset_z) = generate_placement_offsets(&context.building_type, context.player_id);
+    
+    for ring in 0..6 {
+        for attempt in 0..12 {
+            let angle = (attempt as f32) * std::f32::consts::PI / 6.0;
+            let radius = 50.0 + base_crowding_offset + (ring as f32 * 25.0);
+            
+            let pos_x = context.base_position.x + random_offset_x + radius * angle.cos();
+            let pos_z = context.base_position.z + random_offset_z + radius * angle.sin();
+            let position = terrain_helper.get_terrain_position(pos_x, pos_z, 0.0);
+            
+            if is_valid_base_position(context, position, unit_collisions, environment_collisions) {
+                return Some(position);
+            }
+        }
+    }
+    None
+}
+
+fn generate_placement_offsets(building_type: &BuildingType, player_id: u8) -> (f32, f32) {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    building_type.hash(&mut hasher);
+    player_id.hash(&mut hasher);
+    let seed = hasher.finish();
+    
+    let random_offset_x = ((seed % 80) as f32 - 40.0) * 0.5;
+    let random_offset_z = (((seed / 80) % 80) as f32 - 40.0) * 0.5;
+    (random_offset_x, random_offset_z)
+}
+
+fn is_valid_base_position(
+    context: &BuildingPlacementContext,
+    position: Vec3,
+    unit_collisions: &[(Vec3, f32)],
+    environment_collisions: &[(Vec3, f32, EnvironmentObjectType)],
+) -> bool {
+    if !(position.x.abs() < 1000.0 && position.z.abs() < 1000.0) {
+        return false;
+    }
+    
+    let min_building_distance = context.existing_buildings.iter()
+        .map(|(pos, _)| pos.distance(position))
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or(1000.0);
+        
+    if min_building_distance < 30.0 {
+        return false;
+    }
+    
+    let building_radius = get_building_collision_radius(&context.building_type);
+    validate_ai_building_placement(
+        position,
+        building_radius,
+        &context.existing_buildings.iter().map(|(pos, _)| (*pos, building_radius)).collect::<Vec<_>>(),
+        &unit_collisions.to_vec(),
+        &environment_collisions.to_vec(),
+    )
+}
+
+fn deduct_building_resources(
+    player_id: u8,
+    building_type: &BuildingType,
+    game_costs: &GameCosts,
+    ai_resources: &mut ResMut<AIResources>,
+) -> bool {
+    if let Some(cost) = game_costs.building_costs.get(building_type) {
+        if let Some(player_resources) = ai_resources.resources.get_mut(&player_id) {
+            if !player_resources.spend_resources(cost) {
+                warn!("AI Player {} failed to spend resources for {:?} - insufficient resources after placement", 
+                      player_id, building_type);
+                return false;
+            }
+            info!("💰 AI Player {} spent resources for {:?}: {:?}", player_id, building_type, cost);
+            return true;
+        } else {
+            warn!("AI Player {} not found in resource manager", player_id);
+        }
+    } else {
+        warn!("AI Player {} no cost found for building {:?}", player_id, building_type);
+    }
+    false
+}
+
+fn create_building_site(
+    commands: &mut Commands,
+    building_type: BuildingType,
+    building_position: Vec3,
+    player_id: u8,
+) {
+    commands.spawn(BuildingSite {
+        building_type: building_type.clone(),
+        position: building_position,
+        player_id,
+        assigned_worker: None,
+        construction_started: false,
+        site_reserved: false,
+    });
+    
+    info!("AI Player {} created building site for {:?} at {:?} (unique position)", 
+          player_id, building_type, building_position);
+}
+
+struct UnitCounts {
+    worker_count: u32,
+    military_count: u32,
+}
+
+fn calculate_unit_counts(units: &Query<&RTSUnit>, player_id: u8) -> UnitCounts {
+    let worker_count = count_player_units_of_type(units, player_id, |unit_type| {
+        matches!(unit_type, UnitType::WorkerAnt)
+    });
+    
+    let military_count = count_player_units_of_type(units, player_id, |unit_type| {
+        matches!(unit_type, 
+            UnitType::SoldierAnt | UnitType::BeetleKnight | UnitType::HunterWasp | 
+            UnitType::SpearMantis | UnitType::DragonFly | UnitType::BatteringBeetle |
+            UnitType::EliteSpider | UnitType::ScoutAnt | UnitType::AcidSpitter |
+            UnitType::DefenderBug | UnitType::SpiderHunter | UnitType::WolfSpider |
+            UnitType::Ladybug | UnitType::LegBeetle | UnitType::Scorpion |
+            UnitType::TermiteWarrior | UnitType::Stinkbug)
+    });
+    
+    UnitCounts { worker_count, military_count }
+}
+
+fn handle_early_game_goals(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+    current_time: f32,
+    unit_counts: &UnitCounts,
+) {
+    ensure_queen_buildings(strategy, buildings, player_id, current_time, 1, 4); // More Queens for expansion
+    add_worker_goals(strategy, unit_counts.worker_count, 40, 10);
+    add_housing_goals(strategy, buildings, player_id);
+    add_economic_buildings(strategy, buildings, player_id);
+}
+
+fn handle_mid_game_goals(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+    current_time: f32,
+    unit_counts: &UnitCounts,
+) {
+    ensure_queen_buildings(strategy, buildings, player_id, current_time, 1, 4); // More Queens for expansion
+    add_worker_goals(strategy, unit_counts.worker_count, 25, 3); // Increased mid-game worker target
+    add_military_infrastructure(strategy, buildings, player_id);
+    add_military_units(strategy, unit_counts.military_count, 15, 3);
+}
+
+fn handle_late_game_goals(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    units: &Query<&RTSUnit>,
+    player_id: u8,
+    current_time: f32,
+    unit_counts: &UnitCounts,
+) {
+    ensure_queen_buildings(strategy, buildings, player_id, current_time, 1, 5); // Need more Queens for massive worker production
+    add_worker_goals(strategy, unit_counts.worker_count, 40, 3); // Massive exponential worker growth
+    add_massive_military_production(strategy, unit_counts.military_count);
+    add_additional_military_infrastructure(strategy, buildings, player_id);
+    handle_enemy_elimination_goals(strategy, units, player_id, unit_counts);
+}
+
+fn ensure_queen_buildings(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+    current_time: f32,
+    min_urgent: usize,
+    min_target: usize,
+) {
+    let queen_count = buildings.iter().filter(|(_, building, unit)| {
+        unit.player_id == player_id && building.building_type == BuildingType::Queen
+    }).count();
+    
+    let has_queen_goal = strategy.priority_queue.iter().any(|goal| {
+        matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
+    });
+    
+    if queen_count <= min_urgent && !has_queen_goal {
+        strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+        info!("🔥 CRITICAL: AI Player {} has {} Queen buildings - adding to priority queue", player_id, queen_count);
+    } else if queen_count < min_target && !has_queen_goal {
+        let time_since_failure = current_time - strategy.last_building_failure_time;
+        if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
+            strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+            info!("📈 AI Player {} needs more Queen buildings ({} < {}) - adding to priority queue", 
+                  player_id, queen_count, min_target);
+        }
+    }
+}
+
+fn add_worker_goals(strategy: &mut PlayerStrategy, current_workers: u32, target: u32, max_batch: u32) {
+    if current_workers < target {
+        let workers_needed = (target - current_workers).min(max_batch);
+        let current_worker_goals = strategy.priority_queue.iter().filter(|goal| 
+            matches!(goal, StrategyGoal::BuildWorker)).count() as u32;
+        
+        let goals_to_add = workers_needed.saturating_sub(current_worker_goals);
+        if goals_to_add > 0 {
+            info!("📈 Adding {} worker goals (current: {}, target: {})", 
+                  goals_to_add, current_workers, target);
+        }
+        
+        for _ in 0..goals_to_add {
+            strategy.priority_queue.insert(0, StrategyGoal::BuildWorker);
+        }
+    }
+}
+
+fn add_housing_goals(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+) {
+    let nursery_count = buildings.iter().filter(|(_, building, unit)| {
+        unit.player_id == player_id && building.building_type == BuildingType::Nursery
+    }).count();
+    
+    if nursery_count < 3 && !strategy.priority_queue.iter().any(|goal| {
+        matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Nursery))
+    }) {
+        strategy.priority_queue.insert(1, StrategyGoal::ConstructBuilding(BuildingType::Nursery));
+    }
+}
+
+fn add_economic_buildings(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+) {
+    let economic_buildings = [BuildingType::FungalGarden, BuildingType::StorageChamber];
+    for building_type in &economic_buildings {
+        let has_building = buildings.iter().any(|(_, building, unit)| {
+            unit.player_id == player_id && building.building_type == *building_type
+        });
+        
+        if !has_building && !strategy.priority_queue.iter().any(|goal| {
+            matches!(goal, StrategyGoal::ConstructBuilding(ref bt) if bt == building_type)
+        }) {
+            strategy.priority_queue.push(StrategyGoal::ConstructBuilding(building_type.clone()));
+        }
+    }
+}
+
+fn add_military_infrastructure(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+) {
+    let military_buildings = [BuildingType::WarriorChamber, BuildingType::HunterChamber];
+    
+    for building_type in &military_buildings {
+        let has_building = buildings.iter().any(|(_, building, unit)| {
+            unit.player_id == player_id && building.building_type == *building_type
+        });
+        
+        let already_queued = strategy.priority_queue.iter().any(|goal| {
+            matches!(goal, StrategyGoal::ConstructBuilding(ref bt) if bt == building_type)
+        });
+        
+        if !has_building && !already_queued {
+            // Add cooldown mechanism to prevent immediate re-queuing of failed buildings
+            use std::collections::HashMap;
+            use std::sync::Mutex;
+            static BUILDING_COOLDOWNS: std::sync::LazyLock<Mutex<HashMap<(u8, BuildingType), f32>>> = 
+                std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+            
+            let current_time = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs_f32();
+            
+            let can_retry = if let Ok(cooldowns) = BUILDING_COOLDOWNS.lock() {
+                let key = (player_id, building_type.clone());
+                let last_failure = cooldowns.get(&key).copied().unwrap_or(0.0);
+                current_time - last_failure > 30.0  // 30 second cooldown between retries
+            } else {
+                true  // Allow if mutex fails
+            };
+            
+            if can_retry {
+                strategy.priority_queue.insert(1, StrategyGoal::ConstructBuilding(building_type.clone()));
+            }
+        }
+    }
+}
+
+fn add_military_units(strategy: &mut PlayerStrategy, current_military: u32, target: u32, max_batch: u32) {
+    if current_military < target {
+        let units_needed = (target - current_military).min(max_batch);
+        let mut units_added = 0;
+        for unit_type in &strategy.military_targets.preferred_unit_types {
+            if units_added >= units_needed { break; }
+            strategy.priority_queue.push(StrategyGoal::BuildMilitaryUnit(unit_type.clone()));
+            units_added += 1;
+        }
+    }
+}
+
+fn add_massive_military_production(strategy: &mut PlayerStrategy, current_military: u32) {
+    if current_military < strategy.military_targets.desired_military_units {
+        let units_needed = (strategy.military_targets.desired_military_units - current_military).min(12); // Increased from 6 to 12
+        
+        // ENHANCED - Prioritize strongest attacking units with DragonFly at the top
+        let elite_elimination_priority = vec![
+            UnitType::DragonFly,       // STRONGEST - 5x speed, air superiority
+            UnitType::BeetleKnight,    // Heavy assault tank
+            UnitType::SpearMantis,     // Anti-building specialist
+            UnitType::BatteringBeetle, // Siege warfare
+            UnitType::HunterWasp,      // Fast air raiders
+            UnitType::EliteSpider,     // Elite predator
+            UnitType::SoldierAnt,      // Core ground army
+        ];
+        
+        let mut units_added = 0;
+        for unit_type in &elite_elimination_priority {
+            if units_added >= units_needed { break; }
+            
+            let current_count = strategy.priority_queue.iter().filter(|goal| {
+                matches!(goal, StrategyGoal::BuildMilitaryUnit(ref ut) if ut == unit_type)
+            }).count();
+            
+            // Allow more of the strongest units in queue - DragonFlies get priority
+            let max_in_queue = if *unit_type == UnitType::DragonFly { 6 } else { 4 }; // More DragonFlies
+            
+            if current_count < max_in_queue {
+                strategy.priority_queue.insert(0, StrategyGoal::BuildMilitaryUnit(unit_type.clone()));
+                units_added += 1;
+                
+                // Double-queue DragonFlies for maximum air superiority
+                if *unit_type == UnitType::DragonFly && current_count < 3 {
+                    strategy.priority_queue.insert(0, StrategyGoal::BuildMilitaryUnit(unit_type.clone()));
+                    units_added += 1;
+                }
+            }
+        }
+    }
+}
+
+fn add_additional_military_infrastructure(
+    strategy: &mut PlayerStrategy,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+) {
+    let warrior_chambers = buildings.iter().filter(|(_, building, unit)| {
+        unit.player_id == player_id && building.building_type == BuildingType::WarriorChamber
+    }).count();
+    
+    if warrior_chambers < 2 && !strategy.priority_queue.iter().any(|goal| {
+        matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::WarriorChamber))
+    }) {
+        strategy.priority_queue.insert(1, StrategyGoal::ConstructBuilding(BuildingType::WarriorChamber));
+    }
+}
+
+fn handle_enemy_elimination_goals(
+    strategy: &mut PlayerStrategy,
+    units: &Query<&RTSUnit>,
+    player_id: u8,
+    unit_counts: &UnitCounts,
+) {
+    let enemy_count = count_player_units(units, 1);
+    
+    if enemy_count == 0 {
+        strategy.priority_queue.retain(|goal| !matches!(goal, StrategyGoal::AttackEnemy(_)));
+        info!("🏆 VICTORY! AI Player {} has eliminated all enemies - {} workers, {} military units celebrating!", 
+              player_id, unit_counts.worker_count, unit_counts.military_count);
+    } else if unit_counts.military_count >= 15 && !strategy.priority_queue.iter().any(|goal| {
+        matches!(goal, StrategyGoal::AttackEnemy(_))
+    }) {
+        strategy.priority_queue.insert(0, StrategyGoal::AttackEnemy(1));
+        debug!("🎯 AI Player {} adding ATTACK GOAL - targeting Player 1 for elimination! (Enemy units remaining: {})", 
+              player_id, enemy_count);
+    }
 }

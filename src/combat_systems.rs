@@ -7,6 +7,7 @@ impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Update, (
+                target_validation_system,  // Clear invalid targets first
                 target_acquisition_system,
                 attack_system,
                 damage_resolution_system,
@@ -20,20 +21,35 @@ impl Plugin for CombatPlugin {
     }
 }
 
+// System to validate and clear invalid combat targets (e.g., buildings, dead units)
+pub fn target_validation_system(
+    mut combat_query: Query<(&mut Combat, &RTSUnit)>,
+    target_query: Query<&RTSUnit, (With<RTSHealth>, Without<Building>, Without<DeathEvent>)>,
+) {
+    for (mut combat, unit) in combat_query.iter_mut() {
+        if let Some(target_entity) = combat.target {
+            // Check if target still exists and is a valid target (not a building, not dead)
+            if target_query.get(target_entity).is_err() {
+                // Target is invalid (dead, building, or despawned) - clear it
+                debug!("🛑 Clearing invalid combat target for unit (Player {})", unit.player_id);
+                combat.target = None;
+                combat.last_attack_time = 0.0; // Reset attack timing
+            }
+        }
+    }
+}
+
 // System to find and acquire targets for units with combat capability
 pub fn target_acquisition_system(
     mut combat_query: Query<(Entity, &mut Combat, &Transform, &RTSUnit, &Movement), With<Vision>>,
-    potential_targets: Query<(Entity, &Transform, &RTSUnit), (With<RTSHealth>, Without<DeathEvent>)>,
+    potential_targets: Query<(Entity, &Transform, &RTSUnit), (With<RTSHealth>, Without<DeathEvent>, Without<Building>)>, // Exclude buildings
     vision_query: Query<&Vision>,
     _time: Res<Time>,
 ) {
-    for (entity, mut combat, transform, unit, movement) in combat_query.iter_mut() {
-        // Skip player units (player_id == 1) if they have a movement target (player gave move command)
-        // This allows player move commands to override auto-attacking
-        if unit.player_id == 1 && movement.target_position.is_some() && combat.target.is_none() {
-            continue;
-        }
-
+    for (entity, mut combat, transform, unit, _movement) in combat_query.iter_mut() {
+        // Allow all units to auto-attack when enemies are nearby regardless of movement commands
+        // Player units should defend themselves when threatened
+        
         // Skip if already has a valid target and is not auto-attacking
         if combat.target.is_some() && !combat.auto_attack {
             continue;
@@ -57,13 +73,15 @@ pub fn target_acquisition_system(
 
             let distance = transform.translation.distance(target_transform.translation);
             
-            // Check if target is within vision range
-            if distance <= effective_vision_range {
-                // For enemies, prioritize player units even at longer distances
-                let is_enemy_seeking_player = unit.player_id != 1 && target_unit.player_id == 1;
-                
-                if distance <= combat.attack_range {
-                    // Target within attack range - prefer closer targets
+            // Check if target is within vision range OR very close (defensive reaction)
+            let defensive_range = combat.attack_range * 1.5; // React to enemies 1.5x attack range
+            let in_vision = distance <= effective_vision_range;
+            let in_defensive_range = distance <= defensive_range;
+            
+            if in_vision || in_defensive_range {
+                // Prioritize targets within attack range first
+                if distance <= combat.attack_range * 1.2 {
+                    // Target within or very close to attack range - highest priority
                     match closest_enemy {
                         Some((_, closest_dist)) if distance < closest_dist => {
                             closest_enemy = Some((target_entity, distance));
@@ -73,8 +91,8 @@ pub fn target_acquisition_system(
                         }
                         _ => {}
                     }
-                } else if is_enemy_seeking_player || closest_enemy.is_none() {
-                    // Enemies will actively seek player units at longer range
+                } else if closest_enemy.is_none() || distance < closest_enemy.unwrap().1 {
+                    // No closer target found yet, or this is closer
                     closest_enemy = Some((target_entity, distance));
                 }
             }
@@ -166,33 +184,40 @@ pub fn attack_system(
 
 // System to handle movement towards combat targets
 pub fn combat_movement_system(
-    mut unit_query: Query<(&mut Movement, &Combat, &Transform, &RTSUnit)>,
-    target_query: Query<&Transform, With<RTSHealth>>,
+    mut unit_query: Query<(&mut Movement, &Combat, &Transform, &RTSUnit, &CollisionRadius)>,
+    target_query: Query<(&Transform, &CollisionRadius), With<RTSHealth>>,
 ) {
-    for (mut movement, combat, unit_transform, unit) in unit_query.iter_mut() {
+    for (mut movement, combat, unit_transform, unit, unit_collision) in unit_query.iter_mut() {
         // Only apply combat movement if unit has a combat target
         if let Some(target_entity) = combat.target {
-            if let Ok(target_transform) = target_query.get(target_entity) {
-                let distance = unit_transform.translation.distance(target_transform.translation);
+            if let Ok((target_transform, target_collision)) = target_query.get(target_entity) {
+                let center_distance = unit_transform.translation.distance(target_transform.translation);
+                let edge_distance = center_distance - unit_collision.radius - target_collision.radius;
 
-                // Move towards target if out of attack range
-                if distance > combat.attack_range * 0.8 { // Use 80% of range to avoid jittering
+                // Move towards target if out of effective attack range
+                let effective_range = combat.attack_range * 0.9; // Use 90% of range to avoid jittering
+                
+                if edge_distance > effective_range {
                     // Calculate direction towards target
                     let direction = (target_transform.translation - unit_transform.translation).normalize();
-                    let target_position = target_transform.translation - direction * (combat.attack_range * 0.7);
+                    let target_position = target_transform.translation - direction * (combat.attack_range * 0.5);
 
-                    // Only override movement for AI units or if player unit has no other movement target
-                    // This prevents overriding explicit player move commands
-                    if unit.player_id != 1 || movement.target_position.is_none() {
+                    // For player units, only override movement if no explicit move command or if enemy is very close
+                    let should_override_movement = if unit.player_id == 1 {
+                        movement.target_position.is_none() || edge_distance < combat.attack_range * 2.0
+                    } else {
+                        true // AI units always pursue targets
+                    };
+
+                    if should_override_movement {
                         movement.target_position = Some(target_position);
+                        debug!("🗡️ Unit {:?} (Player {}) pursuing target: edge_dist={:.1}, range={:.1}", 
+                               unit_transform.translation, unit.player_id, edge_distance, combat.attack_range);
                     }
-                    // DO NOT override max_speed or acceleration - use unit's configured stats
-                } else {
-                    // Stop moving when in range (only for AI units, player units retain manual control)
-                    if unit.player_id != 1 {
-                        movement.target_position = None;
-                        movement.current_velocity = Vec3::ZERO;
-                    }
+                } else if unit.player_id != 1 {
+                    // Stop moving when in range (only for AI units)
+                    movement.target_position = None;
+                    movement.current_velocity = Vec3::ZERO;
                 }
             }
         }

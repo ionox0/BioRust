@@ -27,10 +27,10 @@ pub fn unit_command_system(
     camera_q: Query<(&Camera, &GlobalTransform)>,
     mut units: Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
     all_units: Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
-    resources: Query<(Entity, &Transform), With<ResourceSource>>,
+    resources: Query<(Entity, &Transform, &Selectable), With<ResourceSource>>,
     buildings: Query<(Entity, &Transform), With<Building>>,
     mut building_sites: ParamSet<(
-        Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+        Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
         Query<&mut BuildingSite, With<BuildingSite>>,
     )>,
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
@@ -60,7 +60,9 @@ pub fn unit_command_system(
         return;
     }
     
-    debug!("🖱️ Right-click detected!");
+    // Debug resource availability
+    let resource_count = resources.iter().count();
+    info!("🖱️ Right-click detected! {} resources available in world", resource_count);
     
     let window = windows.single();
     let Some(cursor_position) = window.cursor_position() else { return };
@@ -77,7 +79,7 @@ pub fn unit_command_system(
     let target_resource = find_resource_target(ray, &resources);
     let target_building_site = find_building_site_target(ray, &building_sites.p0());
     
-    debug!("🎯 Targets found - Enemy: {:?}, Resource: {:?}, BuildingSite: {:?}", 
+    info!("🎯 Targets found - Enemy: {:?}, Resource: {:?}, BuildingSite: {:?}", 
            target_enemy.is_some(), target_resource.is_some(), target_building_site.is_some());
     
     let target_point = if let Some((_, resource_pos)) = target_resource {
@@ -87,6 +89,9 @@ pub fn unit_command_system(
     } else {
         calculate_target_position(ray, &context)
     };
+
+    debug!("🎯 Final target point: {:?}", target_point);
+    debug!("🎯 Ray origin: {:?}, direction: {:?}", ray.origin, ray.direction);
 
     if !is_valid_target_point(target_point) {
         warn!("Invalid target position calculated: {:?}, ignoring command", target_point);
@@ -151,23 +156,34 @@ fn is_enemy_unit(
 }
 
 
-fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With<ResourceSource>>) -> Option<(Entity, Vec3)> {
-    for (resource_entity, resource_transform) in resources.iter() {
-        let projected_distance = calculate_projected_distance(ray, resource_transform.translation)?;
-        let distance_to_ray = calculate_distance_to_ray(ray, resource_transform.translation, projected_distance);
+fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform, &Selectable), With<ResourceSource>>) -> Option<(Entity, Vec3)> {
+    let resource_count = resources.iter().count();
+    info!("🎯 Checking {} resources for click detection", resource_count);
+    
+    for (resource_entity, resource_transform, selectable) in resources.iter() {
+        let projected_distance_opt = calculate_projected_distance(ray, resource_transform.translation);
+        if let Some(projected_distance) = projected_distance_opt {
+            let distance_to_ray = calculate_distance_to_ray(ray, resource_transform.translation, projected_distance);
+            info!("🎯 Resource {:?} at {:?} - distance_to_ray: {:.1}, selection_radius: {:.1}", 
+                   resource_entity, resource_transform.translation, distance_to_ray, selectable.selection_radius);
 
-        if distance_to_ray < crate::constants::resource_interaction::RESOURCE_CLICK_RADIUS {
-            return Some((resource_entity, resource_transform.translation));
+            if distance_to_ray < selectable.selection_radius {
+                info!("✅ Found resource target! Entity {:?} at distance {:.1}", resource_entity, distance_to_ray);
+                return Some((resource_entity, resource_transform.translation));
+            }
+        } else {
+            info!("🎯 Resource {:?} - projected distance is None (behind camera)", resource_entity);
         }
     }
+    info!("❌ No resource found within selection radius");
     None
 }
 
 fn find_building_site_target(
     ray: Ray3d,
-    building_sites: &Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+    building_sites: &Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
 ) -> Option<(Entity, Vec3)> {
-    for (entity, transform, site) in building_sites.iter() {
+    for (entity, transform, site, selectable) in building_sites.iter() {
         // Only allow player 1 to target player 1 building sites
         if site.player_id != 1 {
             continue;
@@ -176,7 +192,7 @@ fn find_building_site_target(
         let projected_distance = calculate_projected_distance(ray, transform.translation)?;
         let distance_to_ray = calculate_distance_to_ray(ray, transform.translation, projected_distance);
 
-        if distance_to_ray < crate::constants::resource_interaction::RESOURCE_CLICK_RADIUS { // Same radius for consistency
+        if distance_to_ray < selectable.selection_radius {
             return Some((entity, transform.translation));
         }
     }
@@ -195,18 +211,25 @@ fn calculate_target_position(ray: Ray3d, context: &CommandContext) -> Vec3 {
 }
 
 fn calculate_horizontal_intersection(ray: Ray3d) -> Vec3 {
-    if ray.direction.y.abs() > 0.001 {
+    // More robust ground intersection calculation
+    if ray.direction.y.abs() > 0.0001 {  // Smaller threshold for better precision
         let ground_y = 0.0;
         let t = (ground_y - ray.origin.y) / ray.direction.y;
         
-        if t > 0.0 && t < 1000.0 {
+        // Remove the upper limit check that was causing issues with zoomed out cameras
+        if t > 0.0 {
             let intersection = ray.origin + ray.direction * t;
+            debug!("🎯 Ground intersection calculated: {:?} (t={:.2})", intersection, t);
             return clamp_position(intersection);
         }
     }
     
+    // Fallback: project ray horizontally from camera position
+    // Use a much larger projection distance for zoomed out cameras
     let horizontal_dir = Vec3::new(ray.direction.x, 0.0, ray.direction.z).normalize_or_zero();
-    let offset = ray.origin + horizontal_dir * 50.0;
+    let projection_distance = ray.origin.y.abs() * 2.0; // Scale with camera height
+    let offset = ray.origin + horizontal_dir * projection_distance;
+    debug!("🎯 Fallback projection used: {:?} (distance={:.2})", offset, projection_distance);
     clamp_position(offset)
 }
 
@@ -242,7 +265,7 @@ fn execute_commands_for_selected_units(
     units: &mut Query<(Entity, &Transform, &mut Movement, &mut Combat, &Selectable, &RTSUnit, Option<&mut ResourceGatherer>), With<RTSUnit>>,
     buildings: &Query<(Entity, &Transform), With<Building>>,
     building_sites: &mut ParamSet<(
-        Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+        Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
         Query<&mut BuildingSite, With<BuildingSite>>,
     )>,
     commands: &mut Commands,
@@ -321,27 +344,9 @@ fn calculate_formation_position(target_pos: Vec3, unit_index: usize, total_units
     }
 }
 
-/// Calculate formation position with user-defined formation settings
-fn calculate_formation_position_with_settings(
-    target_pos: Vec3, 
-    unit_index: usize, 
-    total_units: usize,
-    formation_settings: &FormationSettings
-) -> Vec3 {
-    if total_units == 1 {
-        return target_pos;
-    }
-
-    // Check if spread formation is forced or if we have enough units for auto-spread
-    if formation_settings.force_spread_formation || total_units >= 6 {
-        calculate_spread_formation_position(target_pos, unit_index, total_units)
-    } else {
-        calculate_compact_formation_position(target_pos, unit_index, total_units)
-    }
-}
 
 /// Calculate a compact formation position for small groups
-fn calculate_compact_formation_position(target_pos: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+fn calculate_compact_formation_position(target_pos: Vec3, unit_index: usize, _total_units: usize) -> Vec3 {
     // Spread units in concentric circles with standard spacing
     let units_per_ring = 8;
     let ring = unit_index / units_per_ring;
@@ -385,14 +390,14 @@ fn calculate_spread_formation_position(target_pos: Vec3, unit_index: usize, tota
 
 
 fn execute_unit_command(
-    _unit_entity: Entity,
+    unit_entity: Entity,
     unit_pos: Vec3,
     movement: &mut Movement,
     combat: &mut Combat,
     gatherer: Option<Mut<ResourceGatherer>>,
     unit: &RTSUnit,
     buildings: &Query<(Entity, &Transform), With<Building>>,
-    _commands: &mut Commands,
+    commands: &mut Commands,
     target_enemy: Option<Entity>,
     target_resource: Option<(Entity, Vec3)>,
     target_point: Vec3,
@@ -404,27 +409,52 @@ fn execute_unit_command(
         movement.target_position = None;
         info!("🗡️ Unit {:?} attacking target {:?}!", unit.unit_id, enemy_entity);
     } else if let Some((resource_entity, _resource_transform)) = target_resource {
-        // Resource gathering command - only for workers with ResourceGatherer
+        // Resource gathering command
         if let Some(mut resource_gatherer) = gatherer {
-            // Find nearest building for drop-off using unit's actual position
+            // Unit already has ResourceGatherer component
             let nearest_building = find_nearest_building(unit.player_id, unit_pos, buildings);
 
             resource_gatherer.target_resource = Some(resource_entity);
             resource_gatherer.drop_off_building = nearest_building;
             movement.target_position = Some(target_point);
             combat.target = None;
+            combat.is_attacking = false;
+            combat.last_attack_time = 0.0;
 
             info!("⛏️ Worker {:?} assigned to gather from resource {:?}!", unit.unit_id, resource_entity);
+        } else if matches!(unit.unit_type, Some(UnitType::WorkerAnt)) {
+            // WorkerAnt without ResourceGatherer - add the component
+            let nearest_building = find_nearest_building(unit.player_id, unit_pos, buildings);
+            
+            commands.entity(unit_entity).insert(ResourceGatherer {
+                gather_rate: 10.0,
+                capacity: 5.0,
+                carried_amount: 0.0,
+                resource_type: None,
+                target_resource: Some(resource_entity),
+                drop_off_building: nearest_building,
+            });
+            
+            movement.target_position = Some(target_point);
+            combat.target = None;
+            combat.is_attacking = false;
+            combat.last_attack_time = 0.0;
+            
+            info!("⛏️ Added ResourceGatherer to Worker {:?} and assigned to gather from resource {:?}!", unit.unit_id, resource_entity);
         } else {
             // Not a worker, just move to location
             movement.target_position = Some(target_point);
             combat.target = None;
+            combat.is_attacking = false;
+            combat.last_attack_time = 0.0;
             info!("🚶 Unit {:?} moving to resource location: {:?}", unit.unit_id, target_point);
         }
     } else {
-        // Simple move command
+        // Simple move command - force clear combat state for player units
         movement.target_position = Some(target_point);
         combat.target = None;
+        combat.is_attacking = false; // Also clear attacking state
+        combat.last_attack_time = 0.0; // Reset attack timing
         info!("🚶 Unit {:?} moving to position: {:?}", unit.unit_id, target_point);
     }
 }
@@ -437,70 +467,27 @@ fn handle_building_site_command(
     movement: &mut Movement,
     combat: &mut Combat,
     building_sites: &mut ParamSet<(
-        Query<(Entity, &Transform, &BuildingSite), With<BuildingSite>>,
+        Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
         Query<&mut BuildingSite, With<BuildingSite>>,
     )>,
     commands: &mut Commands,
     site_entity: Entity,
     target_point: Vec3,
 ) {
-    // Construction command - only for player 1 workers
-    if unit.player_id == 1 && gatherer.is_some() {
-        // Get building site information
-        if let Ok((_, _, site)) = building_sites.p0().get(site_entity) {
-            let building_type = site.building_type.clone();
-            let position = site.position;
-            
-            // Mark the site as assigned to prevent double assignment
-            if let Ok(mut site_mut) = building_sites.p1().get_mut(site_entity) {
-                if site_mut.assigned_worker.is_none() {
-                    site_mut.assigned_worker = Some(unit_entity);
-                    site_mut.site_reserved = true;
-                    
-                    // Get construction time based on building type
-                    let total_build_time = match building_type {
-                        BuildingType::Queen => 120.0,
-                        BuildingType::Nursery => 80.0,
-                        BuildingType::WarriorChamber => 100.0,
-                        BuildingType::HunterChamber => 100.0,
-                        BuildingType::FungalGarden => 90.0,
-                        BuildingType::StorageChamber => 60.0,
-                        _ => 100.0,
-                    };
-                    
-                    // Assign worker to construction task
-                    commands.entity(unit_entity).insert(ConstructionTask {
-                        building_site: site_entity,
-                        building_type: building_type.clone(),
-                        target_position: position,
-                        is_moving_to_site: true,
-                        construction_progress: 0.0,
-                        total_build_time,
-                    });
-                    
-                    movement.target_position = Some(position);
-                    combat.target = None;
-                    
-                    info!("🔨 Player 1 worker {:?} assigned to construct {:?} at {:?}!", 
-                          unit.unit_id, building_type, position);
-                } else {
-                    // Site already has a worker assigned
-                    movement.target_position = Some(target_point);
-                    combat.target = None;
-                    info!("⚠️ Building site already has worker assigned, moving to location instead");
-                }
-            }
-        } else {
-            // Site not found, just move
-            movement.target_position = Some(target_point);
-            combat.target = None;
-            warn!("Building site not found for entity {:?}", site_entity);
-        }
+    if !can_construct_building(unit, gatherer.is_some()) {
+        handle_non_constructor_unit(movement, combat, unit, target_point);
+        return;
+    }
+    
+    let Some(site_info) = get_building_site_info(building_sites, site_entity) else {
+        handle_missing_building_site(movement, combat, target_point, site_entity);
+        return;
+    };
+    
+    if try_assign_worker_to_site(building_sites, site_entity, unit_entity) {
+        assign_construction_task(commands, unit_entity, site_entity, site_info, movement, combat, unit);
     } else {
-        // Not a worker or not player 1, just move to location
-        movement.target_position = Some(target_point);
-        combat.target = None;
-        info!("🚶 Unit {:?} moving to construction site: {:?}", unit.unit_id, target_point);
+        handle_site_already_assigned(movement, combat, target_point);
     }
 }
 
@@ -523,6 +510,121 @@ fn find_nearest_building(
     }
 
     nearest_building
+}
+
+struct BuildingSiteInfo {
+    building_type: BuildingType,
+    position: Vec3,
+}
+
+fn can_construct_building(unit: &RTSUnit, has_gatherer: bool) -> bool {
+    unit.player_id == 1 && has_gatherer
+}
+
+fn handle_non_constructor_unit(
+    movement: &mut Movement,
+    combat: &mut Combat,
+    unit: &RTSUnit,
+    target_point: Vec3,
+) {
+    movement.target_position = Some(target_point);
+    combat.target = None;
+    info!("🚶 Unit {:?} moving to construction site: {:?}", unit.unit_id, target_point);
+}
+
+fn get_building_site_info(
+    building_sites: &mut ParamSet<(
+        Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
+        Query<&mut BuildingSite, With<BuildingSite>>,
+    )>,
+    site_entity: Entity,
+) -> Option<BuildingSiteInfo> {
+    if let Ok((_, _, site, _)) = building_sites.p0().get(site_entity) {
+        Some(BuildingSiteInfo {
+            building_type: site.building_type.clone(),
+            position: site.position,
+        })
+    } else {
+        None
+    }
+}
+
+fn handle_missing_building_site(
+    movement: &mut Movement,
+    combat: &mut Combat,
+    target_point: Vec3,
+    site_entity: Entity,
+) {
+    movement.target_position = Some(target_point);
+    combat.target = None;
+    warn!("Building site not found for entity {:?}", site_entity);
+}
+
+fn try_assign_worker_to_site(
+    building_sites: &mut ParamSet<(
+        Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
+        Query<&mut BuildingSite, With<BuildingSite>>,
+    )>,
+    site_entity: Entity,
+    unit_entity: Entity,
+) -> bool {
+    if let Ok(mut site_mut) = building_sites.p1().get_mut(site_entity) {
+        if site_mut.assigned_worker.is_none() {
+            site_mut.assigned_worker = Some(unit_entity);
+            site_mut.site_reserved = true;
+            return true;
+        }
+    }
+    false
+}
+
+fn assign_construction_task(
+    commands: &mut Commands,
+    unit_entity: Entity,
+    site_entity: Entity,
+    site_info: BuildingSiteInfo,
+    movement: &mut Movement,
+    combat: &mut Combat,
+    unit: &RTSUnit,
+) {
+    let total_build_time = get_construction_time_for_building(&site_info.building_type);
+    
+    commands.entity(unit_entity).insert(ConstructionTask {
+        building_site: site_entity,
+        building_type: site_info.building_type.clone(),
+        target_position: site_info.position,
+        is_moving_to_site: true,
+        construction_progress: 0.0,
+        total_build_time,
+    });
+    
+    movement.target_position = Some(site_info.position);
+    combat.target = None;
+    
+    info!("🔨 Player 1 worker {:?} assigned to construct {:?} at {:?}!", 
+          unit.unit_id, site_info.building_type, site_info.position);
+}
+
+fn get_construction_time_for_building(building_type: &BuildingType) -> f32 {
+    match building_type {
+        BuildingType::Queen => 120.0,
+        BuildingType::Nursery => 80.0,
+        BuildingType::WarriorChamber => 100.0,
+        BuildingType::HunterChamber => 100.0,
+        BuildingType::FungalGarden => 90.0,
+        BuildingType::StorageChamber => 60.0,
+        _ => 100.0,
+    }
+}
+
+fn handle_site_already_assigned(
+    movement: &mut Movement,
+    combat: &mut Combat,
+    target_point: Vec3,
+) {
+    movement.target_position = Some(target_point);
+    combat.target = None;
+    info!("⚠️ Building site already has worker assigned, moving to location instead");
 }
 
 pub fn spawn_test_units_system(
@@ -556,7 +658,58 @@ pub fn spawn_test_units_system(
             None, // No model assets for now - will use primitives that upgrade to GLB
         );
         
-        info!("Spawned Enemy with animation controller at {:?}", spawn_pos);
+        info!("Spawned Enemy SoldierAnt at {:?}", spawn_pos);
+    }
+    
+    // Test DragonFly speed with KeyCode::KeyD
+    if keyboard.just_pressed(KeyCode::KeyT) {
+        let spawn_pos = camera_ground_pos + Vec3::new(15.0, 1.0, 0.0);
+        
+        let config = crate::entities::entity_factory::SpawnConfig::unit(
+            crate::entities::entity_factory::EntityType::from_unit(UnitType::DragonFly),
+            spawn_pos,
+            1, // Player 1 (friendly)
+        );
+        
+        crate::entities::entity_factory::EntityFactory::spawn(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            config,
+            None,
+        );
+        
+        info!("Spawned Player 1 DragonFly at {:?} - max_speed should be 400.0", spawn_pos);
+    }
+    
+    // Test production queue overflow - spawn a second Queen building for AI
+    if keyboard.just_pressed(KeyCode::KeyQ) {
+        let spawn_pos = Vec3::new(700.0, 0.0, 50.0); // Near AI base
+        
+        let config = crate::entities::entity_factory::SpawnConfig::building(
+            crate::entities::entity_factory::EntityType::Building(crate::core::components::BuildingType::Queen),
+            spawn_pos,
+            2, // Player 2 (AI)
+        );
+        
+        let entity = crate::entities::entity_factory::EntityFactory::spawn(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            config,
+            None,
+        );
+        
+        // Make the building immediately complete for testing
+        commands.entity(entity).insert(crate::core::components::Building {
+            building_type: crate::core::components::BuildingType::Queen,
+            is_complete: true,
+            construction_progress: 100.0,
+            max_construction: 100.0,
+            rally_point: None,
+        });
+        
+        info!("Spawned second Queen building for AI Player 2 at {:?} to test overflow (completed)", spawn_pos);
     }
 }
 

@@ -315,6 +315,7 @@ fn can_afford_unit(cost: &[(ResourceType, f32)], resources: &PlayerResources) ->
     resources.can_afford(cost) && resources.has_population_space()
 }
 
+
 /// Queue a unit for production instead of spawning it instantly
 fn queue_unit_for_production(
     unit_type: UnitType,
@@ -339,19 +340,11 @@ fn queue_unit_for_production(
             return;
         }
         
-        // Find an appropriate building to queue the unit
-        for (mut queue, building, unit) in buildings.iter_mut() {
-            if unit.player_id == 1 && 
-               building.building_type == building_type && 
-               building.is_complete &&
-               queue.queue.len() < 8 { // Queue limit
-                
-                // Add unit to production queue
-                queue.queue.push(unit_type.clone());
-                info!("✅ Player 1 queued {:?} for production in {:?} (queue: {}/8, resources deducted)", 
-                      unit_type, building_type, queue.queue.len());
-                return;
-            }
+        // Find an appropriate building to queue the unit with overflow support
+        if crate::rts::production::try_queue_unit_with_overflow(unit_type.clone(), building_type.clone(), buildings, 1) {
+            info!("✅ Player 1 queued {:?} for production in {:?} (resources deducted)", 
+                  unit_type, building_type);
+            return;
         }
         
         // If no suitable building found, refund the resources

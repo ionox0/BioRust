@@ -189,6 +189,43 @@ pub enum AttackType {
     Siege,
 }
 
+#[derive(Component, Debug, Clone, PartialEq)]
+pub struct CombatState {
+    pub state: CombatStateType,
+    pub target_entity: Option<Entity>,
+    pub target_position: Option<Vec3>,
+    pub last_state_change: f32,
+    pub engagement_start_time: f32,
+    pub last_attack_attempt: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CombatStateType {
+    /// Unit is not in combat, following normal movement/orders
+    Idle,
+    /// Unit is moving toward an attack target but not yet in range
+    MovingToAttack,
+    /// Unit is actively engaged in combat, within attack range
+    InCombat,
+    /// Unit is in combat but temporarily moving (chasing fleeing enemy, repositioning)
+    CombatMoving,
+    /// Unit is retreating from combat
+    Retreating,
+}
+
+impl Default for CombatState {
+    fn default() -> Self {
+        Self {
+            state: CombatStateType::Idle,
+            target_entity: None,
+            target_position: None,
+            last_state_change: 0.0,
+            engagement_start_time: 0.0,
+            last_attack_attempt: 0.0,
+        }
+    }
+}
+
 #[derive(Component, Debug, Clone)]
 pub struct ResourceGatherer {
     pub gather_rate: f32,
@@ -606,4 +643,6 @@ pub enum EnvironmentObjectType {
     // New environment object types
     /// Rock formations for geological features
     Rocks,
+    /// Pine cone resources for natural pheromone gathering
+    PineCone,
 }

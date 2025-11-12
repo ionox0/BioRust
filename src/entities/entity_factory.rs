@@ -187,8 +187,14 @@ impl EntityFactory {
         unit_id: u32,
         config: SpawnConfig,
         stats: crate::core::unit_stats::UnitStatsConfig,
-        model_scale: f32,
+        _model_scale: f32, // Unused - visual scale is now separate from gameplay mechanics
     ) {
+        // Debug logging for DragonFly spawning
+        if matches!(unit_type, UnitType::DragonFly) {
+            info!("Spawning DragonFly with stats - max_speed: {:.1}, acceleration: {:.1}", 
+                  stats.movement.max_speed, stats.movement.acceleration);
+        }
+        
         // Add base components
         entity.insert((
             RTSUnit { 
@@ -202,8 +208,8 @@ impl EntityFactory {
                 rotation: Quat::IDENTITY,
             },
             Movement {
-                max_speed: stats.movement.max_speed / model_scale,
-                acceleration: stats.movement.acceleration / model_scale,
+                max_speed: stats.movement.max_speed, // Don't scale movement speed - it should be consistent regardless of visual size
+                acceleration: stats.movement.acceleration, // Don't scale acceleration either
                 turning_speed: stats.movement.turning_speed,
                 ..default()
             },

@@ -2,25 +2,8 @@ use bevy::prelude::*;
 use crate::core::components::*;
 use crate::ai::tactics::{TacticalManager, TacticalStance};
 
-/// Component to track combat state for individual units
-#[derive(Component, Debug, Clone)]
-pub struct CombatState {
-    pub last_attack_time: f32,
-    pub current_target: Option<Entity>,
-    pub is_retreating: bool,
-    pub retreat_position: Option<Vec3>,
-}
+// CombatState component is now defined in core::components
 
-impl Default for CombatState {
-    fn default() -> Self {
-        Self {
-            last_attack_time: 0.0,
-            current_target: None,
-            is_retreating: false,
-            retreat_position: None,
-        }
-    }
-}
 
 pub fn ai_combat_system(
     mut commands: Commands,
@@ -48,6 +31,9 @@ pub fn ai_combat_system(
                 CombatState::default()
             }
         };
+        
+        // Update state timing
+        update_state_timing(&mut state, current_time);
 
         // Get tactical stance - make AI more aggressive by default
         let stance = if let Some(ref manager) = tactical_manager {
@@ -81,6 +67,98 @@ pub fn ai_combat_system(
     }
 }
 
+fn update_state_timing(state: &mut CombatState, current_time: f32) {
+    // Keep existing timing fields updated
+    state.last_attack_attempt = current_time;
+}
+
+/// Update combat state based on target engagement
+fn update_combat_state_for_engagement(
+    state: &mut CombatState, 
+    target_entity: Entity, 
+    target_pos: Vec3, 
+    distance: f32,
+    combat: &Combat,
+    current_time: f32
+) {
+    use crate::core::components::CombatStateType;
+    
+    // Update target information
+    if state.target_entity != Some(target_entity) {
+        state.target_entity = Some(target_entity);
+        state.target_position = Some(target_pos);
+        state.last_state_change = current_time;
+        
+        // Starting engagement
+        if matches!(state.state, CombatStateType::Idle) {
+            state.engagement_start_time = current_time;
+        }
+    }
+    
+    // Determine appropriate state based on distance to target
+    let new_state = if distance <= combat.attack_range {
+        CombatStateType::InCombat
+    } else if distance <= combat.attack_range * 2.0 {
+        CombatStateType::CombatMoving
+    } else {
+        CombatStateType::MovingToAttack
+    };
+    
+    // Update state if changed
+    if state.state != new_state {
+        state.state = new_state;
+        state.last_state_change = current_time;
+    }
+}
+
+/// Transition unit to idle state when no target
+fn transition_to_idle_state(state: &mut CombatState, current_time: f32) {
+    use crate::core::components::CombatStateType;
+    
+    if !matches!(state.state, CombatStateType::Idle) {
+        state.state = CombatStateType::Idle;
+        state.target_entity = None;
+        state.target_position = None;
+        state.last_state_change = current_time;
+    }
+}
+
+/// Transition unit to retreating state
+fn transition_to_retreating_state(state: &mut CombatState, retreat_pos: Vec3, current_time: f32) {
+    use crate::core::components::CombatStateType;
+    
+    state.state = CombatStateType::Retreating;
+    state.target_position = Some(retreat_pos);
+    state.last_state_change = current_time;
+}
+
+/// Handle retreat logic and return true if unit should retreat
+fn handle_retreat_logic(
+    health: &RTSHealth,
+    unit_transform: &Transform,
+    unit: &RTSUnit,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    stance: &TacticalStance,
+    state: &mut CombatState,
+    movement: &mut Movement,
+) -> bool {
+    if should_retreat(health, unit_transform, unit, all_units, stance) {
+        // Calculate retreat position (toward friendly base)
+        let base_pos = estimate_home_position(unit.player_id);
+        let retreat_pos = base_pos + (unit_transform.translation - base_pos).normalize_or_zero() * 50.0;
+        
+        // Update combat state to retreating
+        transition_to_retreating_state(state, retreat_pos, 0.0); // Will update with proper time later
+        
+        // Set movement toward retreat position
+        movement.target_position = Some(retreat_pos);
+        
+        true
+    } else {
+        false
+    }
+}
+
 fn handle_advanced_combat_ai(
     _self_entity: Entity,
     movement: &mut Movement,
@@ -95,95 +173,18 @@ fn handle_advanced_combat_ai(
     stance: TacticalStance,
     current_time: f32,
 ) {
-    // 1. Check if we should retreat (low health or outnumbered)
-    if should_retreat(health, unit_transform, unit, all_units, &stance) {
-        if !state.is_retreating {
-            state.is_retreating = true;
-            // Retreat towards home base
-            let home_pos = estimate_home_position(unit.player_id);
-            state.retreat_position = Some(home_pos);
-        }
-
-        if let Some(retreat_pos) = state.retreat_position {
-            // Only update if significantly different to avoid jitter
-            if should_update_target_position(&movement.target_position, retreat_pos, 2.0) {
-                movement.target_position = Some(retreat_pos);
-            }
-        }
+    if handle_retreat_logic(health, unit_transform, unit, all_units, &stance, state, movement) {
         return;
-    } else {
-        state.is_retreating = false;
-        state.retreat_position = None;
     }
 
-    // 2. Find best target (with target prioritization)
-    let target_info = find_best_target(unit_transform, unit, all_units, state.current_target);
+    let target_info = find_best_target(unit_transform, unit, all_units, state.target_entity);
 
     if let Some((target_entity, target_pos, target_distance, _target_priority)) = target_info {
-        state.current_target = Some(target_entity);
-
-        // 3. Handle different unit types with different tactics
-        match unit.unit_type.as_ref() {
-            Some(UnitType::HunterWasp) => {
-                // Ranged units: Kiting behavior - stay at max range
-                handle_ranged_combat(movement, combat, unit_transform, target_pos, target_distance);
-            }
-            Some(UnitType::SoldierAnt | UnitType::BeetleKnight) => {
-                // Melee units: Aggressive approach
-                handle_melee_combat(movement, combat, unit_transform, target_pos, target_distance);
-            }
-            _ => {
-                // Default combat behavior with threshold to prevent jitter
-                let threshold = 1.0;
-                if target_distance > combat.attack_range + threshold {
-                    if should_update_target_position(&movement.target_position, target_pos, threshold) {
-                        movement.target_position = Some(target_pos);
-                    }
-                } else if target_distance <= combat.attack_range && movement.current_velocity.length() < 1.0 {
-                    movement.target_position = None;
-                }
-            }
-        }
-
-        state.last_attack_time = current_time;
+        update_combat_state_for_engagement(state, target_entity, target_pos, target_distance, combat, current_time);
+        handle_target_engagement(target_entity, target_pos, target_distance, movement, combat, unit_transform, unit, state, current_time);
     } else {
-        // No target found - be aggressive and seek out enemies
-        state.current_target = None;
-
-        // AGGRESSIVE BEHAVIOR: Actively seek out player 1's units for attack
-        if stance == TacticalStance::Aggressive || stance == TacticalStance::Defensive {
-            // If we're AI player 2, use smart formation-based positioning
-            if unit.player_id == 2 {
-                let smart_target_pos = calculate_smart_attack_position(
-                    unit_transform.translation,
-                    unit.unit_id,
-                    &all_units,
-                    buildings,
-                    environment_objects,
-                    unit.player_id,
-                    current_time,
-                );
-                
-                if let Some(target_pos) = smart_target_pos {
-                    let distance_to_target = unit_transform.translation.distance(target_pos);
-                    
-                    // Only move if we need to reposition significantly
-                    if distance_to_target > 10.0 {
-                        if should_update_target_position(&movement.target_position, target_pos, 5.0) {
-                            movement.target_position = Some(target_pos);
-                            debug!("AI unit {} moving to smart attack position at distance {:.1}", unit.unit_id, distance_to_target);
-                        }
-                    } else {
-                        // Close enough - stop moving to prevent oscillation
-                        movement.target_position = None;
-                    }
-                } else {
-                    // No smart position found - clear combat movement target to allow resource gathering
-                    movement.target_position = None;
-                    debug!("AI unit {} clearing combat movement target - transitioning to resource gathering", unit.unit_id);
-                }
-            }
-        }
+        transition_to_idle_state(state, current_time);
+        handle_no_target_behavior(movement, unit_transform, unit, all_units, buildings, environment_objects, stance, current_time, state);
     }
 }
 
@@ -234,14 +235,14 @@ fn find_best_target(
     unit_transform: &Transform,
     unit: &RTSUnit,
     all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
-    current_target: Option<Entity>,
+    target_entity: Option<Entity>,
 ) -> Option<(Entity, Vec3, f32, u32)> {
     let detection_range = 200.0; // Increased from 120.0 to 200.0 for more aggressive seeking
     let mut best_target: Option<(Entity, Vec3, f32, u32)> = None;
     let mut best_priority = 0u32;
 
     // Check if current target is still valid
-    if let Some(target_entity) = current_target {
+    if let Some(target_entity) = target_entity {
         if let Ok((_entity, target_transform, target_unit, target_health)) = all_units.get(target_entity) {
             if target_unit.player_id != unit.player_id && target_health.current > 0.0 {
                 let distance = unit_transform.translation.distance(target_transform.translation);
@@ -551,6 +552,105 @@ fn avoid_obstacles(
     final_position
 }
 
+
+fn handle_target_engagement(
+    target_entity: Entity,
+    target_pos: Vec3,
+    target_distance: f32,
+    movement: &mut Movement,
+    combat: &mut Combat,
+    unit_transform: &Transform,
+    unit: &RTSUnit,
+    state: &mut CombatState,
+    current_time: f32,
+) {
+    state.target_entity = Some(target_entity);
+
+    match unit.unit_type.as_ref() {
+        Some(UnitType::HunterWasp) => {
+            handle_ranged_combat(movement, combat, unit_transform, target_pos, target_distance);
+        }
+        Some(UnitType::SoldierAnt | UnitType::BeetleKnight) => {
+            handle_melee_combat(movement, combat, unit_transform, target_pos, target_distance);
+        }
+        _ => {
+            handle_default_combat(movement, combat, target_pos, target_distance);
+        }
+    }
+
+    state.last_attack_attempt = current_time;
+}
+
+fn handle_default_combat(
+    movement: &mut Movement,
+    combat: &Combat,
+    target_pos: Vec3,
+    target_distance: f32,
+) {
+    let threshold = 1.0;
+    if target_distance > combat.attack_range + threshold {
+        if should_update_target_position(&movement.target_position, target_pos, threshold) {
+            movement.target_position = Some(target_pos);
+        }
+    } else if target_distance <= combat.attack_range && movement.current_velocity.length() < 1.0 {
+        movement.target_position = None;
+    }
+}
+
+fn handle_no_target_behavior(
+    movement: &mut Movement,
+    unit_transform: &Transform,
+    unit: &RTSUnit,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
+    stance: TacticalStance,
+    current_time: f32,
+    state: &mut CombatState,
+) {
+    state.target_entity = None;
+
+    if (stance == TacticalStance::Aggressive || stance == TacticalStance::Defensive) && unit.player_id == 2 {
+        handle_ai_aggressive_positioning(movement, unit_transform, unit, all_units, buildings, environment_objects, current_time);
+    }
+}
+
+fn handle_ai_aggressive_positioning(
+    movement: &mut Movement,
+    unit_transform: &Transform,
+    unit: &RTSUnit,
+    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<RTSUnit>)>,
+    current_time: f32,
+) {
+    let smart_target_pos = calculate_smart_attack_position(
+        unit_transform.translation,
+        unit.unit_id,
+        all_units,
+        buildings,
+        environment_objects,
+        unit.player_id,
+        current_time,
+    );
+    
+    if let Some(target_pos) = smart_target_pos {
+        let distance_to_target = unit_transform.translation.distance(target_pos);
+        
+        if distance_to_target > 10.0 {
+            if should_update_target_position(&movement.target_position, target_pos, 5.0) {
+                movement.target_position = Some(target_pos);
+                debug!("AI unit {} moving to smart attack position at distance {:.1}", unit.unit_id, distance_to_target);
+            }
+        } else {
+            movement.target_position = None;
+        }
+    } else {
+        movement.target_position = None;
+        debug!("AI unit {} clearing combat movement target - transitioning to resource gathering", unit.unit_id);
+    }
+}
+
 /// Estimate home base position for retreat
 fn estimate_home_position(player_id: u8) -> Vec3 {
     match player_id {
@@ -582,9 +682,9 @@ pub fn combat_to_resource_transition_system(
                     
                     // Clear combat state
                     if let Some(ref mut combat_state) = combat_state_opt {
-                        combat_state.current_target = None;
-                        combat_state.is_retreating = false;
-                        combat_state.retreat_position = None;
+                        combat_state.target_entity = None;
+                        combat_state.state = crate::core::components::CombatStateType::Idle;
+                        combat_state.target_position = None;
                     }
                     
                     // Find nearest resource and assign immediately to prevent wandering

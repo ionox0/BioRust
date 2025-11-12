@@ -16,6 +16,7 @@ impl Plugin for AnimationPlugin {
                 update_animations,
                 find_animation_players,
                 start_idle_animations, // Start animations for newly found players
+                // animation_speed_compensation, // DISABLED: Causes panics in Bevy animation system
                 animation_debug_system,
             ).chain())
             .add_event::<AnimationStateChangeEvent>();
@@ -284,9 +285,12 @@ pub fn add_missing_animation_controllers(
             animation_node_index: None, // Will be populated by setup_glb_animations system
         };
         
-        // Add the animation controller to the entity
-        commands.entity(entity).insert(animation_controller);
-        debug!("Retroactively added animation controller to unit {:?} (entity {:?})", unit_type, entity);
+        // Check if entity still exists before trying to add components
+        if let Some(mut entity_commands) = commands.get_entity(entity) {
+            // Add the animation controller to the entity
+            entity_commands.insert(animation_controller);
+            debug!("Retroactively added animation controller to unit {:?} (entity {:?})", unit_type, entity);
+        }
     }
 }
 
@@ -306,8 +310,14 @@ pub fn setup_glb_animations(
             continue;
         }
 
-        // Mark this entity as searched so we don't search again
-        commands.entity(entity).insert(AnimationPlayerSearched);
+        // Check if entity still exists before trying to add components
+        if let Some(mut entity_commands) = commands.get_entity(entity) {
+            // Mark this entity as searched so we don't search again
+            entity_commands.insert(AnimationPlayerSearched);
+        } else {
+            // Entity has been despawned, skip processing
+            continue;
+        }
 
         // Search for AnimationPlayer in the entity hierarchy
         if let Some(player_entity) = search_for_animation_player_entity(entity, &children, &animation_players) {
@@ -321,22 +331,32 @@ pub fn setup_glb_animations(
                 let animation_clip: Handle<bevy::animation::AnimationClip> =
                     asset_server.load(&animation_path);
 
-                // Create graph from clip
-                let (graph, node_index) = AnimationGraph::from_clip(animation_clip);
-                let graph_handle = animation_graphs.add(graph);
+                // Create graph from clip with error handling to prevent panics
+                // Some GLB models might not have animations, so we need to handle this gracefully
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    AnimationGraph::from_clip(animation_clip.clone())
+                })) {
+                    Ok((graph, node_index)) => {
+                        let graph_handle = animation_graphs.add(graph);
 
-                // Store the node index in the controller for later use
-                controller.animation_node_index = Some(node_index);
+                        // Store the node index in the controller for later use
+                        controller.animation_node_index = Some(node_index);
 
-                // Insert the graph handle on the AnimationPlayer entity
-                commands.entity(player_entity).insert(
-                    AnimationGraphHandle(graph_handle)
-                );
+                        // Insert the graph handle on the AnimationPlayer entity
+                        if let Some(mut entity_commands) = commands.get_entity(player_entity) {
+                            entity_commands.insert(AnimationGraphHandle(graph_handle));
+                        }
 
-                // Start playing animation immediately
-                if let Ok(mut player) = animation_players.get_mut(player_entity) {
-                    player.play(node_index).repeat();
-                    info!("✓ Created AnimationGraph, assigned to player {:?} on entity {:?}, and started animation", player_entity, entity);
+                        // Start playing animation immediately
+                        if let Ok(mut player) = animation_players.get_mut(player_entity) {
+                            player.play(node_index).repeat();
+                            info!("✓ Created AnimationGraph, assigned to player {:?} on entity {:?}, and started animation", player_entity, entity);
+                        }
+                    }
+                    Err(_) => {
+                        // Animation creation failed - this GLB probably doesn't have animations
+                        debug!("Failed to create animation graph for {}, GLB model likely has no animations", animation_path);
+                    }
                 }
             } else {
                 warn!("Could not get asset path for scene {:?}", scene_root.0.id());

@@ -287,27 +287,58 @@ fn spawn_selection_indicator(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    // Create a blue ring using a torus mesh
+    // Create a hollow ring using circle mesh
     let ring_radius = selectable.selection_radius;
-    let ring_thickness = 0.1;
+    let ring_mesh = create_hollow_ring_mesh(ring_radius, 32); // 32 segments for smooth circle
 
     commands.spawn((
-        Mesh3d(meshes.add(Torus::new(ring_thickness, ring_radius))),
+        Mesh3d(meshes.add(ring_mesh)),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(0.3, 0.6, 1.0), // Bright blue
             emissive: Color::srgb(0.2, 0.4, 0.8).into(), // Blue glow
             unlit: true,
             alpha_mode: AlphaMode::Blend,
+            cull_mode: None, // Ensure both sides are rendered
             ..default()
         })),
         Transform::from_translation(Vec3::new(
             transform.translation.x,
             0.1, // Slightly above ground
             transform.translation.z
-        ))
-        .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)), // Rotate to lay flat
+        )),
         SelectionIndicator { target: entity },
     ));
+}
+
+/// Creates a hollow ring mesh (circle outline) for selection indicators
+fn create_hollow_ring_mesh(radius: f32, segments: usize) -> Mesh {
+    let mut positions = Vec::new();
+    let mut indices = Vec::new();
+    
+    // Create vertices around the circle
+    for i in 0..segments {
+        let angle = (i as f32 / segments as f32) * std::f32::consts::TAU;
+        let x = angle.cos() * radius;
+        let z = angle.sin() * radius;
+        positions.push([x, 0.0, z]);
+    }
+    
+    // Create line indices to connect the vertices in a loop
+    for i in 0..segments {
+        let next = (i + 1) % segments;
+        indices.push(i as u32);
+        indices.push(next as u32);
+    }
+    
+    let mut mesh = Mesh::new(
+        bevy::render::render_resource::PrimitiveTopology::LineList,
+        bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
+    );
+    
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
+    
+    mesh
 }
 
 /// System to create selection indicators for newly selected units

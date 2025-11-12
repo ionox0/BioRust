@@ -187,18 +187,14 @@ fn execute_build_worker(
     buildings: &mut Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
 ) {
     if let Some(cost) = game_costs.unit_costs.get(&UnitType::WorkerAnt) {
-        for (_, mut queue, building, unit) in buildings.iter_mut() {
-            if unit.player_id == player_id && 
-               building.building_type == BuildingType::Queen &&
-               building.is_complete {
-                
-                if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
-                    if resources.can_afford(cost) && resources.has_population_space() {
-                        resources.spend_resources(cost);
-                        queue.queue.push(UnitType::WorkerAnt);
-                        info!("AI Player {} queuing worker ant", player_id);
-                        break;
-                    }
+        if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
+            if resources.can_afford(cost) && resources.has_population_space() {
+                // Try to queue using overflow system - inline implementation for AI
+                if try_queue_worker_overflow(buildings, player_id) {
+                    resources.spend_resources(cost);
+                    info!("AI Player {} queued worker ant with overflow support", player_id);
+                } else {
+                    info!("❌ AI Player {} FAILED to queue WorkerAnt - overflow system returned false", player_id);
                 }
             }
         }
@@ -213,22 +209,150 @@ fn execute_build_military(
     buildings: &mut Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
 ) {
     if let Some(cost) = game_costs.unit_costs.get(&unit_type) {
-        for (_, mut queue, building, unit) in buildings.iter_mut() {
-            if unit.player_id == player_id && 
-               building.building_type == BuildingType::WarriorChamber &&
-               building.is_complete {
-                
-                if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
-                    if resources.can_afford(cost) && resources.has_population_space() {
-                        resources.spend_resources(cost);
-                        queue.queue.push(unit_type.clone());
-                        info!("AI Player {} queuing {:?}", player_id, unit_type);
-                        break;
-                    }
+        if let Some(resources) = ai_resources.resources.get_mut(&player_id) {
+            if resources.can_afford(cost) && resources.has_population_space() {
+                // Try to queue using overflow system - inline implementation for AI
+                if try_queue_military_overflow(buildings, player_id, unit_type.clone()) {
+                    resources.spend_resources(cost);
+                    info!("AI Player {} queued {:?} with overflow support", player_id, unit_type);
                 }
             }
         }
     }
+}
+
+/// Try to queue a worker with overflow support for AI (with Entity in query)
+fn try_queue_worker_overflow(
+    buildings: &mut Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+) -> bool {
+    const MAX_QUEUE_SIZE: usize = 8;
+    
+    // Debug: count available Queen buildings
+    let queen_buildings: Vec<_> = buildings.iter()
+        .filter(|(_, _, building, unit)| {
+            unit.player_id == player_id && 
+            building.building_type == BuildingType::Queen && 
+            building.is_complete
+        })
+        .map(|(_, queue, _, _)| queue.queue.len())
+        .collect();
+    
+    info!("🏭 AI Player {} has {} Queen buildings with queues: {:?}", 
+          player_id, queen_buildings.len(), queen_buildings);
+    
+    // First pass: try to find a building with available queue space
+    for (_, mut queue, building, unit) in buildings.iter_mut() {
+        if unit.player_id == player_id && 
+           building.building_type == BuildingType::Queen && 
+           building.is_complete &&
+           queue.queue.len() < MAX_QUEUE_SIZE {
+            
+            queue.queue.push(UnitType::WorkerAnt);
+            info!("🏭 AI Player {} queued WorkerAnt in Queen (queue: {}/{}, direct placement)", 
+                  player_id, queue.queue.len(), MAX_QUEUE_SIZE);
+            return true;
+        }
+    }
+    
+    // Second pass: find the building with the smallest queue for overflow (but still under max)
+    let mut min_queue_size = usize::MAX;
+    let mut found_building_under_max = false;
+    
+    // First find the minimum queue size among buildings that are still under max
+    for (_, queue, building, unit) in buildings.iter() {
+        if unit.player_id == player_id && 
+           building.building_type == BuildingType::Queen && 
+           building.is_complete && 
+           queue.queue.len() < MAX_QUEUE_SIZE {
+            min_queue_size = min_queue_size.min(queue.queue.len());
+            found_building_under_max = true;
+        }
+    }
+    
+    // If we found buildings under max capacity, queue to the first one with minimum queue size
+    if found_building_under_max {
+        for (_, mut queue, building, unit) in buildings.iter_mut() {
+            if unit.player_id == player_id && 
+               building.building_type == BuildingType::Queen && 
+               building.is_complete &&
+               queue.queue.len() == min_queue_size &&
+               queue.queue.len() < MAX_QUEUE_SIZE {
+                
+                queue.queue.push(UnitType::WorkerAnt);
+                info!("🔄 AI Player {} overflow: Queued WorkerAnt in different Queen (queue: {}/{}, was least busy at {})", 
+                      player_id, queue.queue.len(), MAX_QUEUE_SIZE, min_queue_size);
+                return true;
+            }
+        }
+    }
+    
+    // All buildings are at max capacity
+    info!("❌ AI Player {} cannot queue WorkerAnt: All Queen buildings at max capacity ({}/{})", 
+          player_id, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE);
+    
+    false
+}
+
+/// Try to queue a military unit with overflow support for AI (with Entity in query)
+fn try_queue_military_overflow(
+    buildings: &mut Query<(Entity, &mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_id: u8,
+    unit_type: UnitType,
+) -> bool {
+    const MAX_QUEUE_SIZE: usize = 8;
+    
+    // First pass: try to find a building with available queue space
+    for (_, mut queue, building, unit) in buildings.iter_mut() {
+        if unit.player_id == player_id && 
+           building.building_type == BuildingType::WarriorChamber && 
+           building.is_complete &&
+           queue.queue.len() < MAX_QUEUE_SIZE {
+            
+            queue.queue.push(unit_type.clone());
+            info!("🏭 AI Player {} queued {:?} in WarriorChamber (queue: {}/{}, direct placement)", 
+                  player_id, unit_type, queue.queue.len(), MAX_QUEUE_SIZE);
+            return true;
+        }
+    }
+    
+    // Second pass: find the building with the smallest queue for overflow (but still under max)
+    let mut min_queue_size = usize::MAX;
+    let mut found_building_under_max = false;
+    
+    // First find the minimum queue size among buildings that are still under max
+    for (_, queue, building, unit) in buildings.iter() {
+        if unit.player_id == player_id && 
+           building.building_type == BuildingType::WarriorChamber && 
+           building.is_complete && 
+           queue.queue.len() < MAX_QUEUE_SIZE {
+            min_queue_size = min_queue_size.min(queue.queue.len());
+            found_building_under_max = true;
+        }
+    }
+    
+    // If we found buildings under max capacity, queue to the first one with minimum queue size
+    if found_building_under_max {
+        for (_, mut queue, building, unit) in buildings.iter_mut() {
+            if unit.player_id == player_id && 
+               building.building_type == BuildingType::WarriorChamber && 
+               building.is_complete &&
+               queue.queue.len() == min_queue_size &&
+               queue.queue.len() < MAX_QUEUE_SIZE {
+                
+                queue.queue.push(unit_type.clone());
+                info!("🔄 AI Player {} overflow: Queued {:?} in different WarriorChamber (queue: {}/{}, was least busy at {})", 
+                      player_id, unit_type, queue.queue.len(), MAX_QUEUE_SIZE, min_queue_size);
+                return true;
+            }
+        }
+    }
+    
+    // All buildings are at max capacity
+    info!("❌ AI Player {} cannot queue {:?}: All WarriorChamber buildings at max capacity ({}/{})", 
+          player_id, unit_type, MAX_QUEUE_SIZE, MAX_QUEUE_SIZE);
+    
+    false
 }
 
 fn execute_build_building(
