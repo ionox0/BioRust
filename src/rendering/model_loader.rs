@@ -1118,20 +1118,29 @@ pub fn apply_team_colors_to_glb_models(
     }
     
     for (entity, team_color, retry_count_opt) in team_color_query.iter() {
+        // Check if entity still exists before trying to modify it
+        let Some(mut entity_commands) = commands.get_entity(entity) else {
+            // Entity has been despawned, skip processing
+            continue;
+        };
+        
         // Get retry count and update it
         let retry_count = if let Some(count) = retry_count_opt {
             let new_count = count.attempts + 1;
-            commands.entity(entity).insert(TeamColorRetryCount { attempts: new_count });
+            entity_commands.insert(TeamColorRetryCount { attempts: new_count });
             new_count
         } else {
-            commands.entity(entity).insert(TeamColorRetryCount { attempts: 1 });
+            entity_commands.insert(TeamColorRetryCount { attempts: 1 });
             1
         };
         
         // Give up after reasonable attempts (about 2 seconds at 60fps)
         if retry_count > 120 {
             warn!("Giving up on team color application for player {} after {} attempts", team_color.player_id, retry_count);
-            commands.entity(entity).insert(TeamColorApplied);
+            // Check entity exists before inserting component
+            if let Some(mut entity_commands) = commands.get_entity(entity) {
+                entity_commands.insert(TeamColorApplied);
+            }
             continue;
         }
         
@@ -1154,14 +1163,19 @@ pub fn apply_team_colors_to_glb_models(
             // Apply all material updates
             for (entity_to_update, _old_handle, new_material) in material_updates {
                 let new_handle = materials.add(new_material);
-                commands.entity(entity_to_update).insert(MeshMaterial3d(new_handle));
-                debug!("Updated entity {:?} with new unique team-colored material", entity_to_update);
+                // Check if entity exists before updating material
+                if let Some(mut entity_commands) = commands.get_entity(entity_to_update) {
+                    entity_commands.insert(MeshMaterial3d(new_handle));
+                    debug!("Updated entity {:?} with new unique team-colored material", entity_to_update);
+                }
             }
             
-            // Mark as processed
-            commands.entity(entity).insert(TeamColorApplied);
-            info!("Successfully applied team color tint to GLB model for player {} entity {:?}", 
-                  team_color.player_id, entity);
+            // Mark as processed (check entity exists first)
+            if let Some(mut entity_commands) = commands.get_entity(entity) {
+                entity_commands.insert(TeamColorApplied);
+                info!("Successfully applied team color tint to GLB model for player {} entity {:?}", 
+                      team_color.player_id, entity);
+            }
         } else {
             // Don't mark as processed - let it retry next frame
             debug!("No materials found yet for player {} entity {:?} - will retry next frame", 
