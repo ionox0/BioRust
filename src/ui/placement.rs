@@ -264,6 +264,8 @@ fn attempt_building_placement(
         
         // Create a building site for player 1 (requires worker to complete)
         let placeholder_visual = create_placeholder_building_visual(meshes, materials, &building_type, placement_pos);
+        let collision_radius = get_building_collision_radius(&building_type);
+        
         let _building_site = commands.spawn((
             BuildingSite {
                 building_type: building_type.clone(),
@@ -276,6 +278,13 @@ fn attempt_building_placement(
             placeholder_visual.0, // Transform
             placeholder_visual.1, // Mesh3d
             placeholder_visual.2, // MeshMaterial3d
+            Selectable {
+                is_selected: false,
+                selection_radius: collision_radius * 2.0, // Larger radius for easy clicking
+            },
+            CollisionRadius {
+                radius: collision_radius,
+            },
         ));
 
         // Clear placement

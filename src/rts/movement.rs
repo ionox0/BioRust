@@ -16,7 +16,6 @@ pub fn movement_system(
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
     terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     time: Res<Time>,
-    time_control: Option<Res<crate::core::time_controls::TimeControlSettings>>,
 ) {
     // Create context with all obstacle data
     let unit_positions: Vec<(Entity, Vec3, f32)> = units_query
@@ -34,15 +33,14 @@ pub fn movement_system(
         .map(|(transform, collision_radius)| (transform.translation, collision_radius.radius))
         .collect();
 
-    // Get the actual delta time, but normalize it for physics stability
+    // Use actual delta time for movement speed, but add stability measures
     let raw_delta = time.delta_secs();
-    let time_scale = time_control.map(|tc| tc.current_speed).unwrap_or(1.0);
     
-    // Normalize delta_time for physics calculations - prevent instability at high speeds
-    let normalized_delta = (raw_delta / time_scale.max(1.0)).min(0.016); // Cap at ~60fps worth of delta
+    // Clamp delta time to prevent extreme jumps (but allow speed increases)
+    let stable_delta = raw_delta.min(0.1); // Cap at 100ms to prevent huge jumps
     
     let context = MovementContext {
-        delta_time: normalized_delta,
+        delta_time: stable_delta,
         unit_positions,
         building_obstacles,
         environment_obstacles,
@@ -138,8 +136,8 @@ fn calculate_new_position(current_pos: Vec3, target: Vec3, movement: &mut Moveme
                movement.max_speed, target_velocity.length(), clamped_velocity.length());
     }
     
-    // Use frame-rate independent acceleration with stability improvements
-    let acceleration_factor = (movement.acceleration * context.delta_time).min(1.0); // Cap at 100% change per frame
+    // Use smooth acceleration that works well at all speeds
+    let acceleration_factor = (movement.acceleration * context.delta_time).min(0.95); // Allow fast acceleration but prevent instant changes
     movement.current_velocity = movement.current_velocity.lerp(
         clamped_velocity,
         acceleration_factor
@@ -147,18 +145,8 @@ fn calculate_new_position(current_pos: Vec3, target: Vec3, movement: &mut Moveme
     
     movement.current_velocity = clamp_velocity(movement.current_velocity);
     
-    // Calculate movement distance with velocity smoothing for stability
-    let movement_distance = movement.current_velocity * context.delta_time;
-    let max_movement_per_frame = movement.max_speed * context.delta_time * 1.5; // Allow some overshoot for responsive movement
-    
-    // Prevent overly large movements that can cause tunneling through collision boundaries
-    let clamped_movement = if movement_distance.length() > max_movement_per_frame {
-        movement_distance.normalize_or_zero() * max_movement_per_frame
-    } else {
-        movement_distance
-    };
-    
-    current_pos + clamped_movement
+    // Calculate movement with proper delta time scaling (units get faster with game speed)
+    current_pos + movement.current_velocity * context.delta_time
 }
 
 fn clamp_velocity(velocity: Vec3) -> Vec3 {
@@ -195,11 +183,19 @@ fn apply_collision_avoidance(
         // Scale separation force based on speed and combat state
         let speed_factor = (movement.current_velocity.length() / movement.max_speed).max(0.2);
         
-        // Use frame-rate independent separation force calculation
-        // Limit the maximum separation force to prevent oscillation at high speeds
-        let max_separation_per_frame = movement.max_speed * 0.1; // Max 10% speed change per frame
-        let raw_separation = separation_data.force * context.delta_time * speed_factor * separation_modifier;
-        let mut separation_strength = raw_separation.normalize_or_zero() * raw_separation.length().min(max_separation_per_frame);
+        // Use stable separation force calculation that scales with delta time but prevents oscillation
+        // The key is to limit the force magnitude relative to current speed, not absolute values
+        let base_separation = separation_data.force * speed_factor * separation_modifier;
+        let separation_magnitude = base_separation.length();
+        
+        // Scale the separation force by delta time, but limit it to prevent overcorrection
+        let delta_scaled_magnitude = separation_magnitude * context.delta_time;
+        let max_separation_ratio = 0.2; // Max 20% of current velocity change per frame
+        let current_speed = movement.current_velocity.length();
+        let max_allowed_separation = current_speed * max_separation_ratio;
+        
+        let final_magnitude = delta_scaled_magnitude.min(max_allowed_separation);
+        let mut separation_strength = base_separation.normalize_or_zero() * final_magnitude;
         
         // Further reduce separation for units near construction sites to prevent jiggling
         if is_near_construction_site(new_position, context) {
