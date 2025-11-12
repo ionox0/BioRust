@@ -265,16 +265,23 @@ impl GameCosts {
         costs.unit_costs.insert(UnitType::TermiteWarrior, vec![(ResourceType::Nectar, 120.0), (ResourceType::Chitin, 100.0), (ResourceType::Minerals, 80.0), (ResourceType::Pheromones, 50.0)]); // 350 total - heavy siege
         costs.unit_costs.insert(UnitType::DragonFly, vec![(ResourceType::Nectar, 150.0), (ResourceType::Chitin, 120.0), (ResourceType::Minerals, 100.0), (ResourceType::Pheromones, 80.0)]); // 450 total - ultimate unit
 
-        // Building costs (increased to ~250 for economic balance)
-        costs.building_costs.insert(BuildingType::Nursery, vec![(ResourceType::Chitin, 250.0)]);
-        costs.building_costs.insert(BuildingType::WarriorChamber, vec![(ResourceType::Chitin, 200.0), (ResourceType::Minerals, 50.0)]);
-        costs.building_costs.insert(BuildingType::HunterChamber, vec![(ResourceType::Chitin, 180.0), (ResourceType::Pheromones, 70.0)]);
-        costs.building_costs.insert(BuildingType::Queen, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 100.0)]);
-        costs.building_costs.insert(BuildingType::FungalGarden, vec![(ResourceType::Chitin, 250.0)]);
-        costs.building_costs.insert(BuildingType::WoodProcessor, vec![(ResourceType::Chitin, 250.0)]);
-        costs.building_costs.insert(BuildingType::MineralProcessor, vec![(ResourceType::Chitin, 250.0)]);
-        costs.building_costs.insert(BuildingType::StorageChamber, vec![(ResourceType::Chitin, 250.0)]);
-        costs.building_costs.insert(BuildingType::EvolutionChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 100.0)]);
+        // Building costs - balanced for strategic gameplay progression
+        // Core production buildings (affordable for early expansion)
+        costs.building_costs.insert(BuildingType::Queen, vec![(ResourceType::Chitin, 100.0), (ResourceType::Minerals, 50.0)]); // 150 total - key production building
+        costs.building_costs.insert(BuildingType::Nursery, vec![(ResourceType::Chitin, 180.0)]); // 180 total - housing/population
+        
+        // Military buildings (moderate cost for mid-game)
+        costs.building_costs.insert(BuildingType::WarriorChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 50.0)]); // 200 total
+        costs.building_costs.insert(BuildingType::HunterChamber, vec![(ResourceType::Chitin, 140.0), (ResourceType::Pheromones, 60.0)]); // 200 total
+        
+        // Economic buildings (higher cost for late-game economy)
+        costs.building_costs.insert(BuildingType::FungalGarden, vec![(ResourceType::Chitin, 200.0), (ResourceType::Nectar, 50.0)]); // 250 total
+        costs.building_costs.insert(BuildingType::StorageChamber, vec![(ResourceType::Chitin, 180.0), (ResourceType::Minerals, 70.0)]); // 250 total
+        costs.building_costs.insert(BuildingType::WoodProcessor, vec![(ResourceType::Chitin, 200.0), (ResourceType::Minerals, 50.0)]); // 250 total  
+        costs.building_costs.insert(BuildingType::MineralProcessor, vec![(ResourceType::Chitin, 200.0), (ResourceType::Pheromones, 50.0)]); // 250 total
+        
+        // Advanced buildings (expensive for late-game tech)
+        costs.building_costs.insert(BuildingType::EvolutionChamber, vec![(ResourceType::Chitin, 150.0), (ResourceType::Minerals, 100.0), (ResourceType::Pheromones, 50.0)]); // 300 total
         
         // Technology costs
         costs.tech_costs.insert(TechnologyType::ChitinWeaving, vec![(ResourceType::Nectar, 50.0), (ResourceType::Pheromones, 50.0)]);

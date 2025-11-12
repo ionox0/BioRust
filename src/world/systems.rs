@@ -101,7 +101,7 @@ pub fn spawn_rts_elements(
     };
     
     // === PLAYER 1 (Human) - Left side of map ===
-    let player1_base_2d = Vec3::new(-300.0, 0.0, 0.0);
+    let player1_base_2d = Vec3::new(-800.0, 0.0, 0.0);
     let player1_base = get_terrain_position(player1_base_2d.x, player1_base_2d.z, 0.0);
     
     // Spawn Queen Chamber (main building)
@@ -201,7 +201,7 @@ pub fn spawn_rts_elements(
     // Note: Additional building types would need spawn functions created
     
     // === PLAYER 2 (Enemy) - Right side of map ===
-    let player2_base_2d = Vec3::new(300.0, 0.0, 0.0);
+    let player2_base_2d = Vec3::new(800.0, 0.0, 0.0);
     let player2_base = get_terrain_position(player2_base_2d.x, player2_base_2d.z, 0.0);
     
     // Spawn Queen Chamber for enemy
@@ -398,7 +398,7 @@ fn spawn_minimal_environment_objects(
                         object_type: env_obj_type.clone(),
                     },
                     CollisionRadius {
-                        radius: 3.0 // Small fixed radius so workers can get within GATHERING_DISTANCE (5.0)
+                        radius: crate::constants::resource_interaction::RESOURCE_COLLISION_RADIUS
                     },
                     Position {
                         translation: position,

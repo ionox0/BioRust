@@ -54,8 +54,11 @@ fn process_unit_movement(
             return;
         }
 
-        let direction = (target - current_pos).normalize_or_zero();
-        let distance = current_pos.distance(target);
+        // Check for destination congestion and apply spreading
+        let adjusted_target = apply_destination_spreading(entity, target, current_pos, context);
+        
+        let direction = (adjusted_target - current_pos).normalize_or_zero();
+        let distance = current_pos.distance(adjusted_target);
 
         if !distance.is_finite() || distance > MAX_DISTANCE {
             warn!("Invalid distance {:.1}, clearing target", distance);
@@ -64,13 +67,12 @@ fn process_unit_movement(
         }
 
         if distance > ARRIVAL_THRESHOLD {
-            let new_position = calculate_new_position(current_pos, target, movement, context);
+            let new_position = calculate_new_position(current_pos, adjusted_target, movement, context);
             apply_collision_avoidance(entity, new_position, movement, collision_radius, context);
             update_position_with_terrain(transform, new_position, terrain_manager, terrain_settings);
             update_rotation(transform, direction, movement, rts_unit, context.delta_time);
         } else {
-            // Apply collision avoidance even when stopped to prevent overlap at destination
-            apply_collision_avoidance(entity, current_pos, movement, collision_radius, context);
+            // Skip collision avoidance when stopped to prevent jitter at destination
             if movement.current_velocity.length() < 0.1 {
                 stop_unit_movement(movement);
             }
@@ -137,12 +139,12 @@ fn apply_collision_avoidance(
     let separation_data = calculate_separation_force(entity, new_position, collision_radius, context);
     
     if separation_data.force.length() > 0.001 {
-        let velocity_factor = (1.0 - movement.current_velocity.length() / movement.max_speed).max(0.2);
+        let velocity_factor = (1.0 - movement.current_velocity.length() / movement.max_speed).max(0.1);
         movement.current_velocity += separation_data.force * context.delta_time * velocity_factor;
     }
 
     if separation_data.has_collision {
-        movement.current_velocity *= 0.5;  // Stronger damping to reduce jerkiness
+        movement.current_velocity *= 0.8;  // Lighter damping to maintain flow
     }
     
     movement.current_velocity = clamp_velocity(movement.current_velocity);
@@ -172,12 +174,21 @@ fn calculate_separation_force(
         
         let to_other = other_position - position;
         let distance = to_other.length();
-        let min_distance = collision_radius.radius + other_radius + 0.2;
+        let min_distance = collision_radius.radius + other_radius + 0.1; // Reduced buffer
         
         if distance < separation_radius && distance > 0.001 {
-            let separation_strength = ((separation_radius - distance) / separation_radius).powf(2.0);
+            // Reduce force exponentially as units get closer to separation radius (looser formations)
+            let separation_strength = ((separation_radius - distance) / separation_radius).powf(3.0);
             let separation_direction = -to_other.normalize_or_zero();
-            separation_force += separation_direction * separation_strength * SEPARATION_FORCE_STRENGTH;
+            
+            // Apply much lighter force for formation movement
+            let force_scale = if distance > separation_radius * 0.7 {
+                0.3 // Very light force for loose spacing
+            } else {
+                1.0 // Normal force only when very close
+            };
+            
+            separation_force += separation_direction * separation_strength * SEPARATION_FORCE_STRENGTH * force_scale;
         }
         
         if distance < min_distance && distance > 0.001 {
@@ -249,4 +260,54 @@ fn stop_unit_movement(movement: &mut Movement) {
 
 fn apply_movement_dampening(movement: &mut Movement) {
     movement.current_velocity *= 0.9;
+}
+
+/// Apply destination spreading to prevent units from clustering at the exact same target
+fn apply_destination_spreading(entity: Entity, original_target: Vec3, current_pos: Vec3, context: &MovementContext) -> Vec3 {
+    let destination_radius = 25.0; // Radius around target to check for congestion
+    let spread_distance = 12.0; // How far to spread units apart
+    
+    // Count how many other units are targeting the same general area
+    let mut nearby_targets = 0;
+    let mut congestion_center = Vec3::ZERO;
+    
+    for &(other_entity, other_pos, _) in &context.unit_positions {
+        if entity == other_entity {
+            continue;
+        }
+        
+        // Check if other unit is heading to same general destination
+        let distance_to_original_target = other_pos.distance(original_target);
+        if distance_to_original_target < destination_radius {
+            nearby_targets += 1;
+            congestion_center += other_pos;
+        }
+    }
+    
+    // If there's congestion, spread this unit's destination
+    if nearby_targets > 0 {
+        congestion_center /= nearby_targets as f32;
+        
+        // Create a unique offset based on entity hash to ensure consistent spreading
+        let entity_hash = entity.index() as f32;
+        let angle = (entity_hash * 2.17) % (std::f32::consts::PI * 2.0); // Pseudo-random angle
+        let ring_offset = (entity_hash % 3.0) * 4.0; // Vary distance slightly
+        
+        let spread_offset = Vec3::new(
+            angle.cos() * (spread_distance + ring_offset),
+            0.0,
+            angle.sin() * (spread_distance + ring_offset),
+        );
+        
+        // Apply spreading away from congestion center
+        let spread_direction = (original_target - congestion_center).normalize_or_zero();
+        if spread_direction.length() > 0.1 {
+            original_target + spread_direction * spread_distance + spread_offset
+        } else {
+            // If congestion is exactly at target, use pure radial offset
+            original_target + spread_offset
+        }
+    } else {
+        original_target
+    }
 }

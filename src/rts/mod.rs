@@ -17,31 +17,32 @@ use production::{production_system, building_completion_system, population_manag
 use construction::{construction_system, ai_construction_workflow_system};
 use formation::formation_system;
 use vision::vision_system;
-use unit_commands::{unit_command_system, spawn_test_units_system};
+use unit_commands::{unit_command_system, spawn_test_units_system, FormationSettings};
 use unstuck::{unstuck_system, add_stuck_detection_system};
 
 pub struct RTSSystemsPlugin;
 
 impl Plugin for RTSSystemsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-            add_stuck_detection_system,
-            movement_system,
-            unstuck_system,
-            resource_gathering_system,
-            click_selection_system,
-            drag_selection_system,
-            production_system,
-            construction_system,
-            ai_construction_workflow_system,
-            formation_system,
-            vision_system,
-            unit_command_system,
-            create_selection_indicators,
-            selection_indicator_system,
-            spawn_test_units_system,
-            building_completion_system,
-            population_management_system,
-        ));
+        app.init_resource::<FormationSettings>()
+            .add_systems(Update, (
+                add_stuck_detection_system,
+                movement_system,
+                unstuck_system,
+                resource_gathering_system,
+                click_selection_system,
+                drag_selection_system,
+                production_system,
+                construction_system,
+                ai_construction_workflow_system,
+                formation_system,
+                vision_system,
+                unit_command_system,
+                create_selection_indicators,
+                selection_indicator_system,
+                spawn_test_units_system,
+                building_completion_system,
+                population_management_system,
+            ));
     }
 }

@@ -1212,11 +1212,11 @@ fn collect_material_updates_recursive(
             let tint_rgba = tint_color.to_srgba();
             let original_rgba = original_color.to_srgba();
             
-            // Apply team color tint - blend with original color (reduced tint strength)
+            // Apply team color tint - blend with original color (strong tint for better visibility)
             let new_color = Color::srgba(
-                (original_rgba.red * 0.7 + tint_rgba.red * 0.3).min(1.0),
-                (original_rgba.green * 0.7 + tint_rgba.green * 0.3).min(1.0),
-                (original_rgba.blue * 0.7 + tint_rgba.blue * 0.3).min(1.0),
+                (original_rgba.red * 0.4 + tint_rgba.red * 0.6).min(1.0),
+                (original_rgba.green * 0.4 + tint_rgba.green * 0.6).min(1.0),
+                (original_rgba.blue * 0.4 + tint_rgba.blue * 0.6).min(1.0),
                 original_rgba.alpha,
             );
             new_material.base_color = new_color;

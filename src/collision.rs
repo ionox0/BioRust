@@ -71,7 +71,7 @@ pub fn unit_collision_avoidance_system(
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
         let mut avoidance_force = Vec3::ZERO;
         let velocity_magnitude = movement.current_velocity.length();
-        let is_moving = velocity_magnitude > 0.5; // Higher threshold to reduce sensitivity
+        let is_moving = velocity_magnitude > 2.0; // Much higher threshold to reduce collision interference
 
         // Check collision with buildings (static obstacles)
         // Buildings use Position component for their world location (GLB models)
@@ -129,21 +129,21 @@ pub fn unit_collision_avoidance_system(
                 unit_radius.radius,
                 *other_pos,
                 *other_radius,
-                1.2, // Larger spacing buffer for units
+                0.8, // Smaller buffer for units to allow tighter formations
             ) {
                 // Add dead zone - don't apply forces for minor overlaps
-                if collision.overlap > 0.4 {
+                if collision.overlap > 0.8 {
                     // Use relative velocity to determine force strength
                     let relative_velocity = (movement.current_velocity - other_velocity).length();
-                    let is_converging = relative_velocity > 0.5;
+                    let is_converging = relative_velocity > 2.0;
 
-                    // Reduced forces to prevent oscillation
+                    // Much reduced forces to prevent oscillation in formations
                     let force_multiplier = if is_converging {
-                        5.0 // Apply force when units are moving toward each other
+                        3.0 // Apply force when units are moving toward each other
                     } else if is_moving {
-                        2.0 // Gentle force when moving
+                        1.0 // Very gentle force when moving
                     } else {
-                        1.0 // Minimal force when stationary
+                        0.5 // Minimal force when stationary
                     };
 
                     let force_magnitude = (collision.overlap / collision.min_distance).min(1.0);

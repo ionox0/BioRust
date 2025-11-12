@@ -91,14 +91,16 @@ pub fn create_unit_button_with_icon(
     parent.spawn((
         Button,
         Node {
-            width: Val::Percent(48.0), // Make buttons thinner for two-column layout
-            height: Val::Px(UNIT_BUTTON_HEIGHT),
+            width: Val::Auto, // Let the grid cell determine the width
+            height: Val::Px(18.0), // Increased height for better visibility
             border: UiRect::all(Val::Px(UNIT_BUTTON_BORDER)),
             justify_content: JustifyContent::FlexStart,
             align_items: AlignItems::Center,
             flex_direction: FlexDirection::Row,
             padding: UiRect::all(Val::Px(UNIT_BUTTON_PADDING)),
             column_gap: Val::Px(4.0), // Reduce gap between icon and text
+            min_width: Val::Px(0.0), // Allow shrinking
+            max_width: Val::Percent(100.0), // Don't exceed grid cell width
             ..default()
         },
         BackgroundColor(UNIT_BUTTON_COLOR),

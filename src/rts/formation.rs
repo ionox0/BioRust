@@ -51,5 +51,13 @@ fn calculate_formation_offset(formation: &Formation) -> Vec3 {
                 angle.sin() * radius
             )
         },
+        FormationType::Spread => {
+            // Wide spread formation with much greater spacing for better visibility and tactical positioning
+            Vec3::new(
+                formation.position_in_formation.x * 20.0,  // 2x spacing of line formation
+                0.0,
+                formation.position_in_formation.y * 20.0   // Large spacing in both dimensions
+            )
+        },
     }
 }

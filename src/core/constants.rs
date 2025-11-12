@@ -20,8 +20,8 @@ pub mod movement {
     pub const DECELERATION_FACTOR: f32 = 2.5;  // Slightly higher deceleration
     
     // Collision and separation
-    pub const SEPARATION_MULTIPLIER: f32 = 1.8;  // Units separate at 1.8x their radius (reduced to prevent jiggling)
-    pub const SEPARATION_FORCE_STRENGTH: f32 = 8.0;  // Very gentle separation force to eliminate jerkiness
+    pub const SEPARATION_MULTIPLIER: f32 = 1.5;  // Units separate at 1.5x their radius (reduced for tighter formations)
+    pub const SEPARATION_FORCE_STRENGTH: f32 = 4.0;  // Reduced force to allow better group movement
     
     // Default spawn height
     pub const DEFAULT_SPAWN_HEIGHT: f32 = 10.0;
@@ -114,18 +114,18 @@ pub mod ui {
 pub mod team_colors {
     use bevy::prelude::*;
     
-    // Team color tints for GLB models and materials (extremely strong for visibility)
-    pub const PLAYER_1_TINT: Color = Color::srgba(0.0, 0.0, 1.0, 1.0);   // Pure Blue
-    pub const PLAYER_2_TINT: Color = Color::srgba(1.0, 0.0, 0.0, 1.0);   // Pure Red
-    pub const PLAYER_3_TINT: Color = Color::srgba(0.0, 1.0, 0.0, 1.0);   // Pure Green
-    pub const PLAYER_4_TINT: Color = Color::srgba(1.0, 1.0, 0.0, 1.0);   // Pure Yellow
+    // Team color tints for GLB models and materials (very strong vibrant colors for visibility)
+    pub const PLAYER_1_TINT: Color = Color::srgba(0.1, 0.3, 1.0, 1.0);   // Bright Cyan-Blue
+    pub const PLAYER_2_TINT: Color = Color::srgba(1.0, 0.1, 0.1, 1.0);   // Bright Red
+    pub const PLAYER_3_TINT: Color = Color::srgba(0.1, 1.0, 0.1, 1.0);   // Bright Green
+    pub const PLAYER_4_TINT: Color = Color::srgba(1.0, 0.9, 0.1, 1.0);   // Bright Yellow
     pub const UNKNOWN_PLAYER_TINT: Color = Color::srgba(0.5, 0.5, 0.5, 1.0); // Dark Gray
     
-    // Team colors for primitive models (dramatically different for testing)
-    pub const PLAYER_1_PRIMITIVE: Color = Color::srgb(0.0, 0.0, 1.0);    // Pure bright blue
-    pub const PLAYER_2_PRIMITIVE: Color = Color::srgb(1.0, 0.0, 0.0);    // Pure bright red
-    pub const PLAYER_3_PRIMITIVE: Color = Color::srgb(0.3, 0.8, 0.3);    // Bright green
-    pub const PLAYER_4_PRIMITIVE: Color = Color::srgb(0.8, 0.8, 0.2);    // Bright yellow
+    // Team colors for primitive models (very vibrant colors for strong visual distinction)
+    pub const PLAYER_1_PRIMITIVE: Color = Color::srgb(0.1, 0.4, 1.0);    // Bright cyan-blue
+    pub const PLAYER_2_PRIMITIVE: Color = Color::srgb(1.0, 0.1, 0.1);    // Bright red
+    pub const PLAYER_3_PRIMITIVE: Color = Color::srgb(0.1, 1.0, 0.1);    // Bright green
+    pub const PLAYER_4_PRIMITIVE: Color = Color::srgb(1.0, 0.9, 0.1);    // Bright yellow
     pub const UNKNOWN_PLAYER_PRIMITIVE: Color = Color::srgb(0.6, 0.6, 0.6); // Light gray
 }
 
@@ -316,6 +316,17 @@ pub mod population {
     use std::time::Duration;
     
     pub const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
+}
+
+// === RESOURCE INTERACTION ===
+pub mod resource_interaction {
+    // Resource selection and gathering distances (increased for better usability)
+    pub const RESOURCE_CLICK_RADIUS: f32 = 25.0;        // Distance for right-clicking to target resources (increased for easier clicking)
+    pub const GATHERING_DISTANCE: f32 = 20.0;           // Distance within which gathering occurs
+    pub const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0;      // Distance threshold for delivering resources
+    
+    // Resource source collision
+    pub const RESOURCE_COLLISION_RADIUS: f32 = 3.0;     // Collision radius of resource sources
 }
 
 // === TERRAIN SYSTEM ===

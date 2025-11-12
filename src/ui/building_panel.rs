@@ -1,11 +1,10 @@
 use bevy::prelude::*;
 use crate::core::components::*;
-use crate::entities::entity_factory::{EntityFactory, SpawnConfig, EntityType};
-use rand;
+use crate::core::resources::PlayerResources;
 use crate::ui::{
-    resource_display::{PlayerResources, setup_resource_display},
+    resource_display::setup_resource_display,
     button_styles::{create_building_button_with_icon, create_unit_button_with_icon, ButtonStyle, BuildingButton, UnitButton},
-    placement::{can_afford_building, BuildingPlacement, PlacementStatusText},
+    placement::{BuildingPlacement, PlacementStatusText},
     icons::UIIcons,
 };
 
@@ -42,20 +41,20 @@ pub fn setup_building_ui(
         chitin: STARTING_CHITIN,
         minerals: STARTING_MINERALS,
         pheromones: STARTING_PHEROMONES,
-        population_used: 0,
-        population_limit: STARTING_POPULATION_LIMIT,
+        current_population: 0,
+        max_population: STARTING_POPULATION_LIMIT,
     });
 }
 
 fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     
-    // Bottom panel - Building interface
+    // Bottom panel - Building interface (increased height for better unit layout)
     parent.spawn((
         Node {
             width: Val::Percent(100.0),
-            height: Val::Px(150.0),
+            height: Val::Px(180.0), // Increased height to accommodate more rows
             border: UiRect::all(Val::Px(2.0)),
-            padding: UiRect::all(Val::Px(10.0)),
+            padding: UiRect::all(Val::Px(5.0)), // Reduced padding to give more space
             flex_direction: FlexDirection::Row,
             justify_content: JustifyContent::SpaceBetween,
             ..default()
@@ -73,7 +72,7 @@ fn setup_buildings_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     
     parent.spawn((
         Node {
-            width: Val::Percent(70.0),
+            width: Val::Percent(50.0), // Reduced from 70% to 50% to give more space to units
             height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             ..default()
@@ -156,7 +155,7 @@ fn setup_units_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     
     parent.spawn((
         Node {
-            width: Val::Percent(30.0),
+            width: Val::Percent(50.0), // Increased from 30% to 50% for more space
             height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             ..default()
@@ -171,17 +170,19 @@ fn setup_units_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             TextColor(Color::WHITE),
         ));
         
+        // Three-column grid container for unit buttons
         parent.spawn((
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(80.0),
-                flex_direction: FlexDirection::Row,
-                flex_wrap: FlexWrap::Wrap,
-                column_gap: Val::Px(5.0),
-                row_gap: Val::Px(5.0),
+                display: Display::Grid,
+                grid_template_columns: vec![GridTrack::fr(1.0), GridTrack::fr(1.0), GridTrack::fr(1.0)], // Three equal columns
+                grid_auto_rows: vec![GridTrack::px(20.0)], // Fixed row height
+                column_gap: Val::Px(2.0), // Small gap between columns
+                row_gap: Val::Px(1.0), // Minimal row spacing
+                overflow: Overflow::clip(), // Prevent buttons from flowing outside the container
                 ..default()
             },
-            ProductionQueueDisplay,
         )).with_children(|parent| {
             create_unit_buttons(parent, ui_icons);
         });
@@ -231,16 +232,17 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
 pub fn handle_building_panel_interactions(
     mut interaction_query: Query<(&Interaction, &BuildingButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
     mut unit_interaction_query: Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
-    buildings: Query<(&Building, &Transform, &RTSUnit), With<Building>>,
+    mut buildings: Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
     mut placement: ResMut<BuildingPlacement>,
-    player_resources: Res<PlayerResources>,
+    mut player_resources: ResMut<PlayerResources>,
+    game_costs: Res<crate::core::resources::GameCosts>,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     handle_building_button_interactions(&mut interaction_query, &mut placement, &player_resources);
-    handle_unit_button_interactions(&mut unit_interaction_query, &buildings, &player_resources, model_assets, &mut commands, &mut meshes, &mut materials);
+    handle_unit_button_interactions(&mut unit_interaction_query, &mut buildings, &mut player_resources, &game_costs, model_assets, &mut commands, &mut meshes, &mut materials);
 }
 
 fn handle_building_button_interactions(
@@ -249,7 +251,7 @@ fn handle_building_button_interactions(
     player_resources: &PlayerResources,
 ) {
     for (interaction, building_button, mut background_color) in interaction_query.iter_mut() {
-        let can_afford = can_afford_building(&building_button.cost, player_resources);
+        let can_afford = player_resources.can_afford(&building_button.cost);
         let is_selected = placement.active_building.as_ref() == Some(&building_button.building_type);
         
         let style = if can_afford { ButtonStyle::BUILDING_AFFORDABLE } else { ButtonStyle::BUILDING_UNAFFORDABLE };
@@ -281,19 +283,20 @@ fn handle_building_button_interactions(
 
 fn handle_unit_button_interactions(
     unit_interaction_query: &mut Query<(&Interaction, &UnitButton, &mut BackgroundColor), (Changed<Interaction>, With<Button>, Without<BuildingButton>)>,
-    buildings: &Query<(&Building, &Transform, &RTSUnit), With<Building>>,
-    player_resources: &PlayerResources,
-    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_resources: &mut PlayerResources,
+    game_costs: &crate::core::resources::GameCosts,
+    _model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    _commands: &mut Commands,
+    _meshes: &mut ResMut<Assets<Mesh>>,
+    _materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     for (interaction, unit_button, mut background_color) in unit_interaction_query.iter_mut() {
         match *interaction {
             Interaction::Pressed => {
                 if can_afford_unit(&unit_button.cost, player_resources) {
-                    spawn_unit_from_building(commands, meshes, materials, unit_button.unit_type.clone(), unit_button.building_type.clone(), buildings, model_assets.as_deref());
-                    info!("Producing unit: {:?}", unit_button.unit_type);
+                    queue_unit_for_production(unit_button.unit_type.clone(), unit_button.building_type.clone(), buildings, player_resources, game_costs);
+                    info!("Queued unit for production: {:?}", unit_button.unit_type);
                 } else {
                     info!("Cannot afford unit: {:?}", unit_button.unit_type);
                 }
@@ -309,72 +312,273 @@ fn handle_unit_button_interactions(
 }
 
 fn can_afford_unit(cost: &[(ResourceType, f32)], resources: &PlayerResources) -> bool {
-    can_afford_building(cost, resources) && resources.population_used < resources.population_limit
+    resources.can_afford(cost) && resources.has_population_space()
 }
 
-fn spawn_unit_from_building(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+/// Queue a unit for production instead of spawning it instantly
+fn queue_unit_for_production(
     unit_type: UnitType,
     building_type: BuildingType,
-    buildings: &Query<(&Building, &Transform, &RTSUnit), With<Building>>,
-    model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
+    buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    player_resources: &mut PlayerResources,
+    game_costs: &crate::core::resources::GameCosts,
 ) {
-    use crate::constants::combat::*;
-
-    // Find the building of the correct type for player 1
-    let building_position = buildings.iter()
-        .find(|(building, _, unit)| {
-            unit.player_id == 1 &&
-            building.building_type == building_type &&
-            building.is_complete
-        })
-        .map(|(building, transform, _)| {
-            // Use rally point if available, otherwise use building position
-            building.rally_point.unwrap_or(transform.translation)
-        })
-        .unwrap_or(Vec3::ZERO); // Fallback to origin if no building found
-
-    // Add random offset from building position
-    let x_offset = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
-    let z_offset = rand::random::<f32>() * UNIT_SPAWN_RANGE - UNIT_SPAWN_OFFSET;
-
-    // Use appropriate height offset based on unit type
-    let height_offset = match unit_type {
-        // Flying units spawn higher
-        UnitType::DragonFly => 30.0,
-        UnitType::HunterWasp => 30.0,
-        UnitType::HoneyBee => 30.0,
-        UnitType::Housefly => 30.0,
-        UnitType::AcidSpitter => 30.0,
-        _ => 2.0,  // Standard ground units
-    };
-
-    let spawn_position = Vec3::new(
-        building_position.x + x_offset,
-        height_offset,
-        building_position.z + z_offset
-    );
-
-    // Use the consolidated factory for all unit spawning with model assets
-    let config = SpawnConfig::unit(
-        EntityType::from_unit(unit_type.clone()),
-        spawn_position,
-        1 // Player ID
-    );
-
-    EntityFactory::spawn(
-        commands,
-        meshes,
-        materials,
-        config,
-        model_assets // Pass through model assets so GLB models get proper scaling
-    );
+    // Get unit cost from game costs
+    let unit_cost = game_costs.unit_costs.get(&unit_type);
+    
+    if let Some(cost) = unit_cost {
+        // Check if player can afford the unit
+        if !player_resources.can_afford(cost) || !player_resources.has_population_space() {
+            warn!("Cannot afford unit {:?} or no population space", unit_type);
+            return;
+        }
+        
+        // Deduct resources immediately when queuing (like in real RTS games)
+        if !player_resources.spend_resources(cost) {
+            warn!("Failed to deduct resources for unit {:?}", unit_type);
+            return;
+        }
+        
+        // Find an appropriate building to queue the unit
+        for (mut queue, building, unit) in buildings.iter_mut() {
+            if unit.player_id == 1 && 
+               building.building_type == building_type && 
+               building.is_complete &&
+               queue.queue.len() < 8 { // Queue limit
+                
+                // Add unit to production queue
+                queue.queue.push(unit_type.clone());
+                info!("✅ Player 1 queued {:?} for production in {:?} (queue: {}/8, resources deducted)", 
+                      unit_type, building_type, queue.queue.len());
+                return;
+            }
+        }
+        
+        // If no suitable building found, refund the resources
+        for (resource_type, amount) in cost {
+            player_resources.add_resource(resource_type.clone(), *amount);
+        }
+        warn!("No suitable {:?} building found for unit production, resources refunded", building_type);
+    }
 }
 
-pub fn update_production_queue_display() {
-    // TODO: Update production queue display based on selected buildings
+pub fn update_production_queue_display(
+    mut commands: Commands,
+    buildings_with_queues: Query<(&ProductionQueue, &Building, &RTSUnit, &Selectable), With<Building>>,
+    existing_queue_displays: Query<Entity, With<ProductionQueueDisplay>>,
+    ui_icons: Option<Res<UIIcons>>,
+) {
+    // Find the currently selected player building with a production queue
+    let selected_building = buildings_with_queues.iter()
+        .find(|(_, _, unit, selectable)| unit.player_id == 1 && selectable.is_selected);
+
+    match selected_building {
+        Some((queue, building, _, _)) => {
+            // Check if we have UI icons available
+            if let Some(icons) = ui_icons.as_ref() {
+                if icons.icons_loaded {
+                    // Remove existing display and create new one with icons
+                    for entity in existing_queue_displays.iter() {
+                        commands.entity(entity).despawn_recursive();
+                    }
+                    create_visual_queue_display(&mut commands, queue, building, icons);
+                }
+            }
+        }
+        None => {
+            // No building selected or no player buildings selected - remove queue display
+            for entity in existing_queue_displays.iter() {
+                commands.entity(entity).despawn_recursive();
+            }
+        }
+    }
+}
+
+fn create_visual_queue_display(
+    commands: &mut Commands,
+    queue: &ProductionQueue,
+    building: &Building,
+    icons: &UIIcons,
+) {
+    let building_name = format_building_name(&building.building_type);
+    
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(320.0), // Just above the building panel
+            right: Val::Px(20.0),   // Right side of screen
+            padding: UiRect::all(Val::Px(15.0)),
+            border: UiRect::all(Val::Px(2.0)),
+            min_width: Val::Px(280.0),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(8.0),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.9)),
+        BorderColor(Color::srgba(0.4, 0.4, 0.6, 1.0)),
+        ProductionQueueDisplay,
+        Name::new("Production Queue Display"),
+    )).with_children(|parent| {
+        // Header
+        parent.spawn((
+            Text::new(format!("🏭 {} Production ({}/8)", building_name, queue.queue.len())),
+            TextFont { font_size: 16.0, ..default() },
+            TextColor(Color::WHITE),
+        ));
+        
+        if !queue.queue.is_empty() {
+            // Current unit being produced
+            let progress_percent = (queue.current_progress / queue.production_time * 100.0).round() as u32;
+            let current_unit = &queue.queue[0];
+            let remaining_time = queue.production_time - queue.current_progress;
+            
+            // Current production row
+            parent.spawn((
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(8.0),
+                    padding: UiRect::all(Val::Px(8.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.2, 0.3, 0.2, 0.6)), // Greenish tint for active
+            )).with_children(|parent| {
+                // Unit icon
+                parent.spawn((
+                    Node {
+                        width: Val::Px(24.0),
+                        height: Val::Px(24.0),
+                        ..default()
+                    },
+                    ImageNode::new(get_unit_icon(current_unit, icons)),
+                ));
+                
+                // Progress info
+                parent.spawn((
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        ..default()
+                    },
+                )).with_children(|parent| {
+                    parent.spawn((
+                        Text::new(format!("🔧 {}", format_unit_name(current_unit))),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(Color::WHITE),
+                    ));
+                    
+                    // Progress bar
+                    let progress_bar = "█".repeat((progress_percent / 10) as usize);
+                    let empty_bar = "░".repeat(10 - (progress_percent / 10) as usize);
+                    parent.spawn((
+                        Text::new(format!("[{}{}] {}% | {:.1}s", progress_bar, empty_bar, progress_percent, remaining_time)),
+                        TextFont { font_size: 12.0, ..default() },
+                        TextColor(Color::srgb(0.8, 0.8, 1.0)),
+                    ));
+                });
+            });
+            
+            // Queue items
+            if queue.queue.len() > 1 {
+                parent.spawn((
+                    Text::new("📋 Queued:"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                ));
+                
+                for (i, unit_type) in queue.queue.iter().enumerate().skip(1) {
+                    if i > 3 { // Show max 3 queued units
+                        if queue.queue.len() > 4 {
+                            parent.spawn((
+                                Text::new(format!("... and {} more", queue.queue.len() - 4)),
+                                TextFont { font_size: 12.0, ..default() },
+                                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                            ));
+                        }
+                        break;
+                    }
+                    
+                    parent.spawn((
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(6.0),
+                            padding: UiRect::all(Val::Px(4.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.15, 0.15, 0.15, 0.8)),
+                    )).with_children(|parent| {
+                        parent.spawn((
+                            Text::new(format!("{}.", i + 1)),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::srgb(0.8, 0.8, 0.8)),
+                        ));
+                        
+                        parent.spawn((
+                            Node {
+                                width: Val::Px(20.0),
+                                height: Val::Px(20.0),
+                                ..default()
+                            },
+                            ImageNode::new(get_unit_icon(unit_type, icons)),
+                        ));
+                        
+                        parent.spawn((
+                            Text::new(format_unit_name(unit_type)),
+                            TextFont { font_size: 12.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                }
+            }
+        } else {
+            // Empty queue
+            parent.spawn((
+                Text::new("📋 No units queued"),
+                TextFont { font_size: 14.0, ..default() },
+                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+            ));
+        }
+    });
+}
+
+fn get_unit_icon(unit_type: &UnitType, icons: &UIIcons) -> Handle<Image> {
+    match unit_type {
+        UnitType::WorkerAnt | UnitType::TermiteWorker => icons.worker_icon.clone(),
+        UnitType::SoldierAnt | UnitType::ScoutAnt | UnitType::BeetleKnight | 
+        UnitType::SpearMantis | UnitType::BatteringBeetle => icons.soldier_icon.clone(),
+        UnitType::HunterWasp | UnitType::DragonFly | UnitType::HoneyBee |
+        UnitType::Housefly | UnitType::AcidSpitter => icons.hunter_icon.clone(),
+        _ => icons.worker_icon.clone(), // Default fallback
+    }
+}
+
+
+/// Format building names to be more user-friendly
+fn format_building_name(building_type: &BuildingType) -> &'static str {
+    match building_type {
+        BuildingType::Queen => "Queen Chamber",
+        BuildingType::Nursery => "Nursery",
+        BuildingType::WarriorChamber => "Warrior Chamber", 
+        BuildingType::HunterChamber => "Hunter Chamber",
+        BuildingType::FungalGarden => "Fungal Garden",
+        _ => "Building",
+    }
+}
+
+/// Format unit names to be more user-friendly
+fn format_unit_name(unit_type: &UnitType) -> &'static str {
+    match unit_type {
+        UnitType::WorkerAnt => "Worker Ant",
+        UnitType::SoldierAnt => "Soldier Ant",
+        UnitType::HunterWasp => "Hunter Wasp",
+        UnitType::BeetleKnight => "Beetle Knight",
+        UnitType::SpearMantis => "Spear Mantis",
+        UnitType::ScoutAnt => "Scout Ant",
+        UnitType::DragonFly => "Dragon Fly",
+        UnitType::BatteringBeetle => "Battering Beetle",
+        _ => "Unit",
+    }
 }
 
 pub fn building_hotkeys_system(
@@ -391,7 +595,7 @@ pub fn building_hotkeys_system(
     ];
     
     for (key, building_type, cost) in hotkey_buildings {
-        if keyboard.just_pressed(key) && can_afford_building(&cost, &player_resources) {
+        if keyboard.just_pressed(key) && player_resources.can_afford(&cost) {
             placement.active_building = Some(building_type);
             break;
         }

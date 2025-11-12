@@ -343,6 +343,7 @@ pub enum FormationType {
     Box,
     Wedge,
     Circle,
+    Spread,  // Wide spread formation with greater spacing
 }
 
 #[derive(Component, Debug, Clone)]

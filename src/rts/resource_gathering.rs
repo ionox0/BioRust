@@ -3,9 +3,8 @@ use crate::core::components::*;
 use std::sync::{LazyLock, Mutex};
 use std::collections::{HashMap, HashSet};
 
-// Configurable gathering parameters
-const GATHERING_DISTANCE: f32 = 20.0;  // Distance within which gathering occurs (increased for collision constraints)
-const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0;  // Distance threshold for delivering resources (increased for building collision radii)
+// Use centralized constants from core module
+use crate::constants::resource_interaction::{GATHERING_DISTANCE, DROPOFF_TRAVEL_DISTANCE};
 
 pub fn resource_gathering_system(
     mut gatherers: Query<(Entity, &mut ResourceGatherer, &mut Movement, &Transform, &RTSUnit), With<RTSUnit>>,

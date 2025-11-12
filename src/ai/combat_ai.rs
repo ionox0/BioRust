@@ -455,12 +455,12 @@ fn calculate_formation_position_around_target(
     let time_offset = (current_time * 0.2).sin() * 0.3;
     let unique_angle = (unit_id as f32 * 2.17) + unit_offset + time_offset; // 2.17 creates good distribution
     
-    // Create ring-based formation around target
-    let ring_number = ((unit_id % 20) / 6) as f32; // Units in rings of 6
-    let position_in_ring = (unit_id % 6) as f32;
+    // Create looser ring-based formation around target
+    let ring_number = ((unit_id % 24) / 8) as f32; // Units in rings of 8 (more spread out)
+    let position_in_ring = (unit_id % 8) as f32;
     
-    let base_radius = 25.0 + (ring_number * 15.0); // Rings at 25, 40, 55 units from target
-    let angle_in_ring = (position_in_ring * std::f32::consts::PI * 2.0 / 6.0) + unique_angle;
+    let base_radius = 30.0 + (ring_number * 20.0); // Larger rings at 30, 50, 70 units from target
+    let angle_in_ring = (position_in_ring * std::f32::consts::PI * 2.0 / 8.0) + unique_angle;
     
     // Calculate ideal formation position
     let ideal_formation_pos = target + Vec3::new(
@@ -472,13 +472,13 @@ fn calculate_formation_position_around_target(
     // Check if formation position is too crowded
     let mut final_position = ideal_formation_pos;
     
-    // Avoid clustering with allies
+    // Avoid clustering with allies - much more aggressive spacing
     for &ally_pos in ally_positions {
         let distance_to_ally = final_position.distance(ally_pos);
-        if distance_to_ally < 8.0 { // Too close to ally
-            // Push away from ally
+        if distance_to_ally < 15.0 { // Larger minimum distance from allies
+            // Push away from ally with more spacing
             let push_direction = (final_position - ally_pos).normalize_or_zero();
-            final_position = ally_pos + push_direction * 12.0;
+            final_position = ally_pos + push_direction * 20.0;
         }
     }
     

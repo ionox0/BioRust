@@ -44,8 +44,10 @@ pub struct PlayerStrategy {
     pub strategy_type: StrategyType,
     pub last_building_time: f32,
     pub last_unit_time: f32,
+    pub last_building_failure_time: f32,
     pub priority_queue: Vec<StrategyGoal>,
     pub phase: StrategyPhase,
+    pub previous_phase: Option<StrategyPhase>,
     pub economy_targets: EconomyTargets,
     pub military_targets: MilitaryTargets,
 }
@@ -59,7 +61,7 @@ pub enum StrategyType {
     Balanced,  // Mix of both
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StrategyPhase {
     EarlyGame,   // Build workers, basic economy
     MidGame,     // Expand, military production
@@ -103,6 +105,7 @@ impl Default for AIStrategy {
             strategy_type: StrategyType::Economic, // Population growth requires economic focus initially
             last_building_time: 0.0,
             last_unit_time: 0.0,
+            last_building_failure_time: 0.0,
             priority_queue: vec![
                 // PHASE 1: POPULATION GROWTH - Massive worker expansion
                 StrategyGoal::BuildWorker,
@@ -124,6 +127,7 @@ impl Default for AIStrategy {
                 StrategyGoal::BuildWorker,
             ],
             phase: StrategyPhase::EarlyGame,
+            previous_phase: None,
             economy_targets: EconomyTargets {
                 desired_workers: 25, // Massive population target - increased from 15 to 25
                 next_building: Some(BuildingType::Nursery), // Housing priority for population
@@ -288,7 +292,7 @@ fn execute_strategy(
     }
     
     // Add new goals based on current situation
-    add_dynamic_goals(strategy, resources, units, buildings, player_id);
+    add_dynamic_goals(strategy, resources, units, buildings, player_id, current_time);
 }
 
 fn update_strategy_phase(
@@ -339,8 +343,8 @@ fn update_strategy_phase(
     match strategy.phase {
         StrategyPhase::EarlyGame => debug!("AI Player {} in POPULATION GROWTH phase: {} workers, {} military", 
                                          player_id, worker_count, military_count),
-        StrategyPhase::MidGame => info!("🔄 AI Player {} transitioning: {} workers, {} military - Building army", 
-                                       player_id, worker_count, military_count),
+        StrategyPhase::MidGame => debug!("🔄 AI Player {} transitioning: {} workers, {} military - Building army", 
+                                        player_id, worker_count, military_count),
         StrategyPhase::LateGame => info!("⚔️ AI Player {} in ENEMY ELIMINATION phase: {} workers, {} military - ATTACKING!", 
                                         player_id, worker_count, military_count),
     }
@@ -413,6 +417,7 @@ fn execute_next_goal(
             } else {
                 warn!("❌ AI Player {} failed to start building {:?} - removing from queue", player_id, building_type);
                 strategy.priority_queue.remove(0); // Remove failed building attempts to prevent infinite retry
+                strategy.last_building_failure_time = current_time; // Track failure time to prevent immediate retries
             }
         },
         StrategyGoal::AttackEnemy(target_player_id) => {
@@ -565,11 +570,20 @@ fn try_build_building(
     };
     
     // STRATEGIC BUILDING PLACEMENT: Place buildings near resources for faster collection
-    let base_x = (player_id as f32 - 1.0) * 200.0;
+    // Updated to match the new base positions from world/systems.rs
+    let base_x = if player_id == 1 { -800.0 } else { 800.0 };
     let base_z = 0.0;
     let base_position = Vec3::new(base_x, 0.0, base_z);
     
     let mut building_position = None;
+    
+    // IMPROVED PLACEMENT STRATEGY: Consider building density, resource proximity, and strategic positioning
+    
+    // Count existing buildings by type and calculate their center of mass for spacing
+    let mut existing_buildings: Vec<(Vec3, BuildingType)> = Vec::new();
+    for collision in building_collisions {
+        existing_buildings.push((collision.0, BuildingType::Queen)); // Simplified - we'll improve this if needed
+    }
     
     // For ALL buildings, prioritize placement near relevant resources for better economy
     let should_place_near_resources = true; // Always try to place near resources first
@@ -601,22 +615,49 @@ fn try_build_building(
         // Sort by distance to base to prioritize closer resources
         relevant_resources.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
         
-        // Try to place building near the best resource clusters
-        for (resource_pos, _resource_type, _distance) in relevant_resources.iter().take(5) { // Try top 5 closest resources (increased from 3)
-            // Try positions around this resource at optimal distance (not too close, not too far)
-            for ring in 0..4 { // Increased attempts (0..4 instead of 0..3)
-                for attempt in 0..12 { // More placement attempts per ring (12 instead of 8)
-                    let angle = (attempt as f32) * std::f32::consts::PI / 6.0; // More precise angles
-                    let radius = 20.0 + (ring as f32 * 12.0); // 20-56 range - closer to resources for faster gathering
+        // Try to place building near the best resource clusters with improved spacing logic
+        for (resource_pos, resource_type, _distance) in relevant_resources.iter().take(5) { // Try top 5 closest resources
+            // SMART SPACING: Avoid overcrowded areas around resources
+            let nearby_buildings = existing_buildings.iter()
+                .filter(|(pos, _)| pos.distance(*resource_pos) < 60.0)
+                .count();
+            
+            // Skip overcrowded resources (more than 2 buildings nearby)
+            if nearby_buildings >= 2 {
+                debug!("AI Player {} skipping overcrowded {:?} resource ({}  nearby buildings)", 
+                       player_id, resource_type, nearby_buildings);
+                continue;
+            }
+            
+            // Try positions around this resource with strategic spacing
+            for ring in 0..5 { // More rings for better placement options
+                for attempt in 0..16 { // More attempts per ring for precise placement
+                    let angle = (attempt as f32) * std::f32::consts::PI / 8.0; // More precise angles
+                    
+                    // DYNAMIC RADIUS: Larger radius based on existing building density
+                    let base_radius = 25.0 + (nearby_buildings as f32 * 8.0); // Start further from crowded areas
+                    let radius = base_radius + (ring as f32 * 15.0); // 25-85+ range for good spacing
                     
                     let pos_x = resource_pos.x + radius * angle.cos();
                     let pos_z = resource_pos.z + radius * angle.sin();
                     
                     let position = get_terrain_position(pos_x, pos_z, 0.0);
                     
-                    // Validate position is reasonable and not too far from base
+                    // Validate position is reasonable and maintains strategic distance from base
                     let distance_to_base = position.distance(base_position);
-                    if position.x.abs() < 1000.0 && position.z.abs() < 1000.0 && distance_to_base < 300.0 { // Increased from 200 to 300 for more flexibility
+                    if position.x.abs() < 1000.0 && position.z.abs() < 1000.0 && 
+                       distance_to_base > 40.0 && distance_to_base < 350.0 { // Minimum distance from base to avoid crowding
+                        
+                        // DENSITY CHECK: Ensure minimum spacing from other buildings
+                        let min_building_distance = existing_buildings.iter()
+                            .map(|(pos, _)| pos.distance(position))
+                            .min_by(|a, b| a.partial_cmp(b).unwrap())
+                            .unwrap_or(1000.0);
+                        
+                        if min_building_distance < 35.0 { // Enforce minimum 35 unit spacing between buildings
+                            continue; // Too close to existing buildings
+                        }
+                        
                         // Get building radius for collision checking
                         let building_radius = get_building_collision_radius(&building_type);
                         
@@ -629,8 +670,8 @@ fn try_build_building(
                             environment_collisions,
                         ) {
                             building_position = Some(position);
-                            info!("🏗️ AI Player {} placing {:?} near {:?} resource at distance {:.1} from base", 
-                                  player_id, building_type, _resource_type, distance_to_base);
+                            info!("🏗️ AI Player {} placing {:?} near {:?} resource (distance: {:.1} from base, {:.1} from nearest building)", 
+                                  player_id, building_type, resource_type, distance_to_base, min_building_distance);
                             break;
                         } else {
                             debug!("AI Player {} resource-based position validation failed for {:?} at {:?}", player_id, building_type, position);
@@ -647,25 +688,36 @@ fn try_build_building(
         }
     }
     
-    // Fallback: if no resource-based position found, use traditional base-centered placement
+    // IMPROVED FALLBACK: Strategic base-area placement with anti-crowding measures
     if building_position.is_none() {
-        // Add some randomness to make each building placement unique
+        info!("AI Player {} using fallback placement for {:?} - no suitable resource locations found", player_id, building_type);
+        
+        // Calculate building density near base to determine starting radius
+        let base_area_buildings = existing_buildings.iter()
+            .filter(|(pos, _)| pos.distance(base_position) < 80.0)
+            .count();
+        
+        // Start placement further from base if area is crowded
+        let base_crowding_offset = (base_area_buildings as f32 * 10.0).min(40.0);
+        
+        // Add some randomness to make each building placement unique but predictable
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         
         let mut hasher = DefaultHasher::new();
         building_type.hash(&mut hasher);
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos().hash(&mut hasher);
+        player_id.hash(&mut hasher);
         let seed = hasher.finish();
         
-        let random_offset_x = (seed % 100) as f32 - 50.0; // Smaller randomization
-        let random_offset_z = ((seed / 100) % 100) as f32 - 50.0;
+        let random_offset_x = ((seed % 80) as f32 - 40.0) * 0.5; // Smaller, controlled randomization  
+        let random_offset_z = (((seed / 80) % 80) as f32 - 40.0) * 0.5;
         
-        // Try positions in expanding rings around the base
-        for ring in 0..4 {
-            for attempt in 0..8 {
-                let angle = (attempt as f32) * std::f32::consts::PI / 4.0;
-                let radius = 30.0 + (ring as f32 * 20.0); // Closer spacing around base
+        // Try positions in expanding rings around the base with smart spacing
+        for ring in 0..6 { // More rings for better placement options
+            for attempt in 0..12 { // More attempts per ring
+                let angle = (attempt as f32) * std::f32::consts::PI / 6.0;
+                // STRATEGIC RADIUS: Start further out if base is crowded, expand more gradually
+                let radius = 50.0 + base_crowding_offset + (ring as f32 * 25.0); // 50-175+ range
                 
                 let pos_x = base_x + random_offset_x + radius * angle.cos();
                 let pos_z = base_z + random_offset_z + radius * angle.sin();
@@ -673,6 +725,16 @@ fn try_build_building(
                 let position = get_terrain_position(pos_x, pos_z, 0.0);
                 
                 if position.x.abs() < 1000.0 && position.z.abs() < 1000.0 {
+                    // DENSITY CHECK: Ensure proper spacing from existing buildings
+                    let min_building_distance = existing_buildings.iter()
+                        .map(|(pos, _)| pos.distance(position))
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap_or(1000.0);
+                    
+                    if min_building_distance < 30.0 { // Minimum spacing requirement
+                        continue; // Too close to existing buildings
+                    }
+                    
                     // Get building radius for collision checking
                     let building_radius = get_building_collision_radius(&building_type);
                     
@@ -685,10 +747,11 @@ fn try_build_building(
                         environment_collisions,
                     ) {
                         building_position = Some(position);
-                        info!("🏗️ AI Player {} placing {:?} near base (validated position)", player_id, building_type);
+                        info!("🏗️ AI Player {} placing {:?} near base (ring {}, distance: {:.1} from base, {:.1} from nearest building)", 
+                              player_id, building_type, ring, position.distance(base_position), min_building_distance);
                         break;
                     } else {
-                        debug!("AI Player {} position validation failed for {:?} at {:?}", player_id, building_type, position);
+                        debug!("AI Player {} fallback position validation failed for {:?} at {:?}", player_id, building_type, position);
                     }
                 }
             }
@@ -725,6 +788,7 @@ fn add_dynamic_goals(
     units: &Query<&RTSUnit>,
     buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
     player_id: u8,
+    current_time: f32,
 ) {
     let worker_count = count_player_units_of_type(units, player_id, |unit_type| {
         matches!(unit_type, UnitType::WorkerAnt)
@@ -756,8 +820,15 @@ fn add_dynamic_goals(
             if queen_count < 3 && !strategy.priority_queue.iter().any(|goal| { // Reduced from 5 to 3 for balance
                 matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
             }) {
-                strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
-                info!("📈 AI Player {} needs more Queen buildings ({} < 3) - adding to priority queue", player_id, queen_count);
+                // Only add Queen building if enough time has passed since last failure (5 second cooldown)
+                let time_since_failure = current_time - strategy.last_building_failure_time;
+                if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
+                    strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+                    info!("📈 AI Player {} needs more Queen buildings ({} < 3) - adding to priority queue", player_id, queen_count);
+                } else {
+                    debug!("⏰ AI Player {} waiting for building failure cooldown ({:.1}s remaining)", 
+                           player_id, 5.0 - time_since_failure);
+                }
             }
             
             // SUPREME PRIORITY: Workers for exponential population growth
@@ -814,7 +885,11 @@ fn add_dynamic_goals(
             if queen_count < 3 && !strategy.priority_queue.iter().any(|goal| {
                 matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
             }) {
-                strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+                // Apply cooldown for MidGame Queen buildings too
+                let time_since_failure = current_time - strategy.last_building_failure_time;
+                if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
+                    strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+                }
             }
             
             // Maintain worker population while building military infrastructure
@@ -862,7 +937,11 @@ fn add_dynamic_goals(
             if queen_count < 1 && !strategy.priority_queue.iter().any(|goal| {
                 matches!(goal, StrategyGoal::ConstructBuilding(BuildingType::Queen))
             }) {
-                strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+                // Apply cooldown for LateGame Queen buildings too
+                let time_since_failure = current_time - strategy.last_building_failure_time;
+                if strategy.last_building_failure_time == 0.0 || time_since_failure > 5.0 {
+                    strategy.priority_queue.insert(0, StrategyGoal::ConstructBuilding(BuildingType::Queen));
+                }
             }
             
             // Maintain minimal worker population for economy

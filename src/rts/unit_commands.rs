@@ -2,6 +2,19 @@ use bevy::prelude::*;
 use bevy::ecs::system::ParamSet;
 use crate::core::components::*;
 
+/// Resource to track current formation preference
+#[derive(Resource, Default, Debug)]
+pub struct FormationSettings {
+    pub formation_type: FormationType,
+    pub force_spread_formation: bool, // Force spread formation regardless of unit count
+}
+
+impl Default for FormationType {
+    fn default() -> Self {
+        FormationType::Circle // Default to circle formation
+    }
+}
+
 pub struct CommandContext<'a> {
     pub terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
     pub terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
@@ -23,10 +36,31 @@ pub fn unit_command_system(
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
     terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     mut commands: Commands,
+    mut formation_settings: ResMut<FormationSettings>,
 ) {
+    // Handle formation hotkeys (check before mouse button check so they work anytime)
+    if keyboard.just_pressed(KeyCode::KeyJ) {
+        formation_settings.force_spread_formation = !formation_settings.force_spread_formation;
+        info!("Formation mode: {}", if formation_settings.force_spread_formation { "Spread Formation (Wide Spacing)" } else { "Auto Formation (Standard Spacing)" });
+    }
+    
+    // Handle formation type cycling with K key
+    if keyboard.just_pressed(KeyCode::KeyK) {
+        formation_settings.formation_type = match formation_settings.formation_type {
+            FormationType::Circle => FormationType::Box,
+            FormationType::Box => FormationType::Line,
+            FormationType::Line => FormationType::Wedge,
+            FormationType::Wedge => FormationType::Spread,
+            FormationType::Spread => FormationType::Circle,
+        };
+        info!("Formation type changed to: {:?}", formation_settings.formation_type);
+    }
+
     if !mouse_button.just_pressed(MouseButton::Right) {
         return;
     }
+    
+    debug!("🖱️ Right-click detected!");
     
     let window = windows.single();
     let Some(cursor_position) = window.cursor_position() else { return };
@@ -42,6 +76,9 @@ pub fn unit_command_system(
     let target_enemy = find_enemy_target(ray, &units, &all_units);
     let target_resource = find_resource_target(ray, &resources);
     let target_building_site = find_building_site_target(ray, &building_sites.p0());
+    
+    debug!("🎯 Targets found - Enemy: {:?}, Resource: {:?}, BuildingSite: {:?}", 
+           target_enemy.is_some(), target_resource.is_some(), target_building_site.is_some());
     
     let target_point = if let Some((_, resource_pos)) = target_resource {
         resource_pos
@@ -119,7 +156,7 @@ fn find_resource_target(ray: Ray3d, resources: &Query<(Entity, &Transform), With
         let projected_distance = calculate_projected_distance(ray, resource_transform.translation)?;
         let distance_to_ray = calculate_distance_to_ray(ray, resource_transform.translation, projected_distance);
 
-        if distance_to_ray < 6.0 {
+        if distance_to_ray < crate::constants::resource_interaction::RESOURCE_CLICK_RADIUS {
             return Some((resource_entity, resource_transform.translation));
         }
     }
@@ -139,7 +176,7 @@ fn find_building_site_target(
         let projected_distance = calculate_projected_distance(ray, transform.translation)?;
         let distance_to_ray = calculate_distance_to_ray(ray, transform.translation, projected_distance);
 
-        if distance_to_ray < 12.0 { // Larger targeting area for building sites
+        if distance_to_ray < crate::constants::resource_interaction::RESOURCE_CLICK_RADIUS { // Same radius for consistency
             return Some((entity, transform.translation));
         }
     }
@@ -276,7 +313,36 @@ fn calculate_formation_position(target_pos: Vec3, unit_index: usize, total_units
         return target_pos;
     }
 
-    // Spread units in concentric circles
+    // Use spread formation for larger groups (automatically activates for 6+ units)
+    if total_units >= 6 {
+        calculate_spread_formation_position(target_pos, unit_index, total_units)
+    } else {
+        calculate_compact_formation_position(target_pos, unit_index, total_units)
+    }
+}
+
+/// Calculate formation position with user-defined formation settings
+fn calculate_formation_position_with_settings(
+    target_pos: Vec3, 
+    unit_index: usize, 
+    total_units: usize,
+    formation_settings: &FormationSettings
+) -> Vec3 {
+    if total_units == 1 {
+        return target_pos;
+    }
+
+    // Check if spread formation is forced or if we have enough units for auto-spread
+    if formation_settings.force_spread_formation || total_units >= 6 {
+        calculate_spread_formation_position(target_pos, unit_index, total_units)
+    } else {
+        calculate_compact_formation_position(target_pos, unit_index, total_units)
+    }
+}
+
+/// Calculate a compact formation position for small groups
+fn calculate_compact_formation_position(target_pos: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+    // Spread units in concentric circles with standard spacing
     let units_per_ring = 8;
     let ring = unit_index / units_per_ring;
     let pos_in_ring = unit_index % units_per_ring;
@@ -288,6 +354,32 @@ fn calculate_formation_position(target_pos: Vec3, unit_index: usize, total_units
         target_pos.x + angle.cos() * formation_radius,
         target_pos.y,
         target_pos.z + angle.sin() * formation_radius,
+    )
+}
+
+/// Calculate a spread formation position with much greater spacing for large groups
+fn calculate_spread_formation_position(target_pos: Vec3, unit_index: usize, total_units: usize) -> Vec3 {
+    // Use fewer units per ring but much larger spacing for better tactical positioning
+    let units_per_ring = 6; // Fewer units per ring for better spacing
+    let ring = unit_index / units_per_ring;
+    let pos_in_ring = unit_index % units_per_ring;
+
+    // Much larger base radius and ring spacing for spread formation
+    let base_radius = 8.0; // Start further from center
+    let ring_spacing = 12.0; // Much larger gaps between rings
+    let formation_radius = base_radius + (ring as f32 * ring_spacing);
+    
+    // Add slight randomization to break up perfect geometric patterns
+    let angle_variation = (unit_index as f32 * 0.73).sin() * 0.2; // Small variation for natural look
+    let angle = (pos_in_ring as f32 / units_per_ring as f32) * std::f32::consts::TAU + angle_variation;
+
+    // Apply additional spacing based on total unit count for very large groups
+    let size_scaling = if total_units > 15 { 1.5 } else { 1.0 };
+
+    Vec3::new(
+        target_pos.x + angle.cos() * formation_radius * size_scaling,
+        target_pos.y,
+        target_pos.z + angle.sin() * formation_radius * size_scaling,
     )
 }
 
