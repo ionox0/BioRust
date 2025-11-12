@@ -613,7 +613,7 @@ fn try_build_building(
         }
         
         // Sort by distance to base to prioritize closer resources
-        relevant_resources.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        relevant_resources.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
         
         // Try to place building near the best resource clusters with improved spacing logic
         for (resource_pos, resource_type, _distance) in relevant_resources.iter().take(5) { // Try top 5 closest resources
@@ -651,7 +651,7 @@ fn try_build_building(
                         // DENSITY CHECK: Ensure minimum spacing from other buildings
                         let min_building_distance = existing_buildings.iter()
                             .map(|(pos, _)| pos.distance(position))
-                            .min_by(|a, b| a.partial_cmp(b).unwrap())
+                            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                             .unwrap_or(1000.0);
                         
                         if min_building_distance < 35.0 { // Enforce minimum 35 unit spacing between buildings
@@ -728,7 +728,7 @@ fn try_build_building(
                     // DENSITY CHECK: Ensure proper spacing from existing buildings
                     let min_building_distance = existing_buildings.iter()
                         .map(|(pos, _)| pos.distance(position))
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                         .unwrap_or(1000.0);
                     
                     if min_building_distance < 30.0 { // Minimum spacing requirement

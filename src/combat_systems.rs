@@ -1,7 +1,62 @@
 use bevy::prelude::*;
 use crate::core::components::*;
+use std::collections::HashMap;
 
 pub struct CombatPlugin;
+
+// Combat constants
+mod combat_constants {
+    pub const BASE_XP_FOR_KILL: f32 = 10.0;
+    pub const REGEN_DELAY: f32 = 5.0;
+    pub const ATTACK_RANGE_MARGIN: f32 = 0.8;
+    pub const TARGET_POSITION_RATIO: f32 = 0.7;
+    pub const GRID_CELL_SIZE: f32 = 100.0;
+}
+
+// Spatial grid for efficient target acquisition
+struct TargetGrid {
+    cells: HashMap<(i32, i32), Vec<(Entity, Vec3, u8)>>,
+}
+
+impl TargetGrid {
+    fn new() -> Self {
+        Self {
+            cells: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, entity: Entity, position: Vec3, player_id: u8) {
+        let cell = Self::get_cell(position);
+        self.cells.entry(cell).or_default().push((entity, position, player_id));
+    }
+
+    fn get_cell(position: Vec3) -> (i32, i32) {
+        (
+            (position.x / combat_constants::GRID_CELL_SIZE).floor() as i32,
+            (position.z / combat_constants::GRID_CELL_SIZE).floor() as i32,
+        )
+    }
+
+    fn query_nearby(&self, position: Vec3, range: f32) -> Vec<(Entity, Vec3, u8)> {
+        let cell = Self::get_cell(position);
+        let cell_radius = (range / combat_constants::GRID_CELL_SIZE).ceil() as i32;
+        let mut results = Vec::new();
+
+        for dx in -cell_radius..=cell_radius {
+            for dz in -cell_radius..=cell_radius {
+                let neighbor_cell = (cell.0 + dx, cell.1 + dz);
+                if let Some(entities) = self.cells.get(&neighbor_cell) {
+                    for &(entity, pos, player_id) in entities {
+                        if position.distance(pos) <= range {
+                            results.push((entity, pos, player_id));
+                        }
+                    }
+                }
+            }
+        }
+        results
+    }
+}
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
@@ -27,9 +82,14 @@ pub fn target_acquisition_system(
     vision_query: Query<&Vision>,
     _time: Res<Time>,
 ) {
+    // Build spatial grid for potential targets
+    let mut target_grid = TargetGrid::new();
+    for (entity, transform, unit) in potential_targets.iter() {
+        target_grid.insert(entity, transform.translation, unit.player_id);
+    }
+
     for (entity, mut combat, transform, unit, movement) in combat_query.iter_mut() {
-        // Skip player units (player_id == 1) if they have a movement target (player gave move command)
-        // This allows player move commands to override auto-attacking
+        // Skip player units if they have a movement target and no combat target
         if unit.player_id == 1 && movement.target_position.is_some() && combat.target.is_none() {
             continue;
         }
@@ -39,54 +99,43 @@ pub fn target_acquisition_system(
             continue;
         }
 
-        // Get vision component - give enemies enhanced vision
-        let default_vision = Vision::default();
-        let vision = vision_query.get(entity).unwrap_or(&default_vision);
-        
-        // Use standard vision range for balanced gameplay
-        let effective_vision_range = vision.sight_range;
+        // Get vision range
+        let vision = vision_query.get(entity).ok();
+        let effective_vision_range = vision.map(|v| v.sight_range).unwrap_or(80.0);
+
+        // Query nearby enemies using spatial grid
+        let nearby_entities = target_grid.query_nearby(transform.translation, effective_vision_range);
 
         let mut closest_enemy: Option<(Entity, f32)> = None;
 
-        // Find the closest enemy within range
-        for (target_entity, target_transform, target_unit) in potential_targets.iter() {
+        for (target_entity, target_pos, target_player_id) in nearby_entities {
             // Skip same player units (no friendly fire)
-            if target_unit.player_id == unit.player_id {
+            if target_player_id == unit.player_id {
                 continue;
             }
 
-            let distance = transform.translation.distance(target_transform.translation);
-            
-            // Check if target is within vision range
-            if distance <= effective_vision_range {
-                // For enemies, prioritize player units even at longer distances
-                let is_enemy_seeking_player = unit.player_id != 1 && target_unit.player_id == 1;
-                
-                if distance <= combat.attack_range {
-                    // Target within attack range - prefer closer targets
-                    match closest_enemy {
-                        Some((_, closest_dist)) if distance < closest_dist => {
-                            closest_enemy = Some((target_entity, distance));
-                        }
-                        None => {
-                            closest_enemy = Some((target_entity, distance));
-                        }
-                        _ => {}
-                    }
-                } else if is_enemy_seeking_player || closest_enemy.is_none() {
-                    // Enemies will actively seek player units at longer range
+            let distance = transform.translation.distance(target_pos);
+            let is_enemy_seeking_player = unit.player_id != 1 && target_player_id == 1;
+
+            if distance <= combat.attack_range {
+                // Target within attack range - prefer closer targets
+                if closest_enemy.map_or(true, |(_, d)| distance < d) {
                     closest_enemy = Some((target_entity, distance));
                 }
+            } else if is_enemy_seeking_player || closest_enemy.is_none() {
+                // Enemies will actively seek player units at longer range
+                closest_enemy = Some((target_entity, distance));
             }
         }
 
-        // Set target if found
-        if let Some((target_entity, _)) = closest_enemy {
-            combat.target = Some(target_entity);
+        // Set or clear target
+        combat.target = if let Some((target_entity, _)) = closest_enemy {
+            Some(target_entity)
         } else if combat.auto_attack {
-            // Clear target if auto-attacking and no enemies found
-            combat.target = None;
-        }
+            None
+        } else {
+            combat.target
+        };
     }
 }
 
@@ -169,30 +218,26 @@ pub fn combat_movement_system(
     mut unit_query: Query<(&mut Movement, &Combat, &Transform, &RTSUnit)>,
     target_query: Query<&Transform, With<RTSHealth>>,
 ) {
+    use combat_constants::*;
+
     for (mut movement, combat, unit_transform, unit) in unit_query.iter_mut() {
-        // Only apply combat movement if unit has a combat target
         if let Some(target_entity) = combat.target {
             if let Ok(target_transform) = target_query.get(target_entity) {
                 let distance = unit_transform.translation.distance(target_transform.translation);
 
                 // Move towards target if out of attack range
-                if distance > combat.attack_range * 0.8 { // Use 80% of range to avoid jittering
-                    // Calculate direction towards target
+                if distance > combat.attack_range * ATTACK_RANGE_MARGIN {
                     let direction = (target_transform.translation - unit_transform.translation).normalize();
-                    let target_position = target_transform.translation - direction * (combat.attack_range * 0.7);
+                    let target_position = target_transform.translation - direction * (combat.attack_range * TARGET_POSITION_RATIO);
 
                     // Only override movement for AI units or if player unit has no other movement target
-                    // This prevents overriding explicit player move commands
                     if unit.player_id != 1 || movement.target_position.is_none() {
                         movement.target_position = Some(target_position);
                     }
-                    // DO NOT override max_speed or acceleration - use unit's configured stats
-                } else {
-                    // Stop moving when in range (only for AI units, player units retain manual control)
-                    if unit.player_id != 1 {
-                        movement.target_position = None;
-                        movement.current_velocity = Vec3::ZERO;
-                    }
+                } else if unit.player_id != 1 {
+                    // Stop AI units when in range
+                    movement.target_position = None;
+                    movement.current_velocity = Vec3::ZERO;
                 }
             }
         }
@@ -208,43 +253,36 @@ pub fn damage_resolution_system(
     mut death_events: EventWriter<DeathEvent>,
     time: Res<Time>,
 ) {
+    use combat_constants::BASE_XP_FOR_KILL;
+
     let current_time = time.elapsed_secs();
 
     for damage_event in damage_events.read() {
         if let Ok((target_entity, mut health)) = health_query.get_mut(damage_event.target) {
-            // Calculate actual damage based on armor and damage type
             let actual_damage = calculate_damage(damage_event.damage, health.armor, &damage_event.damage_type);
-            
-            // Apply damage
+
             health.current = (health.current - actual_damage).max(0.0);
             health.last_damage_time = current_time;
 
-            // Update combat stats for attacker
+            // Update combat stats
             if let Ok(mut stats) = combat_stats_query.get_mut(damage_event.attacker) {
                 stats.damage_dealt += actual_damage;
             }
-
-            // Update combat stats for target
             if let Ok(mut stats) = combat_stats_query.get_mut(damage_event.target) {
                 stats.damage_taken += actual_damage;
             }
 
-            info!("Entity {:?} takes {} damage (current health: {})", 
+            info!("Entity {:?} takes {} damage (current health: {})",
                   target_entity, actual_damage, health.current);
 
-            // Check if unit died
             if health.current <= 0.0 {
-                // Mark entity as dying to prevent duplicate death processing
                 commands.entity(target_entity).insert(Dying);
-                
-                // Update killer's stats
+
                 if let Ok(mut stats) = combat_stats_query.get_mut(damage_event.attacker) {
                     stats.kills += 1;
-                    const BASE_XP_FOR_KILL: f32 = 10.0;
-                    stats.experience += BASE_XP_FOR_KILL; // Base XP for kill
+                    stats.experience += BASE_XP_FOR_KILL;
                 }
 
-                // Send death event
                 death_events.send(DeathEvent {
                     entity: target_entity,
                     killer: Some(damage_event.attacker),
@@ -284,16 +322,15 @@ pub fn health_regeneration_system(
     mut health_query: Query<&mut RTSHealth>,
     time: Res<Time>,
 ) {
+    use combat_constants::REGEN_DELAY;
+
     let current_time = time.elapsed_secs();
-    const REGEN_DELAY: f32 = 5.0; // 5 seconds after last damage before regen starts
-    let regen_delay = REGEN_DELAY;
 
     for mut health in health_query.iter_mut() {
-        // Only regenerate if not at full health and enough time has passed since last damage
-        if health.current < health.max && 
-           current_time - health.last_damage_time >= regen_delay &&
+        if health.current < health.max &&
+           current_time - health.last_damage_time >= REGEN_DELAY &&
            health.regeneration_rate > 0.0 {
-            
+
             let regen_amount = health.regeneration_rate * time.delta_secs();
             health.current = (health.current + regen_amount).min(health.max);
         }
@@ -353,194 +390,5 @@ pub fn health_bar_system(
     }
 }
 
-// Helper function to create a combat unit with default values
-#[allow(dead_code)]
-pub fn create_combat_unit(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-    position: Vec3,
-    player_id: u8,
-    unit_type: UnitType,
-) -> Entity {
-    let (health, mut combat, movement, mut vision, mesh_handle, material_handle) = match unit_type {
-        UnitType::SoldierAnt => (
-            RTSHealth {
-                current: crate::constants::combat::SOLDIER_ANT_HEALTH,
-                max: crate::constants::combat::SOLDIER_ANT_HEALTH,
-                armor: 2.0,
-                regeneration_rate: 0.5,
-                last_damage_time: 0.0,
-            },
-            Combat {
-                attack_damage: crate::constants::combat::SOLDIER_ANT_DAMAGE,
-                attack_range: 3.0,
-                attack_speed: 1.5,
-                last_attack_time: 0.0,
-                target: None,
-                attack_type: AttackType::Melee,
-                attack_cooldown: 1.0 / 1.5, // 1.5 attacks per second
-                is_attacking: false,
-                auto_attack: true,
-            },
-            Movement::default(),
-            Vision::default(),
-            meshes.add(Cuboid::new(1.0, 2.0, 1.0)),
-            materials.add(StandardMaterial {
-                base_color: if player_id == 1 { Color::srgb(0.8, 0.2, 0.2) } else { Color::srgb(0.8, 0.4, 0.0) },
-                ..default()
-            }),
-        ),
-        UnitType::HunterWasp => (
-            RTSHealth {
-                current: crate::constants::combat::HUNTER_WASP_HEALTH,
-                max: crate::constants::combat::HUNTER_WASP_HEALTH,
-                armor: 0.0,
-                regeneration_rate: 0.3,
-                last_damage_time: 0.0,
-            },
-            Combat {
-                attack_damage: crate::constants::combat::HUNTER_WASP_DAMAGE,
-                attack_range: 12.0,
-                attack_speed: 2.0,
-                last_attack_time: 0.0,
-                target: None,
-                attack_type: AttackType::Ranged,
-                attack_cooldown: 1.0 / 2.0,
-                is_attacking: false,
-                auto_attack: true,
-            },
-            Movement::default(),
-            Vision::default(),
-            meshes.add(Cuboid::new(0.8, 2.0, 0.8)),
-            materials.add(StandardMaterial {
-                base_color: if player_id == 1 { Color::srgb(0.2, 0.8, 0.2) } else { Color::srgb(0.6, 0.2, 0.8) },
-                ..default()
-            }),
-        ),
-        UnitType::SpearMantis => (
-            RTSHealth {
-                current: 110.0,
-                max: 110.0,
-                armor: 1.0,
-                regeneration_rate: 0.4,
-                last_damage_time: 0.0,
-            },
-            Combat {
-                attack_damage: 22.0,
-                attack_range: 8.0,
-                attack_speed: 1.8,
-                last_attack_time: 0.0,
-                target: None,
-                attack_type: AttackType::Melee,
-                attack_cooldown: 1.0 / 1.8,
-                is_attacking: false,
-                auto_attack: true,
-            },
-            Movement {
-                max_speed: 25.0,
-                acceleration: 55.0,
-                turning_speed: 2.8,
-                ..default()
-            },
-            Vision {
-                sight_range: 120.0,
-                ..default()
-            },
-            meshes.add(Cuboid::new(1.2, 2.2, 1.2)),
-            materials.add(StandardMaterial {
-                base_color: Color::srgb(0.6, 0.8, 0.3),
-                ..default()
-            }),
-        ),
-        UnitType::ScoutAnt => (
-            RTSHealth {
-                current: 65.0,
-                max: 65.0,
-                armor: 0.0,
-                regeneration_rate: 0.2,
-                last_damage_time: 0.0,
-            },
-            Combat {
-                attack_damage: 12.0,
-                attack_range: 6.0,
-                attack_speed: 2.2,
-                last_attack_time: 0.0,
-                target: None,
-                attack_type: AttackType::Melee,
-                attack_cooldown: 1.0 / 2.2,
-                is_attacking: false,
-                auto_attack: true,
-            },
-            Movement {
-                max_speed: 40.0,
-                acceleration: 70.0,
-                turning_speed: 3.2,
-                ..default()
-            },
-            Vision {
-                sight_range: 180.0,
-                ..default()
-            },
-            meshes.add(Cuboid::new(0.9, 1.8, 0.9)),
-            materials.add(StandardMaterial {
-                base_color: Color::srgb(0.3, 0.7, 0.9),
-                ..default()
-            }),
-        ),
-        _ => (
-            RTSHealth::default(),
-            Combat {
-                attack_damage: crate::constants::combat::DEFAULT_UNIT_DAMAGE,
-                attack_range: crate::constants::combat::DEFAULT_ATTACK_RANGE,
-                attack_speed: 1.0,
-                last_attack_time: 0.0,
-                target: None,
-                attack_type: AttackType::Melee,
-                attack_cooldown: 1.0,
-                is_attacking: false,
-                auto_attack: true,
-            },
-            Movement::default(),
-            Vision::default(),
-            meshes.add(Cuboid::new(1.0, 2.0, 1.0)),
-            materials.add(StandardMaterial {
-                base_color: Color::srgb(0.5, 0.5, 0.5),
-                ..default()
-            }),
-        ),
-    };
-
-    // Make enemy units slightly more active but balanced
-    if player_id != 1 {
-        combat.auto_attack = true;
-        // DO NOT override movement stats - use unit's configured stats
-        vision.sight_range = 80.0; // Reasonable vision range
-    }
-
-    commands.spawn((
-        Mesh3d(mesh_handle),
-        MeshMaterial3d(material_handle),
-        Transform::from_translation(position),
-        RTSUnit {
-            unit_id: rand::random(),
-            player_id,
-            size: 1.0,
-            unit_type: Some(unit_type.clone()),
-        },
-        health,
-        combat,
-        movement,
-        vision,
-        Selectable::default(),
-        HealthBar::default(),
-        CombatStats {
-            kills: 0,
-            damage_dealt: 0.0,
-            damage_taken: 0.0,
-            experience: 0.0,
-        },
-        CollisionRadius::default(),
-        EntityState::default(),
-    )).id()
-}
+// Note: Unit creation is now handled by entity_factory.rs which provides
+// a more maintainable approach using unit configuration data
