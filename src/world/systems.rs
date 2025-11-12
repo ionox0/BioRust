@@ -5,8 +5,8 @@ use crate::core::game::GameState;
 // Terrain asset no longer needed
 
 // === RTS SETUP CONSTANTS ===
-const INITIAL_CAMERA_HEIGHT: f32 = 200.0;
-const INITIAL_CAMERA_DISTANCE: f32 = 100.0;
+const INITIAL_CAMERA_HEIGHT: f32 = 400.0; // Increased from 200.0 for more zoomed out view
+const INITIAL_CAMERA_DISTANCE: f32 = 200.0; // Increased from 100.0 for more zoomed out view
 const LIGHT_ROTATION_X: f32 = -0.8;
 const LIGHT_ROTATION_Y: f32 = -0.3;
 
@@ -372,7 +372,7 @@ fn spawn_minimal_environment_objects(
                     0 | 1 | 2 => (InsectModelType::Mushrooms, EnvironmentObjectType::Mushrooms, &models.mushrooms, "Mushroom Cluster"),
                     3 => (InsectModelType::RiverRock, EnvironmentObjectType::Rocks, &models.river_rock, "Rock Formation"),
                     4 => (InsectModelType::WoodStick, EnvironmentObjectType::WoodStick, &models.wood_stick, "Wood Debris"),
-                    _ => (InsectModelType::Hive, EnvironmentObjectType::Hive, &models.hive, "Hive Structure"),
+                    _ => (InsectModelType::PineCone, EnvironmentObjectType::PineCone, &models.pine_cone, "Pine Cone Resource"),
                 };
                 
                 // Skip if model handle is invalid
@@ -446,7 +446,20 @@ fn spawn_minimal_environment_objects(
                             selection_radius: base_scale * 2.0,
                         });
                     },
+                    EnvironmentObjectType::PineCone => {
+                        entity_commands.insert(ResourceSource {
+                            resource_type: ResourceType::Pheromones,
+                            amount: 350.0,
+                            max_gatherers: 3,
+                            current_gatherers: 0,
+                        });
+                        entity_commands.insert(Selectable {
+                            is_selected: false,
+                            selection_radius: base_scale * 2.0,
+                        });
+                    },
                     EnvironmentObjectType::Hive => {
+                        // Legacy hive case - no longer spawned but kept for compatibility
                         entity_commands.insert(ResourceSource {
                             resource_type: ResourceType::Pheromones,
                             amount: 350.0,
@@ -505,10 +518,10 @@ pub fn handle_rts_camera_input(
         // W/S moves north/south (Z axis), A/D moves west/east (X axis)
         
         if keyboard.pressed(KeyCode::KeyW) {
-            movement += Vec3::new(0.0, 0.0, 1.0);  // North (positive Z)
+            movement += Vec3::new(0.0, 0.0, -1.0); // Forward/North (negative Z)
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            movement += Vec3::new(0.0, 0.0, -1.0); // South (negative Z)
+            movement += Vec3::new(0.0, 0.0, 1.0);  // Backward/South (positive Z)
         }
         if keyboard.pressed(KeyCode::KeyA) {
             movement += Vec3::new(-1.0, 0.0, 0.0); // West (negative X)

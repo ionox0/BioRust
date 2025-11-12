@@ -11,7 +11,7 @@ pub const WINDOW_HEIGHT: f32 = 720.0;
 pub mod movement {
     // Safety limits to prevent units from going to astronomical positions
     pub const MAX_POSITION: f32 = 100000.0;
-    pub const MAX_VELOCITY: f32 = 150.0;  // Increased from 100.0 to allow faster units without oscillation
+    pub const MAX_VELOCITY: f32 = 500.0;  // Increased to 500.0 to allow very fast units like DragonFly (400.0 max_speed)
     pub const MAX_DISTANCE: f32 = 50000.0;
     
     // Movement physics
@@ -20,8 +20,8 @@ pub mod movement {
     pub const DECELERATION_FACTOR: f32 = 2.5;  // Slightly higher deceleration
     
     // Collision and separation
-    pub const SEPARATION_MULTIPLIER: f32 = 1.5;  // Units separate at 1.5x their radius (reduced for tighter formations)
-    pub const SEPARATION_FORCE_STRENGTH: f32 = 4.0;  // Reduced force to allow better group movement
+    pub const SEPARATION_MULTIPLIER: f32 = 2.0;  // Units separate at 2x their radius for better flow
+    pub const SEPARATION_FORCE_STRENGTH: f32 = 2.0;  // Further reduced force for smoother group movement
     
     // Default spawn height
     pub const DEFAULT_SPAWN_HEIGHT: f32 = 10.0;
@@ -173,10 +173,10 @@ pub mod models {
     
     // === INDIVIDUAL MODEL SCALES 
     // Classic models - all increased
-    pub const SCORPION_SCALE: f32 = 5.5;
-    pub const BEE_SCALE: f32 = 0.5;
+    pub const SCORPION_SCALE: f32 = 8.0; // Increased from 5.5 for better visibility
+    pub const BEE_SCALE: f32 = 1.2; // Increased from 0.5 for better visibility
     pub const SPIDER_SCALE: f32 = 2.5;
-    pub const MANTIS_SCALE: f32 = 3.5;
+    pub const MANTIS_SCALE: f32 = 5.0; // Increased from 3.5 for better visibility
     pub const APIS_MELLIFERA_SCALE: f32 = 2.5;
     pub const BEETLE_SCALE: f32 = 2.5;
     pub const LADYBUG_SCALE: f32 = 2.5;
@@ -190,9 +190,11 @@ pub mod models {
     pub const CAIRNS_BIRDWING_SCALE: f32 = 8.0;    // Increased much more for better visibility
     pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;
     pub const ROLY_POLY_SCALE: f32 = 0.1;
-    pub const DRAGONFLY_SCALE: f32 = 150.0;     // Massively increased - 10x bigger
+    pub const DRAGONFLY_SCALE: f32 = 200.0;     // Further increased for better visibility
     pub const WOLF_SPIDER_SCALE: f32 = 2.5;
     pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0;    // Increased much more for better visibility
+    pub const HOUSEFLY_SCALE: f32 = 4.0;           // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
+    pub const STINKBUG_SCALE: f32 = 5.0;           // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
     
     // Environment object scales
     pub const MUSHROOMS_SCALE: f32 = 20.5;          // Larger scale for environment objects
@@ -203,11 +205,11 @@ pub mod models {
     pub const SIMPLE_GRASS_CHUNKS_SCALE: f32 = 1.2; // Compact grass chunks (increased for visibility)
     
     // Building object scales
-    pub const ANTHILL_SCALE: f32 = 10.5;            // Anthill building scale - larger for visibility
+    pub const ANTHILL_SCALE: f32 = 21.0;            // Anthill building scale - 2x larger for better visibility
     
     // New environment object scales (increased for visibility)
     pub const CHERRY_BLOSSOM_TREE_SCALE: f32 = 2.0; // Beautiful tree landmark (increased for visibility)
-    pub const PINE_CONE_SCALE: f32 = 1.0;          // Natural pine cone size (increased for visibility)
+    pub const PINE_CONE_SCALE: f32 = 5.0;          // Large pine cone size for resource visibility (5x bigger)
     pub const PLANTS_ASSET_SET_SCALE: f32 = 1.5;   // Moderate plant collection scale (increased for visibility)
     pub const BEECH_FERN_SCALE: f32 = 1.5;         // Medium fern undergrowth (increased for visibility)
     pub const TREES_PACK_SCALE: f32 = 2.5;         // Tree landmarks (increased for visibility)
@@ -321,7 +323,7 @@ pub mod population {
 // === RESOURCE INTERACTION ===
 pub mod resource_interaction {
     // Resource selection and gathering distances (increased for better usability)
-    pub const RESOURCE_CLICK_RADIUS: f32 = 25.0;        // Distance for right-clicking to target resources (increased for easier clicking)
+    pub const RESOURCE_CLICK_RADIUS: f32 = 150.0;       // Distance for right-clicking to target resources (reduced by half)
     pub const GATHERING_DISTANCE: f32 = 20.0;           // Distance within which gathering occurs
     pub const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0;      // Distance threshold for delivering resources
     
@@ -339,6 +341,21 @@ pub mod terrain {
     pub const VIEW_DISTANCE: f32 = 200.0;
 }
 
+// === GRID SYSTEM ===
+pub mod grid {
+    use bevy::prelude::*;
+    
+    // Grid spacing and rendering
+    pub const GRID_SPACING: f32 = 50.0;              // Grid lines every 50 units
+    pub const GRID_SIZE: f32 = 2000.0;               // Total grid size (extends from -1000 to +1000)
+    pub const GRID_LINE_WIDTH: f32 = 0.5;            // Width of grid lines
+    pub const GRID_HEIGHT: f32 = 1.0;                // Height above terrain
+    
+    // Grid colors
+    pub const GRID_COLOR: Color = Color::srgba(0.5, 0.5, 0.5, 0.3);  // Semi-transparent gray
+    pub const GRID_MAJOR_COLOR: Color = Color::srgba(0.7, 0.7, 0.7, 0.5);  // Slightly brighter for major lines
+}
+
 // === INPUT HOTKEYS ===
 pub mod hotkeys {
     use bevy::prelude::KeyCode;
@@ -352,6 +369,9 @@ pub mod hotkeys {
     pub const SPEED_UP: KeyCode = KeyCode::Equal;        // + key
     pub const SLOW_DOWN: KeyCode = KeyCode::Minus;       // - key
     pub const RESET_SPEED: KeyCode = KeyCode::Backspace; // Reset to normal speed
+    
+    // Debug/utility hotkeys
+    pub const TOGGLE_GRID: KeyCode = KeyCode::KeyL;      // Toggle grid lines
 
     // Legacy hotkeys for compatibility
     #[deprecated(note = "Use BUILD_WARRIOR_CHAMBER instead")]

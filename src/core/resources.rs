@@ -232,38 +232,36 @@ impl GameCosts {
         
         // === TIER 1: EARLY GAME UNITS (50-100 total cost) ===
         // Basic economic and military units available from game start
-        costs.unit_costs.insert(UnitType::WorkerAnt, vec![(ResourceType::Nectar, 50.0)]);
-        costs.unit_costs.insert(UnitType::SoldierAnt, vec![(ResourceType::Nectar, 65.0), (ResourceType::Pheromones, 25.0)]); // 90 total (was 80) - basic infantry
-        costs.unit_costs.insert(UnitType::ScoutAnt, vec![(ResourceType::Nectar, 55.0), (ResourceType::Pheromones, 25.0)]); // 80 total (was 55) - fast reconnaissance
-        costs.unit_costs.insert(UnitType::HunterWasp, vec![(ResourceType::Nectar, 40.0), (ResourceType::Chitin, 30.0), (ResourceType::Pheromones, 30.0)]); // 100 total (was 70) - ranged support
+        costs.unit_costs.insert(UnitType::WorkerAnt, vec![(ResourceType::Nectar, 50.0)]); // 50 total - economic foundation
+        costs.unit_costs.insert(UnitType::SoldierAnt, vec![(ResourceType::Nectar, 60.0), (ResourceType::Pheromones, 30.0)]); // 90 total - balanced infantry
+        costs.unit_costs.insert(UnitType::ScoutAnt, vec![(ResourceType::Nectar, 50.0), (ResourceType::Pheromones, 30.0)]); // 80 total - fast scout
+        costs.unit_costs.insert(UnitType::HunterWasp, vec![(ResourceType::Nectar, 45.0), (ResourceType::Chitin, 35.0), (ResourceType::Pheromones, 20.0)]); // 100 total - ranged glass cannon
+        costs.unit_costs.insert(UnitType::Housefly, vec![(ResourceType::Nectar, 40.0), (ResourceType::Pheromones, 20.0)]); // 60 total - cheap harasser
+        costs.unit_costs.insert(UnitType::HoneyBee, vec![(ResourceType::Nectar, 50.0), (ResourceType::Chitin, 25.0)]); // 75 total - basic flying
         
         // === TIER 2: MID GAME UNITS (120-200 total cost) ===
         // Stronger specialized units requiring multiple resource types
-        costs.unit_costs.insert(UnitType::SpearMantis, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 50.0), (ResourceType::Pheromones, 30.0)]); // 150 total (was 60) - elite damage dealer
-        costs.unit_costs.insert(UnitType::BeetleKnight, vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 60.0), (ResourceType::Pheromones, 40.0)]); // 180 total (was 135) - heavy tank
-        costs.unit_costs.insert(UnitType::BatteringBeetle, vec![(ResourceType::Nectar, 90.0), (ResourceType::Chitin, 70.0), (ResourceType::Minerals, 40.0)]); // 200 total (was 120) - siege specialist
-        costs.unit_costs.insert(UnitType::AcidSpitter, vec![(ResourceType::Nectar, 60.0), (ResourceType::Chitin, 50.0), (ResourceType::Minerals, 35.0)]); // 145 total (was 80) - ranged specialist
+        costs.unit_costs.insert(UnitType::SpearMantis, vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 40.0), (ResourceType::Pheromones, 30.0)]); // 150 total - elite DPS
+        costs.unit_costs.insert(UnitType::BeetleKnight, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 70.0), (ResourceType::Pheromones, 40.0)]); // 180 total - heavy tank
+        costs.unit_costs.insert(UnitType::BatteringBeetle, vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 80.0), (ResourceType::Minerals, 40.0)]); // 200 total - siege specialist
+        costs.unit_costs.insert(UnitType::Scorpion, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 60.0), (ResourceType::Minerals, 30.0)]); // 160 total - armored bruiser
+        costs.unit_costs.insert(UnitType::SpiderHunter, vec![(ResourceType::Nectar, 60.0), (ResourceType::Chitin, 45.0), (ResourceType::Pheromones, 25.0)]); // 130 total - fast skirmisher
+        costs.unit_costs.insert(UnitType::Ladybug, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 50.0), (ResourceType::Pheromones, 20.0)]); // 140 total - balanced fighter
 
-        // Additional Tier 1 units (light/fast units)
-        costs.unit_costs.insert(UnitType::HoneyBee, vec![(ResourceType::Nectar, 50.0), (ResourceType::Chitin, 25.0)]); // 75 total - basic flying
-        costs.unit_costs.insert(UnitType::Housefly, vec![(ResourceType::Nectar, 45.0), (ResourceType::Pheromones, 15.0)]); // 60 total - fast harassment
+        // Additional utility and specialized units
         costs.unit_costs.insert(UnitType::LadybugScout, vec![(ResourceType::Nectar, 50.0), (ResourceType::Pheromones, 25.0)]); // 75 total - light scout
         costs.unit_costs.insert(UnitType::TermiteWorker, vec![(ResourceType::Nectar, 60.0)]); // 60 total - specialized worker
-        
-        // Additional Tier 2 units (balanced mid-game)
-        costs.unit_costs.insert(UnitType::SpiderHunter, vec![(ResourceType::Nectar, 55.0), (ResourceType::Chitin, 45.0), (ResourceType::Pheromones, 30.0)]); // 130 total - fast predator
-        costs.unit_costs.insert(UnitType::Ladybug, vec![(ResourceType::Nectar, 65.0), (ResourceType::Chitin, 50.0), (ResourceType::Pheromones, 25.0)]); // 140 total - balanced fighter
         costs.unit_costs.insert(UnitType::LegBeetle, vec![(ResourceType::Nectar, 60.0), (ResourceType::Chitin, 40.0), (ResourceType::Pheromones, 30.0)]); // 130 total - fast skirmisher
         costs.unit_costs.insert(UnitType::Stinkbug, vec![(ResourceType::Nectar, 50.0), (ResourceType::Chitin, 55.0), (ResourceType::Pheromones, 45.0)]); // 150 total - area denial
-        costs.unit_costs.insert(UnitType::Scorpion, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 60.0), (ResourceType::Minerals, 30.0)]); // 160 total - heavy melee
-        costs.unit_costs.insert(UnitType::DefenderBug, vec![(ResourceType::Nectar, 75.0), (ResourceType::Chitin, 65.0), (ResourceType::Pheromones, 35.0)]); // 175 total - defensive specialist
+        costs.unit_costs.insert(UnitType::AcidSpitter, vec![(ResourceType::Nectar, 60.0), (ResourceType::Chitin, 50.0), (ResourceType::Minerals, 35.0)]); // 145 total - ranged specialist
 
-        // === TIER 3: LATE GAME ELITE UNITS (250-400 total cost) ===
+        // === TIER 3: LATE GAME ELITE UNITS (250-500 total cost) ===
         // Powerful end-game units requiring significant resource investment
-        costs.unit_costs.insert(UnitType::WolfSpider, vec![(ResourceType::Nectar, 85.0), (ResourceType::Chitin, 80.0), (ResourceType::Pheromones, 60.0), (ResourceType::Minerals, 25.0)]); // 250 total - heavy predator
-        costs.unit_costs.insert(UnitType::EliteSpider, vec![(ResourceType::Nectar, 90.0), (ResourceType::Chitin, 90.0), (ResourceType::Pheromones, 70.0), (ResourceType::Minerals, 30.0)]); // 280 total - elite predator
-        costs.unit_costs.insert(UnitType::TermiteWarrior, vec![(ResourceType::Nectar, 120.0), (ResourceType::Chitin, 100.0), (ResourceType::Minerals, 80.0), (ResourceType::Pheromones, 50.0)]); // 350 total - heavy siege
-        costs.unit_costs.insert(UnitType::DragonFly, vec![(ResourceType::Nectar, 150.0), (ResourceType::Chitin, 120.0), (ResourceType::Minerals, 100.0), (ResourceType::Pheromones, 80.0)]); // 450 total - ultimate unit
+        costs.unit_costs.insert(UnitType::WolfSpider, vec![(ResourceType::Nectar, 100.0), (ResourceType::Chitin, 80.0), (ResourceType::Pheromones, 50.0), (ResourceType::Minerals, 20.0)]); // 250 total - elite predator
+        costs.unit_costs.insert(UnitType::EliteSpider, vec![(ResourceType::Nectar, 120.0), (ResourceType::Chitin, 90.0), (ResourceType::Pheromones, 50.0), (ResourceType::Minerals, 20.0)]); // 280 total - elite predator variant
+        costs.unit_costs.insert(UnitType::TermiteWarrior, vec![(ResourceType::Nectar, 140.0), (ResourceType::Chitin, 120.0), (ResourceType::Minerals, 60.0), (ResourceType::Pheromones, 30.0)]); // 350 total - elite siege
+        costs.unit_costs.insert(UnitType::DragonFly, vec![(ResourceType::Nectar, 200.0), (ResourceType::Chitin, 120.0), (ResourceType::Minerals, 80.0), (ResourceType::Pheromones, 50.0)]); // 450 total - ultimate air unit
+        costs.unit_costs.insert(UnitType::DefenderBug, vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 70.0), (ResourceType::Pheromones, 25.0)]); // 175 total - defensive specialist
 
         // Building costs - balanced for strategic gameplay progression
         // Core production buildings (affordable for early expansion)

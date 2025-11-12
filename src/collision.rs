@@ -305,9 +305,21 @@ where
     UF: bevy::ecs::query::QueryFilter,
     EF: bevy::ecs::query::QueryFilter,
 {
-    use crate::constants::building_placement::*;
+    check_building_collisions(position, building_radius, existing_buildings) &&
+    check_unit_collisions(position, building_radius, units) &&
+    check_environment_collisions(position, building_radius, environment_objects)
+}
 
-    // Check against existing buildings - prevent overlap
+fn check_building_collisions<BF>(
+    position: Vec3,
+    building_radius: f32,
+    existing_buildings: &Query<(&Transform, &CollisionRadius), BF>,
+) -> bool
+where
+    BF: bevy::ecs::query::QueryFilter,
+{
+    use crate::constants::building_placement::MIN_SPACING_BETWEEN_BUILDINGS;
+    
     for (transform, collision_radius) in existing_buildings.iter() {
         let distance = position.distance(transform.translation);
         let min_distance = building_radius + collision_radius.radius + MIN_SPACING_BETWEEN_BUILDINGS;
@@ -316,8 +328,19 @@ where
             return false; // Too close to another building
         }
     }
+    true
+}
 
-    // Check against units - buildings shouldn't be placed on top of units
+fn check_unit_collisions<UF>(
+    position: Vec3,
+    building_radius: f32,
+    units: &Query<(&Transform, &CollisionRadius), UF>,
+) -> bool
+where
+    UF: bevy::ecs::query::QueryFilter,
+{
+    use crate::constants::building_placement::MIN_SPACING_FROM_UNITS;
+    
     for (transform, collision_radius) in units.iter() {
         let distance = position.distance(transform.translation);
         let min_distance = building_radius + collision_radius.radius + MIN_SPACING_FROM_UNITS;
@@ -326,22 +349,34 @@ where
             return false; // Too close to a unit
         }
     }
+    true
+}
 
-    // Check against environment objects - avoid placing buildings on obstacles
+fn check_environment_collisions<EF>(
+    position: Vec3,
+    building_radius: f32,
+    environment_objects: &Query<(&Transform, &CollisionRadius, &EnvironmentObject), EF>,
+) -> bool
+where
+    EF: bevy::ecs::query::QueryFilter,
+{
+    
     for (transform, collision_radius, env_object) in environment_objects.iter() {
         let distance = position.distance(transform.translation);
-        
-        // Apply larger spacing for mushrooms to prevent buildings from being placed too close
-        let extra_spacing = match env_object.object_type {
-            EnvironmentObjectType::Mushrooms => 80.0, // Much wider radius for mushrooms (10x increased)
-            _ => MIN_SPACING_FROM_ENVIRONMENT, // Normal spacing for other objects
-        };
+        let extra_spacing = calculate_environment_spacing(&env_object.object_type);
         let min_distance = building_radius + collision_radius.radius + extra_spacing;
 
         if distance < min_distance {
             return false; // Too close to environment object
         }
     }
+    true
+}
 
-    true // Position is valid
+fn calculate_environment_spacing(object_type: &EnvironmentObjectType) -> f32 {
+    
+    match object_type {
+        EnvironmentObjectType::Mushrooms => 80.0, // Much wider radius for mushrooms
+        _ => 3.0, // Normal spacing for other objects
+    }
 }

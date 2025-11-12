@@ -6,7 +6,6 @@ use futures::executor::block_on;
 use hashbrown::HashMap;
 use noise::{NoiseFn, Perlin};
 use std::collections::VecDeque;
-use crate::rendering::seamless_texture::create_seamless_terrain_texture;
 
 // Enhanced terrain constants for gentler hills and better textures
 pub const QT_MIN_CELL_SIZE: f32 = 64.0;         // Good chunk size for RTS tactical gameplay
@@ -459,25 +458,38 @@ pub fn generate_terrain_chunk_v2(
     let mut vertex_colors = Vec::new();
     for z in 0..=resolution {
         for x in 0..=resolution {
-            // Use consistent stepping for all vertices (prevents edge misalignment)
+            // Use global grid alignment to ensure all chunks share boundary vertices
+            // This prevents LOD seams by ensuring vertices align regardless of chunk resolution
             let world_x = chunk_key.x as f32 + x as f32 * step;
             let world_z = chunk_key.z as f32 + z as f32 * step;
+            
+            // Snap to the finest grid used by highest LOD chunks (0.5 units)
+            // This ensures all chunk boundaries align perfectly across LOD levels
+            let grid_spacing = 0.5;
+            let world_x = (world_x / grid_spacing).round() * grid_spacing;
+            let world_z = (world_z / grid_spacing).round() * grid_spacing;
             
             let height = generate_height_v2(world_x, world_z, settings, noise);
             height_data[z as usize][x as usize] = height;
             
             vertices.push([world_x, height, world_z]);
 
-            // Use world coordinates for UV mapping so texture tiles at consistent world-space scale
-            // This makes textures appear at the same scale regardless of chunk size
-            let texture_tile_size = 10.0; // Texture repeats every 10 world units
-            let u = world_x / texture_tile_size;
-            let v = world_z / texture_tile_size;
+            // Calculate UV coordinates relative to chunk for proper texture tiling per chunk
+            // This ensures each chunk gets a complete texture tile from 0-1
+            let u = (x as f32) / (resolution as f32); // 0.0 to 1.0 across chunk width
+            let v = (z as f32) / (resolution as f32); // 0.0 to 1.0 across chunk height
             uvs.push([u, v]);
             
-            // Add vertex colors for terrain variation based on height and noise
-            let color = calculate_terrain_color_v2(world_x, world_z, height, settings, noise);
-            vertex_colors.push(color);
+            // Use neutral white vertex colors to let dirt texture show through clearly
+            // Optional: Add slight height-based tinting for subtle variation
+            let height_tint = (height / 20.0).clamp(0.0, 1.0); // Normalize height for tinting
+            let dirt_tint = [
+                0.95 + height_tint * 0.05, // Slightly brighter at higher elevations
+                0.90 + height_tint * 0.05, // Slight warmth variation
+                0.85 + height_tint * 0.05, // Subtle brown tinting
+                1.0
+            ];
+            vertex_colors.push(dirt_tint);
         }
     }
     
@@ -522,17 +534,17 @@ pub fn generate_terrain_chunk_v2(
     let material = if let Some(cached_mat) = cached_material {
         cached_mat.clone()
     } else {
-        // Create a material with grass texture if available
+        // Create a material with dirt texture if available
         materials.add(StandardMaterial {
             base_color: if terrain_texture.is_some() { 
-                Color::WHITE // Use white to show texture colors naturally
+                Color::srgb(0.85, 0.80, 0.75) // Slightly tinted for more natural dirt appearance
             } else { 
-                Color::srgb(0.6, 0.7, 0.4) // Fallback green-brown color
+                Color::srgb(0.35, 0.28, 0.22) // Fallback brown dirt color
             },
             base_color_texture: terrain_texture.clone(),
-            perceptual_roughness: 0.8, // Slightly less rough for grass
+            perceptual_roughness: 0.9, // More rough for dirt/soil
             metallic: 0.0, // No metallic reflection
-            reflectance: 0.2, // Slightly higher reflectance for natural grass
+            reflectance: 0.1, // Lower reflectance for dirt
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             double_sided: false,
             unlit: false, // Use proper lighting
@@ -613,33 +625,33 @@ fn calculate_terrain_color_v2(world_x: f32, world_z: f32, height: f32, _settings
     let detail_noise = noise.get([world_x as f64 * 0.02, world_z as f64 * 0.02]) as f32;
     let micro_detail = noise.get([world_x as f64 * 0.1, world_z as f64 * 0.1]) as f32;
     
-    // Height-based biome with adjusted thresholds for new height range
+    // Height-based biome with VERY BROWN colors - no green tones
     let base_color = if height < -10.0 {
-        // Deep water - blue
-        Color::srgb(0.1, 0.3, 0.7)
+        // Deep water - dark brown (no blue)
+        Color::srgb(0.12, 0.10, 0.08)
     } else if height < -2.0 {
-        // Shore/shallow water - blue-green
-        Color::srgb(0.2, 0.5, 0.6)
+        // Shore/shallow water - dark muddy brown
+        Color::srgb(0.18, 0.15, 0.12)
     } else if height < 2.0 {
-        // Beach/lowlands - sandy
-        Color::srgb(0.7, 0.6, 0.4)
+        // Beach/lowlands - sandy brown
+        Color::srgb(0.35, 0.28, 0.20)
     } else if height < 8.0 {
-        // Grass plains - green
-        Color::srgb(0.3, 0.6, 0.3)
+        // Plains - medium brown (was green, now brown)
+        Color::srgb(0.28, 0.23, 0.18)
     } else if height < 15.0 {
-        // Forest hills - dark green
-        Color::srgb(0.2, 0.5, 0.2)
+        // Hills - darker brown (was green, now brown)
+        Color::srgb(0.22, 0.18, 0.14)
     } else {
-        // Mountains - brown/gray
-        Color::srgb(0.5, 0.4, 0.3)
+        // Mountains - light faded brown
+        Color::srgb(0.32, 0.28, 0.22)
     };
     
     // Create rich texture variation using multiple noise scales
     let texture_variation = large_noise * 0.1 + medium_noise * 0.08 + detail_noise * 0.06 + micro_detail * 0.03;
     
-    // Add rock/dirt patches based on noise
+    // Add rock/dirt patches based on noise - very brown dirt
     let rock_factor = (medium_noise * 0.5 + 0.5).powf(3.0); // Make patches more distinct
-    let dirt_color = Color::srgb(0.4, 0.3, 0.2);
+    let dirt_color = Color::srgb(0.25, 0.20, 0.15); // Much more brown dirt color
     
     // Blend base color with dirt patches
     let mixed_color = Color::srgb(
@@ -648,10 +660,13 @@ fn calculate_terrain_color_v2(world_x: f32, world_z: f32, height: f32, _settings
         base_color.to_srgba().blue * (1.0 - rock_factor * 0.4) + dirt_color.to_srgba().blue * rock_factor * 0.4,
     );
     
+    // Apply stronger fading factor to make terrain much more subdued and brown
+    let fade_factor = 0.65; // Reduce brightness by 35% for more muted brown
+    
     [
-        (mixed_color.to_srgba().red + texture_variation).clamp(0.0, 1.0),
-        (mixed_color.to_srgba().green + texture_variation).clamp(0.0, 1.0),
-        (mixed_color.to_srgba().blue + texture_variation).clamp(0.0, 1.0),
+        ((mixed_color.to_srgba().red + texture_variation) * fade_factor).clamp(0.0, 1.0),
+        ((mixed_color.to_srgba().green + texture_variation) * fade_factor).clamp(0.0, 1.0),
+        ((mixed_color.to_srgba().blue + texture_variation) * fade_factor).clamp(0.0, 1.0),
         1.0
     ]
 }
@@ -737,10 +752,10 @@ pub fn load_terrain_texture(
     asset_server: Res<AssetServer>,
     mut terrain_manager: ResMut<TerrainChunkManager>,
 ) {
-    info!("Loading terrain texture: grass.jpg");
-    let texture_handle: Handle<Image> = asset_server.load("textures/grass.jpg");
+    info!("Loading terrain texture: dirt.jpg");
+    let texture_handle: Handle<Image> = asset_server.load("textures/dirt.jpg");
     terrain_manager.terrain_texture = Some(texture_handle);
-    info!("Terrain texture loaded and cached");
+    info!("Dirt terrain texture loaded and cached");
 }
 
 // Thread-safe terrain generation function that runs on async compute thread pool
@@ -761,23 +776,36 @@ async fn generate_terrain_chunk_async(params: TerrainGenParams) -> TerrainGenera
     // Generate vertices and store heights
     for z in 0..=resolution {
         for x in 0..=resolution {
+            // Use global grid alignment to ensure all chunks share boundary vertices
+            // This prevents LOD seams by ensuring vertices align regardless of chunk resolution
             let world_x = chunk_key.x as f32 + x as f32 * step;
             let world_z = chunk_key.z as f32 + z as f32 * step;
+            
+            // Snap to the finest grid used by highest LOD chunks (0.5 units)
+            // This ensures all chunk boundaries align perfectly across LOD levels
+            let grid_spacing = 0.5;
+            let world_x = (world_x / grid_spacing).round() * grid_spacing;
+            let world_z = (world_z / grid_spacing).round() * grid_spacing;
             
             let height = generate_height_v2(world_x, world_z, settings, &noise);
             height_data[z as usize][x as usize] = height;
             
             chunk_data.vertices.push([world_x, height, world_z]);
             
-            // UV mapping
-            let texture_tile_size = 10.0;
-            let u = world_x / texture_tile_size;
-            let v = world_z / texture_tile_size;
+            // Calculate UV coordinates relative to chunk for proper texture tiling per chunk
+            let u = (x as f32) / (resolution as f32); // 0.0 to 1.0 across chunk width
+            let v = (z as f32) / (resolution as f32); // 0.0 to 1.0 across chunk height
             chunk_data.uvs.push([u, v]);
             
-            // Terrain color
-            let color = calculate_terrain_color_v2(world_x, world_z, height, settings, &noise);
-            chunk_data.colors.push(color);
+            // Use neutral colors to let dirt texture show through clearly
+            let height_tint = (height / 20.0).clamp(0.0, 1.0);
+            let dirt_tint = [
+                0.95 + height_tint * 0.05, // Slightly brighter at higher elevations
+                0.90 + height_tint * 0.05, // Slight warmth variation
+                0.85 + height_tint * 0.05, // Subtle brown tinting
+                1.0
+            ];
+            chunk_data.colors.push(dirt_tint);
         }
     }
     
@@ -816,11 +844,8 @@ pub fn start_chunk_generation_tasks(
     mut images: ResMut<Assets<Image>>,
     time: Res<Time>,
 ) {
-    // Initialize shared terrain texture if needed
-    if terrain_manager.terrain_texture.is_none() {
-        let terrain_texture = create_seamless_terrain_texture(&mut images);
-        terrain_manager.terrain_texture = Some(terrain_texture);
-    }
+    // Note: Terrain texture should already be loaded by startup system (dirt.jpg)
+    // If not loaded, terrain chunks will use fallback brown color in material creation
     
     // Limit concurrent generation tasks
     if terrain_manager.generating_tasks.len() >= terrain_manager.max_concurrent_tasks {
@@ -929,16 +954,15 @@ pub fn process_sync_chunk_generation(
     mut images: ResMut<Assets<Image>>,
 ) {
     // Initialize shared terrain texture and material if not already created
-    if terrain_manager.terrain_texture.is_none() {
-        let terrain_texture = create_seamless_terrain_texture(&mut images);
-        terrain_manager.terrain_texture = Some(terrain_texture.clone());
-        
+    // Note: Terrain texture (dirt.jpg) should be loaded by startup system
+    // Create shared material only if needed
+    if terrain_manager.terrain_material.is_none() {
         let shared_material = materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            base_color_texture: Some(terrain_texture),
-            perceptual_roughness: 0.9,
+            base_color: Color::srgb(0.85, 0.80, 0.75), // Slightly tinted for natural dirt
+            base_color_texture: terrain_manager.terrain_texture.clone(),
+            perceptual_roughness: 0.9, // Rough dirt surface
             metallic: 0.0,
-            reflectance: 0.1,
+            reflectance: 0.1, // Low reflectance for dirt
             cull_mode: Some(bevy::render::render_resource::Face::Back),
             double_sided: false,
             unlit: false,

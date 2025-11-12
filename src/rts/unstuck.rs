@@ -3,7 +3,7 @@ use crate::core::components::*;
 
 /// System to detect when units are stuck and help them get unstuck
 pub fn unstuck_system(
-    mut commands: Commands,
+    _commands: Commands,
     mut units: Query<(Entity, &mut Transform, &mut Movement, &mut StuckDetection, &CollisionRadius, &RTSUnit), With<RTSUnit>>,
     // Static obstacles that units might be stuck against
     buildings: Query<(&Position, &CollisionRadius), (With<Building>, Without<Movement>)>,
@@ -13,7 +13,7 @@ pub fn unstuck_system(
     let current_time = time.elapsed_secs();
     let dt = time.delta_secs();
 
-    for (entity, mut transform, mut movement, mut stuck_detection, collision_radius, rts_unit) in units.iter_mut() {
+    for (_entity, mut transform, mut movement, mut stuck_detection, collision_radius, rts_unit) in units.iter_mut() {
         // Add StuckDetection component if it doesn't exist
         if stuck_detection.as_ref().last_position == Vec3::ZERO {
             stuck_detection.last_position = transform.translation;
@@ -137,7 +137,7 @@ fn attempt_unstuck(
     movement: &mut Movement,
     stuck_detection: &mut StuckDetection,
     collision_radius: &CollisionRadius,
-    rts_unit: &RTSUnit,
+    _rts_unit: &RTSUnit,
     buildings: &Query<(&Position, &CollisionRadius), (With<Building>, Without<Movement>)>,
     environment_objects: &Query<(&Transform, &CollisionRadius), (With<EnvironmentObject>, Without<Movement>)>,
     current_time: f32,

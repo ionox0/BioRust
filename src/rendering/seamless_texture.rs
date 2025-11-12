@@ -37,31 +37,32 @@ pub fn create_seamless_terrain_texture(images: &mut ResMut<Assets<Image>>) -> Ha
             // Normalize to 0-1
             value = (value + 1.0) * 0.5;
             
-            // Create natural grass-like terrain texture
+            // Create VERY BROWN terrain texture - no green at all
             let (r, g, b) = if value < 0.3 {
-                // Dark grass/soil base
-                let intensity = (value as f32 * 0.7 + 0.2).min(1.0);
-                (intensity * 0.3, intensity * 0.5, intensity * 0.2)
+                // Very dark brown/soil base
+                let intensity = (value as f32 * 0.4 + 0.10).min(1.0);
+                (intensity * 0.30, intensity * 0.24, intensity * 0.18) // Brown gradient
             } else if value < 0.6 {
-                // Medium grass
-                let grass_mix = ((value - 0.3) / 0.3) as f32;
-                (0.25 + grass_mix * 0.15, 0.55 + grass_mix * 0.25, 0.2 + grass_mix * 0.15)
+                // Medium brown earth - more red-brown
+                let earth_mix = ((value - 0.3) / 0.3) as f32;
+                (0.25 + earth_mix * 0.10, 0.20 + earth_mix * 0.08, 0.15 + earth_mix * 0.06)
             } else if value < 0.8 {
-                // Light grass
-                let light_grass = ((value - 0.6) / 0.2) as f32;
-                (0.35 + light_grass * 0.15, 0.65 + light_grass * 0.2, 0.3 + light_grass * 0.1)
+                // Light brown dirt - sandy brown
+                let light_brown = ((value - 0.6) / 0.2) as f32;
+                (0.35 + light_brown * 0.10, 0.28 + light_brown * 0.08, 0.21 + light_brown * 0.06)
             } else {
-                // Very light grass/dried areas
-                let dried_intensity = ((value - 0.8) / 0.2) as f32;
-                (0.5 + dried_intensity * 0.2, 0.65 + dried_intensity * 0.15, 0.35 + dried_intensity * 0.1)
+                // Very light brown/tan areas
+                let tan_intensity = ((value - 0.8) / 0.2) as f32;
+                (0.45 + tan_intensity * 0.08, 0.36 + tan_intensity * 0.06, 0.27 + tan_intensity * 0.04)
             };
             
-            // Add subtle variation
-            let detail = ((value * 16.0).fract() - 0.5) as f32 * 0.1;
+            // Add subtle variation and strong fading for very brown appearance
+            let detail = ((value * 16.0).fract() - 0.5) as f32 * 0.03; // Even less variation
+            let fade_factor = 0.6; // Much stronger fading for very muted brown appearance
             
-            texture_data.push(((r + detail) * 255.0).clamp(0.0, 255.0) as u8);
-            texture_data.push(((g + detail) * 255.0).clamp(0.0, 255.0) as u8);
-            texture_data.push(((b + detail) * 255.0).clamp(0.0, 180.0) as u8);
+            texture_data.push(((r + detail) * fade_factor * 255.0).clamp(0.0, 255.0) as u8);
+            texture_data.push(((g + detail) * fade_factor * 255.0).clamp(0.0, 255.0) as u8);
+            texture_data.push(((b + detail) * fade_factor * 255.0).clamp(0.0, 255.0) as u8);
             texture_data.push(255); // Alpha
         }
     }

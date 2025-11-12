@@ -15,12 +15,14 @@ use core::game::*;
 use core::constants;
 use core::time_controls::TimeControlPlugin;
 use world::terrain_v2::TerrainPluginV2;
+use world::GridPlugin;
 use combat_systems::CombatPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;
 use ai::AIPlugin;
 // use resource_ui::ResourceUIPlugin;  // REMOVED: Duplicate of ui::resource_display
 use rendering::model_loader::ModelLoaderPlugin;
+use rendering::hover_effects::HoverEffectsPlugin;
 use rendering::animation_systems::AnimationPlugin;
 use entities::entity_state_systems::EntityStatePlugin;
 use collision::CollisionPlugin;
@@ -32,12 +34,14 @@ fn main() {
                 primary_window: Some(Window {
                     title: constants::WINDOW_TITLE.into(),
                     resolution: (constants::WINDOW_WIDTH, constants::WINDOW_HEIGHT).into(),
+                    mode: bevy::window::WindowMode::Windowed,
                     ..default()
                 }),
                 ..default()
             }),
             GamePlugin,
             TerrainPluginV2,
+            GridPlugin,
             rts::RTSSystemsPlugin,
             CombatPlugin,
             HealthUIPlugin,
@@ -45,6 +49,7 @@ fn main() {
             AIPlugin,
             // ResourceUIPlugin,  // REMOVED: Duplicate overlapping resource display
             ModelLoaderPlugin,
+            HoverEffectsPlugin,
             AnimationPlugin,
             EntityStatePlugin,
             CollisionPlugin,

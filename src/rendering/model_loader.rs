@@ -589,31 +589,14 @@ fn apply_model_transform(transform: &mut Transform, model_scale: f32, model_type
     transform.rotation = Quat::from_rotation_y(calculate_model_rotation(model_type));
 }
 
-/// Adjusts movement speed to compensate for visual model scale.
-/// 
-/// Since GLB models are scaled up for better visibility, we scale down
-/// movement speeds proportionally to maintain the same perceived speed.
-/// This prevents units from appearing to slide or move unrealistically fast.
-/// 
-/// Special case: Hunter Wasps use reduced penalty to maintain their speed advantage.
-fn adjust_movement_for_scale(movement: &mut Movement, scale_factor: f32) {
-    // Hunter Wasps are flying units and should maintain higher speeds
-    // Use a reduced scale penalty for better gameplay
-    let effective_scale = if scale_factor >= 5.0 {
-        // For very large models (like 5.0 scale Hunter Wasp), use reduced penalty
-        2.0  // Only reduce speed by half instead of dividing by 5
-    } else {
-        scale_factor
-    };
-    
-    movement.max_speed /= effective_scale;
-    movement.acceleration /= effective_scale;
-    movement.current_velocity /= effective_scale;
-    
-    info!(
-        "Adjusted movement speed for GLB model scale {:.1}x (effective {:.1}x): max_speed={:.1}, acceleration={:.1}",
-        scale_factor, effective_scale, movement.max_speed, movement.acceleration
-    );
+/// Visual scaling and gameplay mechanics are now completely separate.
+/// Movement speeds are no longer adjusted based on model scale.
+/// This function is disabled to prevent interference with unit balance.
+fn adjust_movement_for_scale(_movement: &mut Movement, _scale_factor: f32) {
+    // DISABLED: Movement speed is now independent of visual model scale
+    // This ensures DragonFly and other units maintain their intended gameplay speeds
+    // regardless of how large they appear visually.
+    debug!("Movement speed adjustment disabled - visual scaling is separate from gameplay");
 }
 
 /// Upgrades buildings from primitive shapes to GLB models.
@@ -946,10 +929,10 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::RolyPoly => ROLY_POLY_SCALE,          // 1.5
         InsectModelType::DragonFly => DRAGONFLY_SCALE,   // 1.5
         InsectModelType::Ladybug => UNIFORM_UNIT_SCALE,        // 1.5
-        InsectModelType::CommonHousefly => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::CommonHousefly => HOUSEFLY_SCALE,     // Increased for better visibility
         InsectModelType::GiantTermite => UNIFORM_UNIT_SCALE,   // 1.5
         InsectModelType::LegBeetle => UNIFORM_UNIT_SCALE,      // 1.5
-        InsectModelType::Stinkbug => UNIFORM_UNIT_SCALE,       // 1.5
+        InsectModelType::Stinkbug => STINKBUG_SCALE,           // Increased for better visibility
         InsectModelType::Termite => UNIFORM_UNIT_SCALE,        // 1.5
 
         // Environment objects - various scales for different types
