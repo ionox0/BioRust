@@ -13,6 +13,7 @@ mod world;
 
 use ai::AIPlugin;
 use combat_systems::CombatPlugin;
+use tracing_subscriber::layer::SubscriberExt;
 use core::constants;
 use core::game::*;
 use core::time_controls::TimeControlPlugin;
@@ -27,7 +28,23 @@ use rendering::animation_systems::AnimationPlugin;
 use rendering::hover_effects::HoverEffectsPlugin;
 use rendering::model_loader::ModelLoaderPlugin;
 
+use tracing_subscriber::fmt::Subscriber;
+use tracing_subscriber::util::SubscriberInitExt; // <-- important
+use tracing_flame::FlameLayer;
+use tracing_subscriber::Registry;
+
+
 fn main() {
+
+    let file = std::fs::File::create("flamegraph.folded").unwrap();
+    let flame_layer = FlameLayer::new(file);
+
+    // Attach the flame layer to the registry
+    let subscriber = Registry::default().with(flame_layer);
+
+    // .init() is provided by SubscriberInitExt
+    subscriber.init();
+
     App::new()
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {

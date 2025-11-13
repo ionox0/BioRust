@@ -185,6 +185,43 @@ The AI system features:
 - **Efficient Queries**: ECS queries optimized for performance
 - **Resource Pooling**: Reused mesh and material assets
 
+### Profiling with Samply
+
+To profile the game performance and generate flamegraphs:
+
+1. **Add tracing dependencies**:
+```bash
+cargo add tracing_subscriber
+cargo add tracing-flame
+```
+
+2. **Build with debug symbols for profiling**:
+```bash
+# Option 1: Basic debug build
+RUSTFLAGS="-C debuginfo=2" cargo build --profile profiling
+
+# Option 2: Optimized profiling build (recommended)
+RUSTFLAGS="-C debuginfo=2 -C opt-level=2 -C inline-threshold=0" cargo build --profile profiling
+```
+
+3. **Run profiler with samply**:
+```bash
+samply record ./target/profiling/rust-game
+```
+
+4. **View results**: 
+   - Samply will automatically open Firefox with an interactive flamegraph
+   - Use the flamegraph to identify performance bottlenecks
+   - Click on flame sections to drill down into function calls
+   - The x-axis represents time, y-axis represents call stack depth
+
+**Note**: If you have profile.json.gz files, extract them first:
+```bash
+gunzip profile.json.gz
+```
+
+For more advanced profiling options and installation of samply, see: https://github.com/mstange/samply
+
 ## 📈 Recent Changes
 
 ### Environment Objects Cleanup (Latest)

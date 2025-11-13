@@ -183,9 +183,9 @@ fn get_unit_task(
         }
     }
 
-    // Check if in combat (only for units that actually auto-attack)
+    // Check if in combat (only for units that actually auto-attack AND have a target)
     if let Ok(combat) = combat_query.get(entity) {
-        if combat.auto_attack {
+        if combat.auto_attack && combat.target.is_some() {
             if let Ok(movement) = movement_query.get(entity) {
                 if movement.target_position.is_some() {
                     return "Moving to attack".to_string();

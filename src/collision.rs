@@ -1,63 +1,12 @@
 use crate::core::components::*;
+use crate::core::spatial_grid::EntitySpatialGrid;
 use bevy::prelude::*;
-use std::collections::HashMap;
 
 pub struct CollisionPlugin;
 
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, unit_collision_avoidance_system);
-    }
-}
-
-// Spatial grid for efficient collision detection
-const GRID_CELL_SIZE: f32 = 50.0;
-
-struct SpatialGrid {
-    cells: HashMap<(i32, i32), Vec<(Entity, Vec3, f32)>>,
-}
-
-impl SpatialGrid {
-    fn new() -> Self {
-        Self {
-            cells: HashMap::new(),
-        }
-    }
-
-    fn insert(&mut self, entity: Entity, position: Vec3, radius: f32) {
-        let cell = Self::get_cell(position);
-        self.cells
-            .entry(cell)
-            .or_default()
-            .push((entity, position, radius));
-    }
-
-    fn get_cell(position: Vec3) -> (i32, i32) {
-        (
-            (position.x / GRID_CELL_SIZE).floor() as i32,
-            (position.z / GRID_CELL_SIZE).floor() as i32,
-        )
-    }
-
-    fn query_nearby(&self, position: Vec3, radius: f32) -> Vec<(Entity, Vec3, f32)> {
-        let cell = Self::get_cell(position);
-        let mut results = Vec::new();
-
-        // Check current cell and neighboring cells
-        for dx in -1..=1 {
-            for dz in -1..=1 {
-                let neighbor_cell = (cell.0 + dx, cell.1 + dz);
-                if let Some(entities) = self.cells.get(&neighbor_cell) {
-                    for &(entity, pos, r) in entities {
-                        // Only include if within range
-                        if position.distance(pos) <= radius + r + GRID_CELL_SIZE {
-                            results.push((entity, pos, r));
-                        }
-                    }
-                }
-            }
-        }
-        results
     }
 }
 
@@ -138,14 +87,14 @@ pub fn unit_collision_avoidance_system(
     let dt = time.delta_secs().min(MAX_DELTA_TIME);
 
     // Build spatial grid for units
-    let mut unit_grid = SpatialGrid::new();
+    let mut unit_grid = EntitySpatialGrid::with_default_size();
     let unit_data: Vec<_> = units
         .iter()
         .map(|(e, t, m, r)| (e, t.translation, r.radius, m.current_velocity))
         .collect();
 
     for &(entity, position, radius, _) in &unit_data {
-        unit_grid.insert(entity, position, radius);
+        unit_grid.insert_entity(entity, position, radius);
     }
 
     // Process each unit
@@ -171,12 +120,12 @@ pub fn unit_collision_avoidance_system(
         );
 
         // Check collisions with nearby units using spatial grid
-        let nearby_units =
-            unit_grid.query_nearby(unit_transform.translation, unit_radius.radius * 5.0);
+        let nearby_units = unit_grid.query_nearby_entities(
+            unit_transform.translation,
+            unit_radius.radius * 5.0,
+            Some(unit_entity),
+        );
         for (other_entity, other_pos, other_radius) in nearby_units {
-            if unit_entity == other_entity {
-                continue;
-            }
 
             // Find velocity of other unit
             let other_velocity = unit_data

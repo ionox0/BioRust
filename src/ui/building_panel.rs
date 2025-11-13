@@ -17,7 +17,7 @@ pub struct BuildingPanel;
 #[derive(Component)]
 pub struct ProductionQueueDisplay;
 
-pub fn setup_building_ui(mut commands: Commands, ui_icons: Res<UIIcons>) {
+pub fn setup_building_ui(mut commands: Commands, ui_icons: Res<UIIcons>, game_costs: Res<crate::core::resources::GameCosts>) {
     use crate::constants::resources::*;
 
     // Main UI root
@@ -34,7 +34,7 @@ pub fn setup_building_ui(mut commands: Commands, ui_icons: Res<UIIcons>) {
         ))
         .with_children(|parent| {
             setup_resource_display(parent, &ui_icons);
-            setup_building_panel(parent, &ui_icons);
+            setup_building_panel(parent, &ui_icons, &game_costs);
         });
 
     // Initialize player resources (will sync with main PlayerResources)
@@ -48,7 +48,7 @@ pub fn setup_building_ui(mut commands: Commands, ui_icons: Res<UIIcons>) {
     });
 }
 
-fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
+fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
     // Bottom panel - Building interface (increased height for better unit layout)
     parent
         .spawn((
@@ -66,12 +66,12 @@ fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             BuildingPanel,
         ))
         .with_children(|parent| {
-            setup_buildings_section(parent, ui_icons);
-            setup_units_section(parent, ui_icons);
+            setup_buildings_section(parent, ui_icons, game_costs);
+            setup_units_section(parent, ui_icons, game_costs);
         });
 }
 
-fn setup_buildings_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
+fn setup_buildings_section(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
     parent
         .spawn((Node {
             width: Val::Percent(50.0), // Reduced from 70% to 50% to give more space to units
@@ -131,53 +131,55 @@ fn setup_buildings_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
                     ..default()
                 },))
                 .with_children(|parent| {
-                    create_building_buttons(parent, ui_icons);
+                    create_building_buttons(parent, ui_icons, game_costs);
                 });
         });
 }
 
-fn create_building_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
-    use crate::constants::resources::*;
+fn create_building_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
+    use crate::core::components::BuildingType;
+
+    // Helper function to get cost from GameCosts or fallback to empty vec
+    let get_building_cost = |building_type: BuildingType| -> Vec<(ResourceType, f32)> {
+        game_costs.building_costs.get(&building_type).cloned().unwrap_or_default()
+    };
 
     let building_data = [
         (
             BuildingType::Nursery,
             ui_icons.nursery_icon.clone(),
             "Nursery",
-            vec![(ResourceType::Chitin, NURSERY_CHITIN_COST)],
+            get_building_cost(BuildingType::Nursery),
         ),
         (
             BuildingType::WarriorChamber,
             ui_icons.warrior_chamber_icon.clone(),
             "Warriors",
-            vec![
-                (ResourceType::Chitin, WARRIOR_CHAMBER_CHITIN_COST),
-                (ResourceType::Minerals, WARRIOR_CHAMBER_MINERALS_COST),
-            ],
+            get_building_cost(BuildingType::WarriorChamber),
         ),
         (
             BuildingType::HunterChamber,
             ui_icons.hunter_chamber_icon.clone(),
             "Hunters",
-            vec![(ResourceType::Chitin, HUNTER_CHAMBER_CHITIN_COST)],
+            get_building_cost(BuildingType::HunterChamber),
         ),
         (
             BuildingType::WoodProcessor,
             ui_icons.wood_processor_icon.clone(),
             "Processor",
-            vec![(ResourceType::Chitin, WOOD_PROCESSOR_CHITIN_COST)],
+            get_building_cost(BuildingType::WoodProcessor),
         ),
         (
             BuildingType::MineralProcessor,
             ui_icons.mineral_processor_icon.clone(),
             "Mineral Processor",
-            vec![(ResourceType::Chitin, MINERAL_PROCESSOR_CHITIN_COST)],
+            get_building_cost(BuildingType::MineralProcessor),
         ),
         (
             BuildingType::FungalGarden,
             ui_icons.fungal_garden_icon.clone(),
             "Garden",
-            vec![(ResourceType::Chitin, FUNGAL_GARDEN_CHITIN_COST)],
+            get_building_cost(BuildingType::FungalGarden),
         ),
     ];
 
@@ -186,7 +188,7 @@ fn create_building_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
     }
 }
 
-fn setup_units_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
+fn setup_units_section(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
     parent
         .spawn((Node {
             width: Val::Percent(50.0), // Increased from 30% to 50% for more space
@@ -222,13 +224,18 @@ fn setup_units_section(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
                     ..default()
                 },))
                 .with_children(|parent| {
-                    create_unit_buttons(parent, ui_icons);
+                    create_unit_buttons(parent, ui_icons, game_costs);
                 });
         });
 }
 
-fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
-    use crate::constants::resources::*;
+fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
+    use crate::core::components::UnitType;
+
+    // Helper function to get cost from GameCosts or fallback to empty vec
+    let get_cost = |unit_type: UnitType| -> Vec<(ResourceType, f32)> {
+        game_costs.unit_costs.get(&unit_type).cloned().unwrap_or_default()
+    };
 
     let unit_data = [
         // Ant units from Queen (Ant Hill)
@@ -236,35 +243,35 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             UnitType::WorkerAnt,
             ui_icons.worker_icon.clone(),
             "Worker",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::WorkerAnt),
             BuildingType::Queen,
         ),
         (
             UnitType::SoldierAnt,
             ui_icons.soldier_icon.clone(),
             "Soldier",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::SoldierAnt),
             BuildingType::Queen,
         ),
         (
             UnitType::SpearMantis,
             ui_icons.worker_icon.clone(),
             "Mantis",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::SpearMantis),
             BuildingType::Queen,
         ),
         (
             UnitType::ScoutAnt,
             ui_icons.soldier_icon.clone(),
             "Scout",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::ScoutAnt),
             BuildingType::Queen,
         ),
         (
             UnitType::TermiteWorker,
             ui_icons.worker_icon.clone(),
             "Termite",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::TermiteWorker),
             BuildingType::Queen,
         ),
         // Bee/Flying units from Nursery (Bee Hive)
@@ -272,35 +279,35 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             UnitType::HunterWasp,
             ui_icons.hunter_icon.clone(),
             "Hunter",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::HunterWasp),
             BuildingType::Nursery,
         ),
         (
             UnitType::DragonFly,
             ui_icons.hunter_icon.clone(),
             "DragonFly",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::DragonFly),
             BuildingType::Nursery,
         ),
         (
             UnitType::AcidSpitter,
             ui_icons.hunter_icon.clone(),
             "Acid",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::AcidSpitter),
             BuildingType::Nursery,
         ),
         (
             UnitType::HoneyBee,
             ui_icons.hunter_icon.clone(),
             "Bee",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::HoneyBee),
             BuildingType::Nursery,
         ),
         (
             UnitType::Housefly,
             ui_icons.hunter_icon.clone(),
             "Fly",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::Housefly),
             BuildingType::Nursery,
         ),
         // Beetle/Heavy units from WarriorChamber (Pine Cone)
@@ -308,42 +315,42 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             UnitType::BeetleKnight,
             ui_icons.worker_icon.clone(),
             "Beetle",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::BeetleKnight),
             BuildingType::WarriorChamber,
         ),
         (
             UnitType::BatteringBeetle,
             ui_icons.soldier_icon.clone(),
             "Battering",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::BatteringBeetle),
             BuildingType::WarriorChamber,
         ),
         (
             UnitType::LegBeetle,
             ui_icons.soldier_icon.clone(),
             "Leg Beetle",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::LegBeetle),
             BuildingType::WarriorChamber,
         ),
         (
             UnitType::Scorpion,
             ui_icons.soldier_icon.clone(),
             "Scorpion",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::Scorpion),
             BuildingType::WarriorChamber,
         ),
         (
             UnitType::TermiteWarrior,
             ui_icons.soldier_icon.clone(),
             "T.Warrior",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::TermiteWarrior),
             BuildingType::WarriorChamber,
         ),
         (
             UnitType::Stinkbug,
             ui_icons.hunter_icon.clone(),
             "Stinkbug",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::Stinkbug),
             BuildingType::WarriorChamber,
         ),
         // Spider/Predator units from HunterChamber
@@ -351,42 +358,42 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
             UnitType::EliteSpider,
             ui_icons.hunter_icon.clone(),
             "E.Spider",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::EliteSpider),
             BuildingType::HunterChamber,
         ),
         (
             UnitType::DefenderBug,
             ui_icons.soldier_icon.clone(),
             "Defender",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::DefenderBug),
             BuildingType::HunterChamber,
         ),
         (
             UnitType::SpiderHunter,
             ui_icons.hunter_icon.clone(),
             "Spider",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::SpiderHunter),
             BuildingType::HunterChamber,
         ),
         (
             UnitType::WolfSpider,
             ui_icons.hunter_icon.clone(),
             "W.Spider",
-            vec![(ResourceType::Chitin, HUNTER_WASP_CHITIN_COST)],
+            get_cost(UnitType::WolfSpider),
             BuildingType::HunterChamber,
         ),
         (
             UnitType::Ladybug,
             ui_icons.soldier_icon.clone(),
             "Ladybug",
-            vec![(ResourceType::Nectar, SOLDIER_ANT_NECTAR_COST)],
+            get_cost(UnitType::Ladybug),
             BuildingType::HunterChamber,
         ),
         (
             UnitType::LadybugScout,
             ui_icons.worker_icon.clone(),
             "L.Scout",
-            vec![(ResourceType::Nectar, WORKER_ANT_NECTAR_COST)],
+            get_cost(UnitType::LadybugScout),
             BuildingType::HunterChamber,
         ),
     ];

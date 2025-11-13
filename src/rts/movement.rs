@@ -1,4 +1,5 @@
 use crate::core::components::*;
+use crate::core::spatial_grid::{ObstacleSpatialGrid, DEFAULT_GRID_CELL_SIZE};
 use bevy::prelude::*;
 
 pub struct MovementContext {
@@ -6,6 +7,7 @@ pub struct MovementContext {
     pub unit_positions: Vec<(Entity, Vec3, f32)>,
     pub building_obstacles: Vec<(Vec3, f32)>, // position, radius
     pub environment_obstacles: Vec<(Vec3, f32)>, // position, radius
+    pub obstacle_grid: ObstacleSpatialGrid, // NEW: Spatial grid for fast obstacle lookup
 }
 
 pub fn movement_system(
@@ -54,11 +56,18 @@ pub fn movement_system(
     // Clamp delta time to prevent extreme jumps (but allow speed increases)
     let stable_delta = raw_delta.min(0.1); // Cap at 100ms to prevent huge jumps
 
+    // Create spatial grid for fast obstacle lookup
+    let mut all_obstacles = Vec::new();
+    all_obstacles.extend_from_slice(&building_obstacles);
+    all_obstacles.extend_from_slice(&environment_obstacles);
+    let obstacle_grid = ObstacleSpatialGrid::from_obstacles(&all_obstacles, Some(DEFAULT_GRID_CELL_SIZE));
+
     let context = MovementContext {
         delta_time: stable_delta,
         unit_positions,
         building_obstacles,
         environment_obstacles,
+        obstacle_grid,
     };
 
     for (
@@ -606,6 +615,7 @@ fn calculate_smart_direction(
 
 /// Check if there's a clear path between two points
 /// Special handling for resource gatherers approaching their target resources
+/// OPTIMIZED: Uses spatial grid for O(1) obstacle lookup instead of O(N) linear search
 fn has_clear_path(
     start: Vec3,
     end: Vec3,
@@ -619,22 +629,18 @@ fn has_clear_path(
     }
 
     let normalized_dir = direction / distance;
-    let step_size = 2.0;
+    let step_size = 4.0; // OPTIMIZATION: Increased from 2.0 to reduce iterations
     let steps = (distance / step_size).ceil() as i32;
 
     for i in 1..=steps {
         let test_pos = start + normalized_dir * (i as f32 * step_size).min(distance);
 
-        // Check against building obstacles
-        for &(obstacle_pos, obstacle_radius) in &context.building_obstacles {
-            if test_pos.distance(obstacle_pos) < obstacle_radius + 3.0 {
-                // 3.0 = safety margin
-                return false;
-            }
-        }
+        // OPTIMIZATION: Use spatial grid to get only nearby obstacles instead of checking all obstacles
+        let nearby_obstacles = context.obstacle_grid.query_nearby_obstacles(test_pos, 10.0); // 10.0 = max safety margin
 
-        // Check against environment obstacles
-        for &(obstacle_pos, obstacle_radius) in &context.environment_obstacles {
+        for (obstacle_pos, obstacle_radius) in nearby_obstacles {
+            let obstacle_distance = test_pos.distance(obstacle_pos);
+            
             // Special case: if this unit is gathering resources and this obstacle is their target, allow closer approach
             if let Some(gatherer) = resource_gatherer {
                 if let Some(_target_resource) = gatherer.target_resource {
@@ -643,7 +649,7 @@ fn has_clear_path(
                     if end.distance(obstacle_pos) < 5.0 {
                         // Close to the resource we're targeting
                         // Allow much closer approach for gathering
-                        if test_pos.distance(obstacle_pos) < obstacle_radius + 15.0 {
+                        if obstacle_distance < obstacle_radius + 15.0 {
                             // 15.0 = close enough to gather
                             continue; // Skip blocking this obstacle - allow approach
                         }
@@ -651,9 +657,10 @@ fn has_clear_path(
                 }
             }
 
-            // Normal obstacle avoidance
-            if test_pos.distance(obstacle_pos) < obstacle_radius + 2.0 {
-                // 2.0 = safety margin
+            // Determine if this is a building or environment obstacle based on size heuristic
+            let safety_margin = if obstacle_radius > 10.0 { 3.0 } else { 2.0 }; // Buildings are typically larger
+            
+            if obstacle_distance < obstacle_radius + safety_margin {
                 return false;
             }
         }

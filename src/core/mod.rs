@@ -3,6 +3,7 @@ pub mod components;
 pub mod constants;
 pub mod game;
 pub mod resources;
+pub mod spatial_grid;
 pub mod time_controls;
 pub mod unit_stats;
 
