@@ -165,7 +165,6 @@ impl Default for AIStrategy {
                         UnitType::BeetleKnight,    // Heavy assault for enemy elimination
                         UnitType::SpearMantis,     // Anti-building siege units
                         UnitType::BatteringBeetle, // Siege warfare specialists
-                        UnitType::HunterWasp,      // Fast air raiders
                         UnitType::EliteSpider,     // Elite predator units
                         UnitType::SoldierAnt,      // Core army unit
                     ],
@@ -377,7 +376,6 @@ fn update_strategy_phase(
             unit_type,
             UnitType::SoldierAnt
                 | UnitType::BeetleKnight
-                | UnitType::HunterWasp
                 | UnitType::SpearMantis
                 | UnitType::DragonFly
                 | UnitType::BatteringBeetle
@@ -683,7 +681,6 @@ fn try_build_unit(
         UnitType::ScoutAnt => BuildingType::Queen,
         UnitType::SpearMantis => BuildingType::Queen,
         // Bee/Flying units from Nursery (Bee Hive)
-        UnitType::HunterWasp => BuildingType::Nursery,
         UnitType::DragonFly => BuildingType::Nursery,
         UnitType::AcidSpitter => BuildingType::Nursery,
         // Beetle/Heavy units from WarriorChamber (Pine Cone)
@@ -1558,7 +1555,6 @@ fn calculate_unit_counts(units: &Query<&RTSUnit>, player_id: u8) -> UnitCounts {
             unit_type,
             UnitType::SoldierAnt
                 | UnitType::BeetleKnight
-                | UnitType::HunterWasp
                 | UnitType::SpearMantis
                 | UnitType::DragonFly
                 | UnitType::BatteringBeetle
@@ -1854,7 +1850,6 @@ fn add_massive_military_production(strategy: &mut PlayerStrategy, current_milita
             UnitType::BeetleKnight,    // Heavy assault tank
             UnitType::SpearMantis,     // Anti-building specialist
             UnitType::BatteringBeetle, // Siege warfare
-            UnitType::HunterWasp,      // Fast air raiders
             UnitType::EliteSpider,     // Elite predator
             UnitType::SoldierAnt,      // Core ground army
         ];

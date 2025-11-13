@@ -212,12 +212,6 @@ fn is_valid_position(pos: Vec3) -> bool {
         && pos.z.is_finite()
 }
 
-/// Check if position is within map boundaries (2000x2000 unit area)
-fn is_within_map_boundary(pos: Vec3) -> bool {
-    use crate::constants::movement::MAP_BOUNDARY;
-    pos.x.abs() <= MAP_BOUNDARY && pos.z.abs() <= MAP_BOUNDARY
-}
-
 /// Clamp position to map boundaries
 fn clamp_to_map_boundary(pos: Vec3) -> Vec3 {
     use crate::constants::movement::MAP_BOUNDARY;

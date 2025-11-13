@@ -121,10 +121,6 @@ pub fn intelligence_update_system(
                             composition.military_units += 1;
                             composition.soldier_ants += 1;
                         }
-                        UnitType::HunterWasp => {
-                            composition.military_units += 1;
-                            composition.hunter_wasps += 1;
-                        }
                         UnitType::BeetleKnight => {
                             composition.military_units += 1;
                             composition.beetle_knights += 1;

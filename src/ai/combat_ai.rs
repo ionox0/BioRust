@@ -270,7 +270,6 @@ fn calculate_target_priority(target_unit: &RTSUnit, target_health: &RTSHealth) -
         match unit_type {
             UnitType::WorkerAnt => priority = 8, // Kill workers first (disrupt economy)
             UnitType::SoldierAnt => priority = 6,
-            UnitType::HunterWasp => priority = 7, // Kill ranged units
             UnitType::BeetleKnight => priority = 5, // Tanks are lower priority
             _ => {}
         }
@@ -296,39 +295,6 @@ fn should_update_target_position(
     }
 }
 
-/// Ranged unit kiting behavior - maintain optimal distance
-fn handle_ranged_combat(
-    movement: &mut Movement,
-    combat: &Combat,
-    unit_transform: &Transform,
-    target_pos: Vec3,
-    distance: f32,
-) {
-    let optimal_range = combat.attack_range * 0.9; // Stay at 90% of max range
-    let min_range = combat.attack_range * 0.7; // Don't get closer than 70%
-    let threshold = 1.5; // Minimum distance change before updating position
-
-    if distance < min_range - threshold {
-        // Too close - back away (kiting)
-        let retreat_direction = (unit_transform.translation - target_pos).normalize();
-        let new_target = unit_transform.translation + retreat_direction * 10.0;
-
-        // Only update if significantly different from current target
-        if should_update_target_position(&movement.target_position, new_target, threshold) {
-            movement.target_position = Some(new_target);
-        }
-    } else if distance > optimal_range + threshold {
-        // Too far - move closer
-        if should_update_target_position(&movement.target_position, target_pos, threshold) {
-            movement.target_position = Some(target_pos);
-        }
-    } else {
-        // In optimal range - maintain current position without micro-adjustments
-        if movement.current_velocity.length() < 1.0 {
-            movement.target_position = None;
-        }
-    }
-}
 
 /// Melee unit aggressive behavior
 fn handle_melee_combat(
@@ -595,15 +561,6 @@ fn handle_target_engagement(
     state.target_entity = Some(target_entity);
 
     match unit.unit_type.as_ref() {
-        Some(UnitType::HunterWasp) => {
-            handle_ranged_combat(
-                movement,
-                combat,
-                unit_transform,
-                target_pos,
-                target_distance,
-            );
-        }
         Some(UnitType::SoldierAnt | UnitType::BeetleKnight) => {
             handle_melee_combat(
                 movement,

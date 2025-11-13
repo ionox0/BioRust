@@ -276,13 +276,6 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs
         ),
         // Bee/Flying units from Nursery (Bee Hive)
         (
-            UnitType::HunterWasp,
-            ui_icons.hunter_icon.clone(),
-            "Hunter",
-            get_cost(UnitType::HunterWasp),
-            BuildingType::Nursery,
-        ),
-        (
             UnitType::DragonFly,
             ui_icons.hunter_icon.clone(),
             "DragonFly",
@@ -983,7 +976,6 @@ fn get_unit_icon(unit_type: &UnitType, icons: &UIIcons) -> Handle<Image> {
         | UnitType::BeetleKnight
         | UnitType::SpearMantis
         | UnitType::BatteringBeetle => icons.soldier_icon.clone(),
-        UnitType::HunterWasp
         | UnitType::DragonFly
         | UnitType::HoneyBee
         | UnitType::Housefly
@@ -1009,7 +1001,6 @@ fn format_unit_name(unit_type: &UnitType) -> &'static str {
     match unit_type {
         UnitType::WorkerAnt => "Worker Ant",
         UnitType::SoldierAnt => "Soldier Ant",
-        UnitType::HunterWasp => "Hunter Wasp",
         UnitType::BeetleKnight => "Beetle Knight",
         UnitType::SpearMantis => "Spear Mantis",
         UnitType::ScoutAnt => "Scout Ant",

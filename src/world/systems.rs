@@ -154,22 +154,6 @@ pub fn spawn_rts_elements(
         model_assets.as_deref(),
     );
 
-    let wasp_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::HunterWasp),
-        get_terrain_position(
-            player1_base.x + unit_spacing * 2.0,
-            player1_base.z + 30.0,
-            2.0,
-        ),
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        wasp_config,
-        model_assets.as_deref(),
-    );
 
     let beetle_config = SpawnConfig::unit(
         EntityType::from_unit(crate::core::components::UnitType::BeetleKnight),
@@ -280,22 +264,6 @@ pub fn spawn_rts_elements(
         model_assets.as_deref(),
     );
 
-    let enemy_wasp_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::HunterWasp),
-        get_terrain_position(
-            player2_base.x - unit_spacing * 2.0,
-            player2_base.z - 30.0,
-            2.0,
-        ),
-        2,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        enemy_wasp_config,
-        model_assets.as_deref(),
-    );
 
     let enemy_beetle_config = SpawnConfig::unit(
         EntityType::from_unit(crate::core::components::UnitType::BeetleKnight),

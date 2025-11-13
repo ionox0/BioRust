@@ -545,8 +545,6 @@ impl EntityFactory {
             // Butterfly/Scout models face forward correctly - no rotation needed
             (UnitType::ScoutAnt, InsectModelType::CairnsBirdwing) => Quat::IDENTITY,
 
-            // Hornet/Wasp models face forward correctly - no rotation needed
-            (UnitType::HunterWasp, InsectModelType::Hornet) => Quat::IDENTITY,
 
             // Beetle models face forward correctly - no rotation needed
             (UnitType::BeetleKnight, InsectModelType::RhinoBeetle) => Quat::IDENTITY,
@@ -570,7 +568,6 @@ impl EntityFactory {
         match unit_type {
             UnitType::WorkerAnt => (Capsule3d::new(1.0, 2.0).into(), 1.0),
             UnitType::SoldierAnt => (Capsule3d::new(1.2, 2.2).into(), 1.0),
-            UnitType::HunterWasp => (Capsule3d::new(1.0, 2.0).into(), 1.0),
             UnitType::SpearMantis => (Capsule3d::new(1.2, 2.5).into(), 1.0),
             UnitType::ScoutAnt => (Capsule3d::new(0.9, 2.0).into(), 1.0),
             UnitType::BeetleKnight => (Capsule3d::new(1.5, 2.5).into(), 1.0),

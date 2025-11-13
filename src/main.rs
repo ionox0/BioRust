@@ -28,7 +28,6 @@ use rendering::animation_systems::AnimationPlugin;
 use rendering::hover_effects::HoverEffectsPlugin;
 use rendering::model_loader::ModelLoaderPlugin;
 
-use tracing_subscriber::fmt::Subscriber;
 use tracing_subscriber::util::SubscriberInitExt; // <-- important
 use tracing_flame::FlameLayer;
 use tracing_subscriber::Registry;

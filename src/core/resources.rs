@@ -297,14 +297,6 @@ impl GameCosts {
             ],
         ); // 80 total - fast scout
         costs.unit_costs.insert(
-            UnitType::HunterWasp,
-            vec![
-                (ResourceType::Nectar, 45.0),
-                (ResourceType::Chitin, 35.0),
-                (ResourceType::Pheromones, 20.0),
-            ],
-        ); // 100 total - ranged glass cannon
-        costs.unit_costs.insert(
             UnitType::Housefly,
             vec![
                 (ResourceType::Nectar, 40.0),

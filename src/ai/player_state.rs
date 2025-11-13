@@ -47,7 +47,6 @@ impl PlayerCounts {
                     match unit_type {
                         UnitType::WorkerAnt | UnitType::TermiteWorker => self.villager_count += 1,
                         UnitType::SoldierAnt
-                        | UnitType::HunterWasp
                         | UnitType::BeetleKnight
                         | UnitType::SpearMantis
                         | UnitType::ScoutAnt

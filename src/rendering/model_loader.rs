@@ -998,7 +998,6 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::BatteringBeetle => InsectModelType::Beetle, // Uses black_ox_beetle_small.glb
 
         // Flying units - winged models
-        crate::core::components::UnitType::HunterWasp => InsectModelType::Hornet, // Aggressive flyer
 
         // Scout/Support units - specialized models
         crate::core::components::UnitType::ScoutAnt => InsectModelType::CairnsBirdwing, // Fast butterfly

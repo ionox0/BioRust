@@ -130,7 +130,7 @@ fn estimate_home_base_location(player_id: u8) -> Vec3 {
     }
 }
 
-/// System to handle scout survival - retreat if under attack
+/// System to handle scout survival - no retreat, scouts fight like any other unit
 pub fn scout_survival_system(
     mut scouts: Query<(
         &mut Movement,
@@ -139,29 +139,13 @@ pub fn scout_survival_system(
         &RTSHealth,
         &RTSUnit,
     )>,
-    enemy_units: Query<(&Transform, &RTSUnit, &Combat), (With<Combat>, Without<ScoutUnit>)>,
+    _enemy_units: Query<(&Transform, &RTSUnit, &Combat), (With<Combat>, Without<ScoutUnit>)>,
 ) {
-    for (mut movement, mut scout, transform, health, unit) in scouts.iter_mut() {
-        // If health is low or enemy military nearby, retreat immediately
-        if health.current < health.max * 0.5 {
+    for (mut _movement, mut scout, _transform, health, _unit) in scouts.iter_mut() {
+        // If health is critically low, return to report findings but don't retreat from combat
+        if health.current < health.max * 0.1 {
             scout.is_returning = true;
-            continue;
         }
-
-        // Check for nearby enemy military units
-        for (enemy_transform, enemy_unit, _combat) in enemy_units.iter() {
-            if enemy_unit.player_id != unit.player_id {
-                let distance = transform.translation.distance(enemy_transform.translation);
-                if distance < 30.0 {
-                    // Enemy military nearby - retreat!
-                    scout.is_returning = true;
-                    let retreat_direction =
-                        (transform.translation - enemy_transform.translation).normalize();
-                    movement.target_position =
-                        Some(transform.translation + retreat_direction * 50.0);
-                    break;
-                }
-            }
-        }
+        // No retreat logic - scouts will fight like normal units when engaged
     }
 }

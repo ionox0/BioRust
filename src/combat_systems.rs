@@ -12,22 +12,6 @@ mod combat_constants {
     pub const TARGET_POSITION_RATIO: f32 = 0.7;
     pub const GRID_CELL_SIZE: f32 = 100.0;
 
-    // Combat ranges and timing (moved from constants.rs)
-    pub const DEFAULT_ATTACK_RANGE: f32 = 8.0;
-    pub const ATTACK_COOLDOWN: f32 = 2.0;
-
-    // Unit health and damage
-    pub const WORKER_ANT_HEALTH: f32 = 75.0;
-    pub const SOLDIER_ANT_HEALTH: f32 = 120.0;
-    pub const HUNTER_WASP_HEALTH: f32 = 90.0;
-    pub const BEETLE_KNIGHT_HEALTH: f32 = 200.0;
-    pub const DEFAULT_UNIT_HEALTH: f32 = 100.0;
-
-    pub const WORKER_ANT_DAMAGE: f32 = 10.0;
-    pub const SOLDIER_ANT_DAMAGE: f32 = 25.0;
-    pub const HUNTER_WASP_DAMAGE: f32 = 20.0;
-    pub const BEETLE_KNIGHT_DAMAGE: f32 = 35.0;
-    pub const DEFAULT_UNIT_DAMAGE: f32 = 20.0;
 }
 
 // Spatial grid for efficient target acquisition
@@ -253,7 +237,6 @@ pub fn combat_execution_system(
 
                 let damage_type = match combat.attack_type {
                     AttackType::Melee => DamageType::Physical,
-                    AttackType::Ranged => DamageType::Pierce,
                     AttackType::Siege => DamageType::Siege,
                 };
 
@@ -337,11 +320,6 @@ fn calculate_damage(base_damage: f32, armor: f32, damage_type: &DamageType) -> f
         DamageType::Physical => {
             // Physical damage reduced by armor
             let reduction = armor / (armor + 100.0);
-            base_damage * (1.0 - reduction)
-        }
-        DamageType::Pierce => {
-            // Pierce damage partially ignores armor
-            let reduction = (armor * 0.5) / (armor * 0.5 + 100.0);
             base_damage * (1.0 - reduction)
         }
         DamageType::Siege => {

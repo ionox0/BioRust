@@ -247,7 +247,6 @@ pub fn update_tooltip_system(
             let unit_type = match unit.unit_type {
                 Some(UnitType::WorkerAnt) => "Worker Ant",
                 Some(UnitType::SoldierAnt) => "Soldier Ant",
-                Some(UnitType::HunterWasp) => "Hunter Wasp",
                 Some(UnitType::BeetleKnight) => "Beetle Knight",
                 Some(UnitType::SpearMantis) => "Spear Mantis",
                 Some(UnitType::ScoutAnt) => "Scout Ant",

@@ -207,7 +207,6 @@ pub struct Combat {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AttackType {
     Melee,
-    Ranged,
     Siege,
 }
 
@@ -349,7 +348,6 @@ pub struct ProductionQueue {
 pub enum UnitType {
     WorkerAnt,
     SoldierAnt,
-    HunterWasp,
     BeetleKnight,
     SpearMantis,
     ScoutAnt,
@@ -544,7 +542,6 @@ pub struct DamageEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DamageType {
     Physical,
-    Pierce,
     Siege,
     True,
 }
