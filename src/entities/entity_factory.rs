@@ -266,6 +266,7 @@ impl EntityFactory {
                 line_of_sight: stats.vision.line_of_sight,
             },
             Selectable::default(),
+            SpatialGridPosition::default(),
             CollisionRadius {
                 radius: stats.collision_radius,
             },

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use crate::core::spatial_grid::{IncrementalEntitySpatialGrid, IncrementalObstacleSpatialGrid};
 
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]
 pub struct GameConfig {
@@ -42,6 +43,22 @@ pub struct InputState {
     pub jump: bool,
     pub action: bool,
     pub pause: bool,
+}
+
+/// Persistent spatial grids for efficient collision and movement queries
+#[derive(Resource, Debug)]
+pub struct SpatialGrids {
+    pub entity_grid: IncrementalEntitySpatialGrid,
+    pub obstacle_grid: IncrementalObstacleSpatialGrid,
+}
+
+impl Default for SpatialGrids {
+    fn default() -> Self {
+        Self {
+            entity_grid: IncrementalEntitySpatialGrid::with_default_size(),
+            obstacle_grid: IncrementalObstacleSpatialGrid::with_default_size(),
+        }
+    }
 }
 
 #[allow(dead_code)]

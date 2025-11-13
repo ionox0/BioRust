@@ -123,6 +123,13 @@ pub struct StuckDetection {
     pub last_unstuck_time: f32,
 }
 
+/// Component to track spatial grid position for incremental updates
+#[derive(Component, Debug, Clone)]
+pub struct SpatialGridPosition {
+    pub last_grid_coord: Option<crate::core::spatial_grid::GridCoord>,
+    pub dirty: bool,
+}
+
 impl Default for StuckDetection {
     fn default() -> Self {
         Self {
@@ -132,6 +139,15 @@ impl Default for StuckDetection {
             last_movement_time: 0.0,
             unstuck_attempts: 0,
             last_unstuck_time: 0.0,
+        }
+    }
+}
+
+impl Default for SpatialGridPosition {
+    fn default() -> Self {
+        Self {
+            last_grid_coord: None,
+            dirty: true, // Start dirty to ensure initial grid insertion
         }
     }
 }

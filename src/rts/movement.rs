@@ -1,5 +1,5 @@
 use crate::core::components::*;
-use crate::core::spatial_grid::{ObstacleSpatialGrid, DEFAULT_GRID_CELL_SIZE};
+use crate::core::resources::SpatialGrids;
 use bevy::prelude::*;
 
 pub struct MovementContext {
@@ -7,7 +7,7 @@ pub struct MovementContext {
     pub unit_positions: Vec<(Entity, Vec3, f32)>,
     pub building_obstacles: Vec<(Vec3, f32)>, // position, radius
     pub environment_obstacles: Vec<(Vec3, f32)>, // position, radius
-    pub obstacle_grid: ObstacleSpatialGrid, // NEW: Spatial grid for fast obstacle lookup
+    // Removed obstacle_grid - now using persistent grid from resource
 }
 
 pub fn movement_system(
@@ -23,16 +23,41 @@ pub fn movement_system(
         ),
         With<RTSUnit>,
     >,
-    buildings_query: Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    buildings_query: Query<(Entity, &Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
     environment_query: Query<
-        (&Transform, &CollisionRadius),
+        (Entity, &Transform, &CollisionRadius),
         (With<EnvironmentObject>, Without<RTSUnit>),
     >,
+    mut spatial_grids: ResMut<SpatialGrids>,
     terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
     terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
     time: Res<Time>,
 ) {
-    // Create context with all obstacle data
+    // Update obstacle grid incrementally
+    let current_obstacles: std::collections::HashSet<Entity> = buildings_query
+        .iter()
+        .chain(environment_query.iter().map(|(e, t, c)| (e, t, c)))
+        .map(|(entity, _, _)| entity)
+        .collect();
+    
+    let grid_obstacles: std::collections::HashSet<Entity> = spatial_grids.obstacle_grid.entity_positions.keys().copied().collect();
+    
+    // Remove obstacles that no longer exist
+    for entity in grid_obstacles.difference(&current_obstacles) {
+        spatial_grids.obstacle_grid.remove_item(*entity);
+    }
+    
+    // Update building obstacles
+    for (entity, transform, collision_radius) in buildings_query.iter() {
+        spatial_grids.obstacle_grid.update_obstacle(entity, transform.translation, collision_radius.radius);
+    }
+    
+    // Update environment obstacles  
+    for (entity, transform, collision_radius) in environment_query.iter() {
+        spatial_grids.obstacle_grid.update_obstacle(entity, transform.translation, collision_radius.radius);
+    }
+
+    // Create context with unit data
     let unit_positions: Vec<(Entity, Vec3, f32)> = units_query
         .iter()
         .map(|(entity, transform, _, collision_radius, _, _, _)| {
@@ -42,12 +67,12 @@ pub fn movement_system(
 
     let building_obstacles: Vec<(Vec3, f32)> = buildings_query
         .iter()
-        .map(|(transform, collision_radius)| (transform.translation, collision_radius.radius))
+        .map(|(_, transform, collision_radius)| (transform.translation, collision_radius.radius))
         .collect();
 
     let environment_obstacles: Vec<(Vec3, f32)> = environment_query
         .iter()
-        .map(|(transform, collision_radius)| (transform.translation, collision_radius.radius))
+        .map(|(_, transform, collision_radius)| (transform.translation, collision_radius.radius))
         .collect();
 
     // Use actual delta time for movement speed, but add stability measures
@@ -56,18 +81,11 @@ pub fn movement_system(
     // Clamp delta time to prevent extreme jumps (but allow speed increases)
     let stable_delta = raw_delta.min(0.1); // Cap at 100ms to prevent huge jumps
 
-    // Create spatial grid for fast obstacle lookup
-    let mut all_obstacles = Vec::new();
-    all_obstacles.extend_from_slice(&building_obstacles);
-    all_obstacles.extend_from_slice(&environment_obstacles);
-    let obstacle_grid = ObstacleSpatialGrid::from_obstacles(&all_obstacles, Some(DEFAULT_GRID_CELL_SIZE));
-
     let context = MovementContext {
         delta_time: stable_delta,
         unit_positions,
         building_obstacles,
         environment_obstacles,
-        obstacle_grid,
     };
 
     for (
@@ -89,6 +107,7 @@ pub fn movement_system(
             combat_state,
             resource_gatherer,
             &context,
+            &spatial_grids.obstacle_grid,
             &terrain_manager,
             &terrain_settings,
         );
@@ -104,6 +123,7 @@ fn process_unit_movement(
     combat_state: Option<&CombatState>,
     resource_gatherer: Option<&ResourceGatherer>,
     context: &MovementContext,
+    obstacle_grid: &crate::core::spatial_grid::IncrementalObstacleSpatialGrid,
     terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
     terrain_settings: &crate::world::terrain_v2::TerrainSettings,
 ) {
@@ -143,6 +163,7 @@ fn process_unit_movement(
             adjusted_target,
             resource_gatherer,
             context,
+            obstacle_grid,
             rts_unit,
         );
         let direction = smart_direction.normalize_or_zero();
@@ -558,12 +579,13 @@ fn calculate_smart_direction(
     target_pos: Vec3,
     resource_gatherer: Option<&ResourceGatherer>,
     context: &MovementContext,
+    obstacle_grid: &crate::core::spatial_grid::IncrementalObstacleSpatialGrid,
     rts_unit: &RTSUnit,
 ) -> Vec3 {
     let base_direction = (target_pos - current_pos).normalize_or_zero();
 
     // Check if we have a clear path to target (with special allowance for resource gathering)
-    if has_clear_path(current_pos, target_pos, resource_gatherer, context) {
+    if has_clear_path(current_pos, target_pos, resource_gatherer, context, obstacle_grid) {
         // Add small pathfinding randomness for ant units to prevent identical paths
         if is_ant_unit(rts_unit) {
             return add_ant_pathfinding_randomness(entity, base_direction, base_direction.length());
@@ -621,6 +643,7 @@ fn has_clear_path(
     end: Vec3,
     resource_gatherer: Option<&ResourceGatherer>,
     context: &MovementContext,
+    obstacle_grid: &crate::core::spatial_grid::IncrementalObstacleSpatialGrid,
 ) -> bool {
     let direction = end - start;
     let distance = direction.length();
@@ -636,7 +659,7 @@ fn has_clear_path(
         let test_pos = start + normalized_dir * (i as f32 * step_size).min(distance);
 
         // OPTIMIZATION: Use spatial grid to get only nearby obstacles instead of checking all obstacles
-        let nearby_obstacles = context.obstacle_grid.query_nearby_obstacles(test_pos, 10.0); // 10.0 = max safety margin
+        let nearby_obstacles = obstacle_grid.query_nearby_obstacles(test_pos, 10.0); // 10.0 = max safety margin
 
         for (obstacle_pos, obstacle_radius) in nearby_obstacles {
             let obstacle_distance = test_pos.distance(obstacle_pos);

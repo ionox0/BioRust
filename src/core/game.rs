@@ -38,6 +38,7 @@ impl Plugin for GamePlugin {
             .init_resource::<GameTimer>()
             .init_resource::<PlayerResources>()
             .init_resource::<AIResources>()
+            .init_resource::<SpatialGrids>()
             .insert_resource(GameCosts::initialize())
             .add_systems(Startup, (setup_game, spawn_rts_elements))
             .add_systems(

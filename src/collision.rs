@@ -1,12 +1,16 @@
 use crate::core::components::*;
-use crate::core::spatial_grid::EntitySpatialGrid;
+use crate::core::spatial_grid::GridCoord;
+use crate::core::resources::SpatialGrids;
 use bevy::prelude::*;
 
 pub struct CollisionPlugin;
 
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, unit_collision_avoidance_system);
+        app.add_systems(Update, (
+            spatial_grid_update_system.before(unit_collision_avoidance_system),
+            unit_collision_avoidance_system,
+        ));
     }
 }
 
@@ -67,11 +71,51 @@ mod collision_constants {
     pub const VELOCITY_DAMPING: f32 = 0.98;
 }
 
+/// System to incrementally update the spatial grid for entities
+pub fn spatial_grid_update_system(
+    mut spatial_grids: ResMut<SpatialGrids>,
+    mut units: Query<(Entity, &Transform, &CollisionRadius, &mut SpatialGridPosition), With<RTSUnit>>,
+) {
+
+    // Track entities that need to be removed (no longer exist in query)
+    let current_entities: std::collections::HashSet<Entity> = units.iter().map(|(e, _, _, _)| e).collect();
+    let grid_entities: std::collections::HashSet<Entity> = spatial_grids.entity_grid.entity_positions.keys().copied().collect();
+    
+    // Remove entities that no longer exist
+    for entity in grid_entities.difference(&current_entities) {
+        spatial_grids.entity_grid.remove_item(*entity);
+    }
+
+    // Update entities that are dirty or have changed position
+    for (entity, transform, collision_radius, mut grid_pos) in units.iter_mut() {
+        let current_coord = GridCoord::from_world_pos(transform.translation, spatial_grids.entity_grid.cell_size);
+        
+        // Check if position changed significantly or is dirty
+        let needs_update = grid_pos.dirty || 
+            grid_pos.last_grid_coord.map_or(true, |last_coord| last_coord != current_coord);
+        
+        if needs_update {
+            let changed_cells = spatial_grids.entity_grid.update_entity(
+                entity, 
+                transform.translation, 
+                collision_radius.radius
+            );
+            
+            grid_pos.last_grid_coord = Some(current_coord);
+            grid_pos.dirty = false;
+            
+            if changed_cells {
+                debug!("Entity {:?} moved to new grid cell {:?}", entity, current_coord);
+            }
+        }
+    }
+}
+
 /// System to prevent units from overlapping with buildings, environment objects, and other units
 ///
 /// This system handles collision avoidance for all moving units by:
 /// 1. Checking collisions with static obstacles (buildings, environment objects, resources)
-/// 2. Checking collisions with other moving units
+/// 2. Checking collisions with other moving units using persistent spatial grid
 /// 3. Applying appropriate avoidance forces
 pub fn unit_collision_avoidance_system(
     mut units: Query<(Entity, &mut Transform, &mut Movement, &CollisionRadius), With<RTSUnit>>,
@@ -80,22 +124,18 @@ pub fn unit_collision_avoidance_system(
         (&Transform, &CollisionRadius),
         (With<EnvironmentObject>, Without<Movement>),
     >,
+    spatial_grids: Res<SpatialGrids>,
     time: Res<Time>,
 ) {
     use collision_constants::*;
 
     let dt = time.delta_secs().min(MAX_DELTA_TIME);
 
-    // Build spatial grid for units
-    let mut unit_grid = EntitySpatialGrid::with_default_size();
-    let unit_data: Vec<_> = units
+    // Get unit velocities for collision calculations
+    let unit_velocities: std::collections::HashMap<Entity, Vec3> = units
         .iter()
-        .map(|(e, t, m, r)| (e, t.translation, r.radius, m.current_velocity))
+        .map(|(entity, _, movement, _)| (entity, movement.current_velocity))
         .collect();
-
-    for &(entity, position, radius, _) in &unit_data {
-        unit_grid.insert_entity(entity, position, radius);
-    }
 
     // Process each unit
     for (unit_entity, mut unit_transform, mut movement, unit_radius) in units.iter_mut() {
@@ -119,8 +159,8 @@ pub fn unit_collision_avoidance_system(
             &mut unit_transform,
         );
 
-        // Check collisions with nearby units using spatial grid
-        let nearby_units = unit_grid.query_nearby_entities(
+        // Check collisions with nearby units using persistent spatial grid
+        let nearby_units = spatial_grids.entity_grid.query_nearby_entities(
             unit_transform.translation,
             unit_radius.radius * 5.0,
             Some(unit_entity),
@@ -128,10 +168,9 @@ pub fn unit_collision_avoidance_system(
         for (other_entity, other_pos, other_radius) in nearby_units {
 
             // Find velocity of other unit
-            let other_velocity = unit_data
-                .iter()
-                .find(|(e, _, _, _)| *e == other_entity)
-                .map(|(_, _, _, v)| *v)
+            let other_velocity = unit_velocities
+                .get(&other_entity)
+                .copied()
                 .unwrap_or(Vec3::ZERO);
 
             if let Some(collision) = check_collision(
