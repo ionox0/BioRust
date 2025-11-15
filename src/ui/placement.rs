@@ -62,8 +62,7 @@ pub struct RenderingResources<'w> {
 /// System parameter grouping terrain resources to reduce parameter count
 #[derive(SystemParam)]
 pub struct TerrainResources<'w> {
-    pub manager: Res<'w, crate::world::terrain_v2::TerrainChunkManager>,
-    pub settings: Res<'w, crate::world::terrain_v2::TerrainSettings>,
+    pub heights: Res<'w, crate::world::static_terrain::StaticTerrainHeights>,
 }
 
 /// System parameter grouping player resources to reduce parameter count
@@ -140,8 +139,7 @@ fn handle_active_placement(
         if let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
             let placement_pos = calculate_placement_position(
                 ray,
-                &terrain_resources.manager,
-                &terrain_resources.settings,
+                &terrain_resources.heights,
             );
 
             // Get collision radius for this building type
@@ -192,20 +190,14 @@ fn handle_active_placement(
 
 fn calculate_placement_position(
     ray: Ray3d,
-    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
+    terrain_heights: &crate::world::static_terrain::StaticTerrainHeights,
 ) -> Vec3 {
     // Method 1: Try ray-plane intersection with y=0 plane first (most common case)
     if ray.direction.y.abs() > 0.001 {
         let t = -ray.origin.y / ray.direction.y;
         if t > 0.0 {
             let intersection = ray.origin + ray.direction * t;
-            let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-                intersection.x,
-                intersection.z,
-                &terrain_manager.noise_generator,
-                terrain_settings,
-            );
+            let terrain_height = terrain_heights.get_height(intersection.x, intersection.z);
             return Vec3::new(intersection.x, terrain_height, intersection.z);
         }
     }
@@ -215,12 +207,7 @@ fn calculate_placement_position(
     let projected_point = ray.origin + ray.direction * forward_distance;
 
     // Sample terrain at the projected point
-    let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-        projected_point.x,
-        projected_point.z,
-        &terrain_manager.noise_generator,
-        terrain_settings,
-    );
+    let terrain_height = terrain_heights.get_height(projected_point.x, projected_point.z);
 
     Vec3::new(projected_point.x, terrain_height, projected_point.z)
 }

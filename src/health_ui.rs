@@ -6,15 +6,23 @@ pub struct HealthUIPlugin;
 
 impl Plugin for HealthUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                create_health_bars_for_new_units,
-                update_health_bars,
-                cleanup_orphaned_health_bars,
-                health_status_indicator_system,
-            ).run_if(should_run_combat), // Health bars update with combat intervals (0.2s)
-        );
+        app
+            // Real-time systems for smooth health bar positioning
+            .add_systems(
+                Update,
+                (
+                    update_health_bars,  // Now runs in real-time for smooth positioning
+                )
+            )
+            // Health management systems run on combat intervals (0.2s)
+            .add_systems(
+                Update,
+                (
+                    create_health_bars_for_new_units,
+                    cleanup_orphaned_health_bars,
+                    health_status_indicator_system,
+                ).run_if(should_run_combat),
+            );
     }
 }
 
@@ -131,7 +139,7 @@ pub fn create_health_bars_for_new_units(
     }
 }
 
-// System to update health bar positions and health display
+// System to update health bar positions and values in real-time (optimized for smooth movement)
 pub fn update_health_bars(
     mut unit_query: Query<
         (
@@ -150,6 +158,8 @@ pub fn update_health_bars(
     >,
     camera_query: Query<&Transform, (With<Camera3d>, Without<RTSUnit>, Without<HealthBarUI>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut last_color_update: Local<std::collections::HashMap<Entity, f32>>,
+    time: Res<Time>,
 ) {
     // Get camera transform
     let camera_transform = if let Ok(camera_transform) = camera_query.get_single() {
@@ -157,6 +167,8 @@ pub fn update_health_bars(
     } else {
         return;
     };
+
+    let current_time = time.elapsed_secs();
 
     for (_entity, unit_transform, health, health_bar, mut health_status) in unit_query.iter_mut() {
         let health_ratio = health.current / health.max;
@@ -166,7 +178,7 @@ pub fn update_health_bars(
         let status_changed = *health_status != new_status;
         *health_status = new_status;
 
-        // Always show health bars for units (changed to always be visible)
+        // Always show health bars for units
         let should_show = true;
 
         if should_show {
@@ -179,14 +191,14 @@ pub fn update_health_bars(
             let forward = up.cross(right);
             let rotation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
 
-            // Update background position and rotation
+            // Update background position and rotation (every frame for smooth movement)
             if let Ok(mut bg_transform) = health_bar_transforms.get_mut(health_bar.background) {
                 bg_transform.translation = bar_position;
                 bg_transform.rotation = rotation;
                 bg_transform.scale = Vec3::ONE;
             }
 
-            // Update foreground position, rotation, and scale
+            // Update foreground position, rotation, and scale (every frame for smooth movement)
             if let Ok(mut fg_transform) = health_bar_transforms.get_mut(health_bar.foreground) {
                 let fg_position = bar_position + Vec3::new(0.0, 0.01, 0.0); // Slightly above background
                 let offset_x = (1.0 - health_ratio) * -1.75; // Adjust for scaling from left (half of 3.5)
@@ -197,11 +209,15 @@ pub fn update_health_bars(
                 fg_transform.scale = Vec3::new(health_ratio, 1.0, 1.0);
             }
 
-            // Update foreground color based on health status if status changed
-            if status_changed {
+            // Update foreground color based on health status - but only occasionally for performance
+            let should_update_color = status_changed || 
+                last_color_update.get(&_entity).map_or(true, |&last_time| current_time - last_time > 0.2);
+            
+            if should_update_color {
                 if let Ok(fg_material_handle) = health_bar_materials.get(health_bar.foreground) {
                     if let Some(material) = materials.get_mut(&fg_material_handle.0) {
                         material.base_color = health_status.color();
+                        last_color_update.insert(_entity, current_time);
                     }
                 }
             }

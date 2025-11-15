@@ -29,8 +29,7 @@ pub fn movement_system(
         (With<EnvironmentObject>, Without<RTSUnit>),
     >,
     mut spatial_grids: ResMut<SpatialGrids>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     time: Res<Time>,
 ) {
     // Update obstacle grid incrementally
@@ -108,8 +107,7 @@ pub fn movement_system(
             resource_gatherer,
             &context,
             &spatial_grids.obstacle_grid,
-            &terrain_manager,
-            &terrain_settings,
+            &terrain_heights,
         );
     }
 }
@@ -124,8 +122,7 @@ fn process_unit_movement(
     resource_gatherer: Option<&ResourceGatherer>,
     context: &MovementContext,
     obstacle_grid: &crate::core::spatial_grid::IncrementalObstacleSpatialGrid,
-    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
+    terrain_heights: &crate::world::static_terrain::StaticTerrainHeights,
 ) {
     use crate::constants::movement::*;
 
@@ -189,8 +186,7 @@ fn process_unit_movement(
             update_position_with_terrain(
                 transform,
                 new_position,
-                terrain_manager,
-                terrain_settings,
+                terrain_heights,
             );
             update_rotation(transform, direction, movement, rts_unit, context.delta_time);
         } else {
@@ -499,20 +495,14 @@ fn calculate_separation_force(
 fn update_position_with_terrain(
     transform: &mut Transform,
     new_position: Vec3,
-    terrain_manager: &crate::world::terrain_v2::TerrainChunkManager,
-    terrain_settings: &crate::world::terrain_v2::TerrainSettings,
+    terrain_heights: &crate::world::static_terrain::StaticTerrainHeights,
 ) {
     use crate::constants::movement::TERRAIN_SAMPLE_LIMIT;
 
     let terrain_height = if new_position.x.abs() < TERRAIN_SAMPLE_LIMIT
         && new_position.z.abs() < TERRAIN_SAMPLE_LIMIT
     {
-        crate::world::terrain_v2::sample_terrain_height(
-            new_position.x,
-            new_position.z,
-            &terrain_manager.noise_generator,
-            terrain_settings,
-        )
+        terrain_heights.get_height(new_position.x, new_position.z)
     } else {
         0.0
     };

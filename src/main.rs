@@ -19,8 +19,7 @@ use core::query_cache::QueryCachePlugin;
 use core::time_controls::TimeControlPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;
-use world::terrain_v2::TerrainPluginV2;
-use world::GridPlugin;
+use world::{StaticTerrainPlugin, GridPlugin};
 // use resource_ui::ResourceUIPlugin;  // REMOVED: Duplicate of ui::resource_display
 use collision::CollisionPlugin;
 use entities::entity_state_systems::EntityStatePlugin;
@@ -30,27 +29,13 @@ use rendering::model_loader::ModelLoaderPlugin;
 
 
 fn main() {
-    // Conditional logging initialization - only in debug builds
-    #[cfg(all(debug_assertions, feature = "logging"))]
-    {
-        // Set log level to info to see debug messages, but filter out verbose asset warnings
-        if std::env::var("RUST_LOG").is_err() {
-            std::env::set_var("RUST_LOG", "info,bevy_gltf=warn,bevy_ui::layout=error");
-        }
+    // Set log level to info to see debug messages, but filter out verbose asset warnings
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info,bevy_gltf=warn,bevy_ui::layout=error");
+    }
 
-        // Initialize console logging with tracing-subscriber
-        tracing_subscriber::fmt::init();
-        
-        // Test that logging works
-        println!("🚀 Starting RTS Game... (Debug build with logging)");
-        info!("🎮 Game logging initialized successfully!");
-    }
-    
-    // Release build - minimal output
-    #[cfg(not(all(debug_assertions, feature = "logging")))]
-    {
-        println!("🚀 Starting RTS Game... (Release build)");
-    }
+    // Initialize console logging
+    tracing_subscriber::fmt::init();
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -66,7 +51,7 @@ fn main() {
         .add_plugins((
             GamePlugin,
             QueryCachePlugin, // High-performance query cache system - must be early in the pipeline
-            TerrainPluginV2,
+            StaticTerrainPlugin, // Fast preloaded terrain system for RTS gameplay
             GridPlugin,
         ))
         // Gameplay plugins

@@ -96,8 +96,7 @@ pub fn spawn_rts_elements(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
 ) {
     info!("=== SPAWNING RTS ELEMENTS ===");
@@ -106,12 +105,7 @@ pub fn spawn_rts_elements(
 
     // Helper function to get terrain-aware position
     let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-            x,
-            z,
-            &terrain_manager.noise_generator,
-            &terrain_settings,
-        );
+        let terrain_height = terrain_heights.get_height(x, z);
         Vec3::new(x, terrain_height + height_offset, z)
     };
 
@@ -342,8 +336,7 @@ pub fn spawn_rts_elements(
         &mut commands,
         &mut meshes,
         &mut materials,
-        &terrain_manager,
-        &terrain_settings,
+        &terrain_heights,
         model_assets.as_ref().map(|v| &**v),
     );
 
@@ -355,8 +348,7 @@ fn spawn_minimal_environment_objects(
     commands: &mut Commands,
     _meshes: &mut ResMut<Assets<Mesh>>,
     _materials: &mut ResMut<Assets<StandardMaterial>>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: &Res<crate::world::static_terrain::StaticTerrainHeights>,
     model_assets: Option<&crate::rendering::model_loader::ModelAssets>,
 ) {
     use crate::core::components::*;
@@ -364,12 +356,7 @@ fn spawn_minimal_environment_objects(
 
     // Helper function to get terrain-aware position
     let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-            x,
-            z,
-            &terrain_manager.noise_generator,
-            &terrain_settings,
-        );
+        let terrain_height = terrain_heights.get_height(x, z);
         Vec3::new(x, terrain_height + height_offset, z)
     };
 
@@ -570,8 +557,7 @@ pub fn spawn_rts_elements_with_teams(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     game_setup: Option<Res<GameSetup>>,
     mut ai_resources: ResMut<crate::core::resources::AIResources>,
@@ -629,12 +615,7 @@ pub fn spawn_rts_elements_with_teams(
 
     // Helper function to get terrain-aware position
     let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
-        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-            x,
-            z,
-            &terrain_manager.noise_generator,
-            &terrain_settings,
-        );
+        let terrain_height = terrain_heights.get_height(x, z);
         Vec3::new(x, terrain_height + height_offset, z)
     };
 
@@ -853,8 +834,7 @@ pub fn spawn_rts_elements_with_teams(
         &mut commands,
         &mut meshes,
         &mut materials,
-        &terrain_manager,
-        &terrain_settings,
+        &terrain_heights,
         model_assets.as_ref().map(|v| &**v),
     );
 
@@ -917,8 +897,7 @@ pub fn handle_rts_camera_input(
     mut mouse_wheel: EventReader<bevy::input::mouse::MouseWheel>,
     mut _mouse_motion: EventReader<bevy::input::mouse::MouseMotion>,
     mut camera_query: Query<(&mut Transform, &mut RTSCamera), With<MainCamera>>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     time: Res<Time>,
 ) {
     if let Ok((mut camera_transform, rts_camera)) = camera_query.get_single_mut() {
@@ -982,12 +961,7 @@ pub fn handle_rts_camera_input(
         if terrain_following {
             // Sample terrain height at camera position and nearby points for slope calculation
             let current_pos = camera_transform.translation;
-            let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-                current_pos.x,
-                current_pos.z,
-                &terrain_manager.noise_generator,
-                &terrain_settings,
-            );
+            let terrain_height = terrain_heights.get_height(current_pos.x, current_pos.z);
 
             // Only adjust height for terrain following if camera is within reasonable bounds
             // This allows scroll wheel zoom to work while still preventing underground camera
@@ -1036,12 +1010,7 @@ pub fn handle_rts_camera_input(
             let new_height = current_position.y + zoom_delta;
 
             // Sample terrain height at current camera position
-            let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-                current_position.x,
-                current_position.z,
-                &terrain_manager.noise_generator,
-                &terrain_settings,
-            );
+            let terrain_height = terrain_heights.get_height(current_position.x, current_position.z);
 
             // Define terrain-relative height constraints using constants
             let absolute_min_height = terrain_height + MIN_HEIGHT_ABOVE_TERRAIN;

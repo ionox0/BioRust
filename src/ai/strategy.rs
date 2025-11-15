@@ -11,8 +11,7 @@ pub fn ai_resource_initialization_system(
     _meshes: ResMut<Assets<Mesh>>,
     _materials: ResMut<Assets<StandardMaterial>>,
     resource_query: Query<&ResourceSource>,
-    _terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    _terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    _terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     mut initialized: Local<bool>,
 ) {
     // Only run once at startup
@@ -212,8 +211,7 @@ pub fn ai_strategy_system(
         Option<&EnvironmentObject>,
     )>,
     mut building_sites: Query<(Entity, &mut BuildingSite), With<BuildingSite>>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     time: Res<Time>,
 ) {
     let current_time = time.elapsed_secs();
@@ -264,8 +262,7 @@ pub fn ai_strategy_system(
                     &units,
                     &mut buildings,
                     &mut ai_resources,
-                    &terrain_manager,
-                    &terrain_settings,
+                    &terrain_heights,
                     &resource_sources,
                     &building_collisions,
                     &unit_collisions,
@@ -305,8 +302,7 @@ fn execute_strategy(
     units: &Query<&RTSUnit>,
     buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
     ai_resources: &mut ResMut<AIResources>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: &Res<crate::world::static_terrain::StaticTerrainHeights>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     building_collisions: &Vec<(Vec3, f32)>,
     unit_collisions: &Vec<(Vec3, f32)>,
@@ -341,8 +337,7 @@ fn execute_strategy(
             units,
             buildings,
             ai_resources,
-            terrain_manager,
-            terrain_settings,
+            &terrain_heights,
             resource_sources,
             building_collisions,
             unit_collisions,
@@ -477,8 +472,7 @@ fn execute_next_goal(
     _units: &Query<&RTSUnit>,
     buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
     ai_resources: &mut ResMut<AIResources>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: &Res<crate::world::static_terrain::StaticTerrainHeights>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     building_collisions: &Vec<(Vec3, f32)>,
     unit_collisions: &Vec<(Vec3, f32)>,
@@ -570,8 +564,7 @@ fn execute_next_goal(
                 meshes,
                 materials,
                 ai_resources,
-                terrain_manager,
-                terrain_settings,
+                &terrain_heights,
                 resource_sources,
                 building_collisions,
                 unit_collisions,
@@ -787,8 +780,7 @@ fn try_build_building(
     _meshes: &mut ResMut<Assets<Mesh>>,
     _materials: &mut ResMut<Assets<StandardMaterial>>,
     ai_resources: &mut ResMut<AIResources>,
-    terrain_manager: &Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: &Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: &Res<crate::world::static_terrain::StaticTerrainHeights>,
     resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     building_collisions: &Vec<(Vec3, f32)>,
     unit_collisions: &Vec<(Vec3, f32)>,
@@ -798,7 +790,7 @@ fn try_build_building(
         return false;
     }
 
-    let terrain_helper = TerrainHelper::new(terrain_manager, terrain_settings);
+    let terrain_helper = TerrainHelper::new(terrain_heights);
     let placement_context = BuildingPlacementContext::new(
         player_id,
         building_type.clone(),
@@ -1183,28 +1175,16 @@ fn validate_ai_building_placement(
 }
 
 struct TerrainHelper<'a> {
-    terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
-    terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
+    terrain_heights: &'a crate::world::static_terrain::StaticTerrainHeights,
 }
 
 impl<'a> TerrainHelper<'a> {
-    fn new(
-        terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
-        terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
-    ) -> Self {
-        Self {
-            terrain_manager,
-            terrain_settings,
-        }
+    fn new(terrain_heights: &'a crate::world::static_terrain::StaticTerrainHeights) -> Self {
+        Self { terrain_heights }
     }
 
     fn get_terrain_position(&self, x: f32, z: f32, height_offset: f32) -> Vec3 {
-        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
-            x,
-            z,
-            &self.terrain_manager.noise_generator,
-            &self.terrain_settings,
-        );
+        let terrain_height = self.terrain_heights.get_height(x, z);
         Vec3::new(x, terrain_height + height_offset, z)
     }
 }

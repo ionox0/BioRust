@@ -16,8 +16,7 @@ impl Default for FormationType {
 }
 
 pub struct CommandContext<'a> {
-    pub terrain_manager: &'a crate::world::terrain_v2::TerrainChunkManager,
-    pub terrain_settings: &'a crate::world::terrain_v2::TerrainSettings,
+    pub terrain_heights: &'a crate::world::static_terrain::StaticTerrainHeights,
 }
 
 pub fn unit_command_system(
@@ -44,8 +43,7 @@ pub fn unit_command_system(
         Query<(Entity, &Transform, &BuildingSite, &Selectable), With<BuildingSite>>,
         Query<&mut BuildingSite, With<BuildingSite>>,
     )>,
-    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
-    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
     mut commands: Commands,
     mut formation_settings: ResMut<FormationSettings>,
 ) {
@@ -96,8 +94,7 @@ pub fn unit_command_system(
     };
 
     let context = CommandContext {
-        terrain_manager: &terrain_manager,
-        terrain_settings: &terrain_settings,
+        terrain_heights: &terrain_heights,
     };
 
     let target_enemy = find_enemy_target(ray, &units, &all_units);
@@ -317,12 +314,7 @@ fn clamp_position(position: Vec3) -> Vec3 {
 
 fn sample_terrain_height_safe(position: Vec3, context: &CommandContext) -> f32 {
     if position.x.abs() < 10000.0 && position.z.abs() < 10000.0 {
-        crate::world::terrain_v2::sample_terrain_height(
-            position.x,
-            position.z,
-            &context.terrain_manager.noise_generator,
-            context.terrain_settings,
-        )
+        context.terrain_heights.get_height(position.x, position.z)
     } else {
         0.0
     }
