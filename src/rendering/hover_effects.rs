@@ -51,7 +51,9 @@ pub fn hover_detection_system(
     let Some(cursor_position) = window.cursor_position() else {
         return;
     };
-    let (camera, camera_transform) = camera_q.single();
+    let Ok((camera, camera_transform)) = camera_q.get_single() else {
+        return; // No camera found, skip hover detection
+    };
 
     let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
         return;

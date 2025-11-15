@@ -48,7 +48,7 @@ pub fn setup_building_ui(mut commands: Commands, ui_icons: Res<UIIcons>, game_co
     });
 }
 
-fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
+pub fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
     // Bottom panel - Building interface (increased height for better unit layout)
     parent
         .spawn((
@@ -373,20 +373,6 @@ fn create_unit_buttons(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs
             ui_icons.hunter_icon.clone(),
             "W.Spider",
             get_cost(UnitType::WolfSpider),
-            BuildingType::HunterChamber,
-        ),
-        (
-            UnitType::Ladybug,
-            ui_icons.soldier_icon.clone(),
-            "Ladybug",
-            get_cost(UnitType::Ladybug),
-            BuildingType::HunterChamber,
-        ),
-        (
-            UnitType::LadybugScout,
-            ui_icons.worker_icon.clone(),
-            "L.Scout",
-            get_cost(UnitType::LadybugScout),
             BuildingType::HunterChamber,
         ),
     ];

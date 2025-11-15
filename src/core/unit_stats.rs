@@ -86,6 +86,7 @@ pub struct UnitStatsConfig {
 /// Spear Mantis - Elite damage dealer (150 cost)
 /// Role: DPS - High damage assassin
 /// Effectiveness: Premium damage output justifies higher cost
+#[allow(dead_code)] // Placeholder for specific unit stats
 pub const SPEAR_MANTIS_STATS: UnitStatsConfig = UnitStatsConfig {
     health: HealthStats {
         current: 110.0, // Moderate health for DPS role
@@ -115,6 +116,7 @@ pub const SPEAR_MANTIS_STATS: UnitStatsConfig = UnitStatsConfig {
 /// Scout Ant - Fast reconnaissance (80 cost)
 /// Role: SCOUT - Map control, vision, harassment
 /// Effectiveness: Excellent mobility and vision for cost
+#[allow(dead_code)] // Placeholder for specific unit stats
 pub const SCOUT_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
     health: HealthStats {
         current: 65.0, // Low health for scout role
@@ -144,6 +146,7 @@ pub const SCOUT_ANT_STATS: UnitStatsConfig = UnitStatsConfig {
 /// Beetle Knight - Heavy tank (180 cost)
 /// Role: TANK - Frontline armor, damage absorption
 /// Effectiveness: Excellent survivability justifies high cost
+#[allow(dead_code)] // Placeholder for specific unit stats
 pub const BEETLE_KNIGHT_STATS: UnitStatsConfig = UnitStatsConfig {
     health: HealthStats {
         current: 280.0, // Very high health for tank role
@@ -260,16 +263,41 @@ fn generate_unit_stats(unit_type: &UnitType) -> UnitStatsConfig {
 /// Get the role of a unit type for stat generation
 fn get_unit_role(unit_type: &UnitType) -> UnitRole {
     match unit_type {
-        UnitType::WorkerAnt | UnitType::TermiteWorker => UnitRole::Economic,
+        // Economic units - workers and gatherers
+        UnitType::WorkerAnt | UnitType::TermiteWorker | UnitType::WorkerFourmi |
+        UnitType::BlackAnt | UnitType::Honeybees => UnitRole::Economic,
+        
+        // Tank units - heavy armored bruisers
         UnitType::SoldierAnt | UnitType::BeetleKnight | UnitType::SpiderHunter |
         UnitType::WolfSpider | UnitType::Scorpion | UnitType::TermiteWarrior |
-        UnitType::LegBeetle => UnitRole::Tank,
-        UnitType::SpearMantis | UnitType::Ladybug |
-        UnitType::Housefly | UnitType::HoneyBee => UnitRole::DPS,
-        UnitType::ScoutAnt | UnitType::LadybugScout => UnitRole::Scout,
-        UnitType::BatteringBeetle | UnitType::Stinkbug => UnitRole::Siege,
-        UnitType::DragonFly | UnitType::AcidSpitter | UnitType::EliteSpider => UnitRole::Elite,
-        UnitType::DefenderBug => UnitRole::Tank,
+        UnitType::LegBeetle | UnitType::DefenderBug | UnitType::StagBeetle |
+        UnitType::DungBeetle | UnitType::RhinoBeetle | UnitType::SoldierFourmi |
+        UnitType::Pillbug | UnitType::Woodlouse | UnitType::Tarantula |
+        UnitType::EliteSpider | UnitType::Bumblebees | UnitType::ScorpionVariant |
+        UnitType::Cockroaches => UnitRole::Tank,
+        
+        // DPS units - damage dealers
+        UnitType::SpearMantis | UnitType::Housefly |
+        UnitType::HoneyBee | UnitType::CommonMantis | UnitType::OrchidMantis |
+        UnitType::RedAnt | UnitType::FireAnt | UnitType::WidowSpider |
+        UnitType::WolfSpiderVariant | UnitType::Hornets | UnitType::Wasps |
+        UnitType::MurderHornet | UnitType::Earwigs | UnitType::StickBugs |
+        UnitType::LeafBugs | UnitType::JewelBug => UnitRole::DPS,
+        
+        // Scout units - fast reconnaissance
+        UnitType::ScoutAnt | UnitType::Silverfish |
+        UnitType::Aphids | UnitType::Mites | UnitType::HouseflyVariant |
+        UnitType::Firefly | UnitType::DragonFlies | UnitType::Damselfly |
+        UnitType::DaddyLongLegs | UnitType::Grasshoppers => UnitRole::Scout,
+        
+        // Siege units - anti-building specialists
+        UnitType::BatteringBeetle | UnitType::Stinkbug | UnitType::StinkBeetle |
+        UnitType::SandFleas | UnitType::Ticks | UnitType::Fleas |
+        UnitType::Lice | UnitType::Horsefly | UnitType::Cicadas => UnitRole::Siege,
+        
+        // Elite units - special powerful units
+        UnitType::DragonFly | UnitType::AcidSpitter |
+        UnitType::Moths | UnitType::Caterpillars | UnitType::PeacockMoth => UnitRole::Elite,
     }
 }
 

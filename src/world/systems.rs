@@ -1,6 +1,6 @@
 use crate::core::components::*;
+use crate::core::resources::PlayerResources;
 use bevy::prelude::*;
-// Removed unused import: use crate::core::resources::*;
 use crate::core::game::GameState;
 // Terrain asset no longer needed
 
@@ -51,6 +51,12 @@ pub fn setup_game(mut commands: Commands) {
 }
 
 pub fn setup_menu(mut commands: Commands) {
+    // Spawn UI camera for menu
+    commands.spawn((
+        Camera2d,
+        UI,
+    ));
+
     commands.spawn((
         Text::new("Press SPACE to Start RTS Mode"),
         Node {
@@ -59,6 +65,11 @@ pub fn setup_menu(mut commands: Commands) {
             left: Val::Percent(50.0),
             ..default()
         },
+        TextFont {
+            font_size: 24.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
         UI,
     ));
 }
@@ -75,9 +86,9 @@ pub fn handle_menu_input(
             commands.entity(entity).despawn_recursive();
         }
 
-        // Transition to playing state
-        next_state.set(GameState::Playing);
-        info!("Transitioning to RTS Playing state");
+        // Transition to team selection state
+        next_state.set(GameState::TeamSelection);
+        info!("Transitioning to Team Selection state");
     }
 }
 
@@ -126,24 +137,30 @@ pub fn spawn_rts_elements(
     let unit_spacing = 15.0;
     let _units_per_row = 4;
 
-    // Worker units using new EntityFactory with animations
-    let worker_config = SpawnConfig::unit(
-        EntityType::from_unit(crate::core::components::UnitType::WorkerAnt),
-        get_terrain_position(player1_base.x, player1_base.z + 30.0, 2.0),
-        1,
-    );
-    EntityFactory::spawn(
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        worker_config,
-        model_assets.as_deref(),
-    );
+    // Spawn multiple worker units for resource gathering
+    for i in 0..4 {
+        let worker_config = SpawnConfig::unit(
+            EntityType::from_unit(crate::core::components::UnitType::WorkerAnt),
+            get_terrain_position(
+                player1_base.x + (i as f32 * unit_spacing),
+                player1_base.z + 30.0,
+                2.0,
+            ),
+            1,
+        );
+        EntityFactory::spawn(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            worker_config,
+            model_assets.as_deref(),
+        );
+    }
 
     // Combat units using new EntityFactory with animations
     let soldier_config = SpawnConfig::unit(
         EntityType::from_unit(crate::core::components::UnitType::SoldierAnt),
-        get_terrain_position(player1_base.x + unit_spacing, player1_base.z + 30.0, 2.0),
+        get_terrain_position(player1_base.x, player1_base.z + 50.0, 2.0),
         1,
     );
     EntityFactory::spawn(
@@ -154,12 +171,11 @@ pub fn spawn_rts_elements(
         model_assets.as_deref(),
     );
 
-
     let beetle_config = SpawnConfig::unit(
         EntityType::from_unit(crate::core::components::UnitType::BeetleKnight),
         get_terrain_position(
-            player1_base.x + unit_spacing * 3.0,
-            player1_base.z + 30.0,
+            player1_base.x + unit_spacing,
+            player1_base.z + 50.0,
             2.0,
         ),
         1,
@@ -546,6 +562,339 @@ fn spawn_minimal_environment_objects(
     }
 
     info!("Minimal environment objects spawning complete");
+}
+
+/// Team-based RTS element spawning system
+/// Spawns units based on selected teams instead of hardcoded units
+pub fn spawn_rts_elements_with_teams(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    terrain_manager: Res<crate::world::terrain_v2::TerrainChunkManager>,
+    terrain_settings: Res<crate::world::terrain_v2::TerrainSettings>,
+    model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
+    game_setup: Option<Res<GameSetup>>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
+) {
+    info!("🎮 SPAWN SYSTEM TRIGGERED: Starting team-based RTS element spawning");
+    
+    if game_setup.is_none() {
+        error!("❌ No GameSetup found! spawn_rts_elements_with_teams called without team selection");
+        return;
+    }
+    
+    // Spawn 3D camera for gameplay
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, INITIAL_CAMERA_HEIGHT, INITIAL_CAMERA_DISTANCE)
+            .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+        MainCamera,
+        RTSCamera {
+            move_speed: crate::constants::camera::CAMERA_MOVE_SPEED,
+        },
+    ));
+
+    // Spawn directional light for 3D scene
+    commands.spawn((
+        DirectionalLight {
+            color: Color::srgb(1.0, 0.95, 0.8),
+            illuminance: 32000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, LIGHT_ROTATION_X, LIGHT_ROTATION_Y, 0.0)),
+    ));
+
+    // Add ambient light for better terrain visibility
+    commands.insert_resource(AmbientLight {
+        color: Color::srgb(0.5, 0.5, 0.7),
+        brightness: 500.0,
+    });
+    
+    // Get game setup or use defaults
+    let setup = game_setup.as_deref().cloned().unwrap_or_else(|| GameSetup {
+        player_team: TeamType::BalancedColony,
+        ai_teams: vec![TeamType::Predators],
+        player_count: 2,
+    });
+
+    info!("🎯 SPAWN CONFIG: Player team: {:?}, AI teams: {:?}, Total players: {}", 
+          setup.player_team, setup.ai_teams, setup.ai_teams.len() + 1);
+
+    use crate::entities::entity_factory::{EntityFactory, EntityType, SpawnConfig};
+
+    // Helper function to get terrain-aware position
+    let get_terrain_position = |x: f32, z: f32, height_offset: f32| -> Vec3 {
+        let terrain_height = crate::world::terrain_v2::sample_terrain_height(
+            x,
+            z,
+            &terrain_manager.noise_generator,
+            &terrain_settings,
+        );
+        Vec3::new(x, terrain_height + height_offset, z)
+    };
+
+    // === PLAYER 1 (Human) - Left side of map ===
+    let player1_base_2d = Vec3::new(-800.0, 0.0, 0.0);
+    let player1_base = get_terrain_position(player1_base_2d.x, player1_base_2d.z, 0.0);
+
+    // Spawn Queen Chamber (main building)
+    let queen_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::Queen),
+        player1_base,
+        1,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        queen_config,
+        model_assets.as_deref(),
+    );
+
+    // Spawn player team units with debug mode for model visibility  
+    let player_roster = setup.player_team.get_unit_roster();
+    let unit_spacing = 15.0;
+    
+    // If this is 8-player mode (7 AI + 1 human), spawn more units for model debugging
+    let units_to_spawn = if setup.ai_teams.len() >= 7 { 
+        player_roster.len().min(12) // Spawn all units (up to 12) for full model showcase
+    } else {
+        player_roster.len().min(6) // Normal mode - spawn up to 6 units
+    };
+    
+    for (i, unit_type) in player_roster.iter().enumerate().take(units_to_spawn) {
+        let offset_x = (i % 4) as f32 * unit_spacing; // 4 units per row for better layout
+        let offset_z = (i / 4) as f32 * unit_spacing + 30.0;
+        
+        let unit_config = SpawnConfig::unit(
+            EntityType::from_unit(unit_type.clone()),
+            get_terrain_position(player1_base.x + offset_x, player1_base.z + offset_z, 2.0),
+            1,
+        );
+        EntityFactory::spawn(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            unit_config,
+            model_assets.as_deref(),
+        );
+        
+        info!("🐛 DEBUG: Spawned {} (team: {:?}) for player 1", 
+              format!("{:?}", unit_type), setup.player_team);
+    }
+
+    // Spawn player buildings
+    let building_spacing = 30.0;
+
+    // Nursery (house equivalent)
+    let nursery_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::Nursery),
+        get_terrain_position(
+            player1_base.x - building_spacing,
+            player1_base.z - building_spacing,
+            0.0,
+        ),
+        1,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        nursery_config,
+        model_assets.as_deref(),
+    );
+
+    // Warrior Chamber (barracks equivalent)
+    let warrior_config = SpawnConfig::building(
+        EntityType::Building(crate::core::components::BuildingType::WarriorChamber),
+        get_terrain_position(
+            player1_base.x + building_spacing,
+            player1_base.z - building_spacing,
+            0.0,
+        ),
+        1,
+    );
+    EntityFactory::spawn(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        warrior_config,
+        model_assets.as_deref(),
+    );
+
+    // Store player team info
+    commands.spawn(PlayerTeam {
+        team_type: setup.player_team.clone(),
+        player_id: 1,
+    });
+
+    // === AI PLAYERS ===
+    let base_positions = vec![
+        Vec3::new(800.0, 0.0, 0.0),      // Player 2 (right)
+        Vec3::new(0.0, 0.0, 800.0),      // Player 3 (top)
+        Vec3::new(0.0, 0.0, -800.0),     // Player 4 (bottom)
+        Vec3::new(-600.0, 0.0, 600.0),   // Player 5 (top-left)
+        Vec3::new(600.0, 0.0, 600.0),    // Player 6 (top-right)
+        Vec3::new(-600.0, 0.0, -600.0),  // Player 7 (bottom-left)
+        Vec3::new(600.0, 0.0, -600.0),   // Player 8 (bottom-right)
+    ];
+
+    for (ai_index, ai_team) in setup.ai_teams.iter().enumerate() {
+        let player_id = (ai_index + 2) as u8; // AI players start from ID 2
+        
+        // Add AI player to resource system
+        ai_resources.add_ai_player(player_id);
+        info!("🏧 Added AI player {} to resources system", player_id);
+        
+        if let Some(&base_pos_2d) = base_positions.get(ai_index) {
+            let ai_base = get_terrain_position(base_pos_2d.x, base_pos_2d.z, 0.0);
+
+            // Spawn Queen Chamber for AI
+            let ai_queen_config = SpawnConfig::building(
+                EntityType::Building(crate::core::components::BuildingType::Queen),
+                ai_base,
+                player_id,
+            );
+            EntityFactory::spawn(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                ai_queen_config,
+                model_assets.as_deref(),
+            );
+
+            // Spawn AI team units with debug mode for model visibility
+            let ai_roster = ai_team.get_unit_roster();
+            
+            // If this is 8-player mode (7 AI + 1 human), spawn more units for model debugging
+            let units_to_spawn = if setup.ai_teams.len() >= 7 { 
+                ai_roster.len().min(12) // Spawn all units (up to 12) for full model showcase
+            } else {
+                ai_roster.len().min(6) // Normal mode - spawn up to 6 units
+            };
+            
+            for (i, unit_type) in ai_roster.iter().enumerate().take(units_to_spawn) {
+                let offset_x = (i % 4) as f32 * unit_spacing; // 4 units per row for better layout
+                let offset_z = (i / 4) as f32 * unit_spacing - 30.0; // Opposite side from player
+                
+                let ai_unit_config = SpawnConfig::unit(
+                    EntityType::from_unit(unit_type.clone()),
+                    get_terrain_position(ai_base.x + offset_x, ai_base.z + offset_z, 2.0),
+                    player_id,
+                );
+                EntityFactory::spawn(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    ai_unit_config,
+                    model_assets.as_deref(),
+                );
+                
+                info!("🐛 DEBUG: Spawned {} (team: {:?}) for player {}", 
+                      format!("{:?}", unit_type), ai_team, player_id);
+            }
+
+            // Spawn AI buildings
+            let ai_nursery_config = SpawnConfig::building(
+                EntityType::Building(crate::core::components::BuildingType::Nursery),
+                get_terrain_position(
+                    ai_base.x + building_spacing,
+                    ai_base.z + building_spacing,
+                    0.0,
+                ),
+                player_id,
+            );
+            EntityFactory::spawn(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                ai_nursery_config,
+                model_assets.as_deref(),
+            );
+
+            let ai_warrior_config = SpawnConfig::building(
+                EntityType::Building(crate::core::components::BuildingType::WarriorChamber),
+                get_terrain_position(
+                    ai_base.x - building_spacing,
+                    ai_base.z + building_spacing,
+                    0.0,
+                ),
+                player_id,
+            );
+            EntityFactory::spawn(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                ai_warrior_config,
+                model_assets.as_deref(),
+            );
+
+            // Store AI team info
+            commands.spawn(PlayerTeam {
+                team_type: ai_team.clone(),
+                player_id,
+            });
+
+            info!("Spawned AI player {} with team: {:?}", player_id, ai_team);
+        }
+    }
+
+    // === NEUTRAL RESOURCES ===
+    // Resources are now spawned as environment objects (mushrooms, rocks) with ResourceSource components
+    // This provides better visual integration and uses GLB models instead of primitive shapes
+
+    // === ENVIRONMENT OBJECTS ===
+    spawn_minimal_environment_objects(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        &terrain_manager,
+        &terrain_settings,
+        model_assets.as_ref().map(|v| &**v),
+    );
+
+    info!("Team-based RTS elements spawned");
+}
+
+/// Setup game UI when entering Playing state
+pub fn setup_game_ui(
+    mut commands: Commands,
+    ui_icons: Res<crate::ui::icons::UIIcons>,
+    _game_costs: Res<crate::core::resources::GameCosts>,
+) {
+    use crate::ui::building_panel::setup_building_panel;
+    use crate::ui::resource_display::setup_resource_display;
+    use crate::constants::resources::*;
+
+    // Setup basic building UI
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::SpaceBetween,
+                ..default()
+            },
+            GlobalZIndex(100),
+        ))
+        .with_children(|parent| {
+            setup_resource_display(parent, &ui_icons);
+            setup_building_panel(parent, &ui_icons, &_game_costs);
+        });
+
+    // Initialize player resources (will sync with main PlayerResources)
+    commands.insert_resource(PlayerResources {
+        nectar: STARTING_NECTAR,
+        chitin: STARTING_CHITIN,
+        minerals: STARTING_MINERALS,
+        pheromones: STARTING_PHEROMONES,
+        current_population: 0,
+        max_population: STARTING_POPULATION_LIMIT,
+    });
+
+    info!("Game UI setup complete");
 }
 
 /// Enhanced RTS camera system with terrain-aware scroll wheel zoom

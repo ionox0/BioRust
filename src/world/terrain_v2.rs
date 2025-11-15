@@ -344,7 +344,7 @@ pub fn update_visible_chunks_quadtree(
         }
 
         // Check if player moved significantly (optimization from Bug_Game)
-        let movement_threshold = 1000.0; // Even larger threshold to prevent frequent chunk updates and flashing
+        let movement_threshold = 100.0; // Much smaller threshold to ensure terrain loads properly
         if camera_pos.distance(terrain_manager.last_player_position) < movement_threshold
             && !terrain_manager.dirty
         {

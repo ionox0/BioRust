@@ -41,7 +41,7 @@ impl Plugin for AIPlugin {
                 Startup,
                 (ai_resource_initialization_system, setup_ai_intelligence),
             )
-            // Core AI systems - split into smaller groups to avoid parameter limits
+            // Core AI systems - only run during Playing state
             .add_systems(
                 Update,
                 (
@@ -50,7 +50,8 @@ impl Plugin for AIPlugin {
                     scouting_system,
                     scout_survival_system,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(crate::core::game::GameState::Playing)),
             )
             .add_systems(
                 Update,
@@ -60,10 +61,17 @@ impl Plugin for AIPlugin {
                     economy_optimization_system,
                     worker_idle_detection_system,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(crate::core::game::GameState::Playing)),
             )
-            .add_systems(Update, ai_decision_system)
-            .add_systems(Update, ai_strategy_system)
+            .add_systems(
+                Update, 
+                ai_decision_system.run_if(in_state(crate::core::game::GameState::Playing))
+            )
+            .add_systems(
+                Update, 
+                ai_strategy_system.run_if(in_state(crate::core::game::GameState::Playing))
+            )
             .add_systems(
                 Update,
                 (
@@ -76,7 +84,8 @@ impl Plugin for AIPlugin {
                     ai_worker_initialization_system,
                     ai_worker_dropoff_system,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(crate::core::game::GameState::Playing)),
             );
     }
 }

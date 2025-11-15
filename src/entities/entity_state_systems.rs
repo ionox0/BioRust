@@ -33,6 +33,7 @@ impl Plugin for EntityStatePlugin {
 
 // State change events for each specialized component
 #[derive(Event, Debug)]
+#[allow(dead_code)] // Placeholder for state change events
 pub struct GatheringStateChangeEvent {
     pub entity: Entity,
     pub old_state: GatheringStateType,
@@ -40,6 +41,7 @@ pub struct GatheringStateChangeEvent {
 }
 
 #[derive(Event, Debug)]
+#[allow(dead_code)] // Placeholder for state change events
 pub struct BuildingStateChangeEvent {
     pub entity: Entity,
     pub old_state: BuildingStateType,
@@ -47,6 +49,7 @@ pub struct BuildingStateChangeEvent {
 }
 
 #[derive(Event, Debug)]
+#[allow(dead_code)] // Placeholder for state change events
 pub struct MovementStateChangeEvent {
     pub entity: Entity,
     pub old_state: MovementStateType,
@@ -54,6 +57,7 @@ pub struct MovementStateChangeEvent {
 }
 
 #[derive(Event, Debug)]
+#[allow(dead_code)] // Placeholder for state change events
 pub struct CombatStateChangeEvent {
     pub entity: Entity,
     pub old_state: CombatStateType,

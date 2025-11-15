@@ -81,18 +81,15 @@ pub fn unit_command_system(
         return;
     }
 
-    // Debug resource availability
-    let resource_count = resources.iter().count();
-    info!(
-        "🖱️ Right-click detected! {} resources available in world",
-        resource_count
-    );
+    // Removed verbose logging for performance
 
     let window = windows.single();
     let Some(cursor_position) = window.cursor_position() else {
         return;
     };
-    let (camera, camera_transform) = camera_q.single();
+    let Ok((camera, camera_transform)) = camera_q.get_single() else {
+        return; // No camera found, skip unit commands
+    };
 
     let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
         return;
@@ -107,12 +104,7 @@ pub fn unit_command_system(
     let target_resource = find_resource_target(ray, &resources);
     let target_building_site = find_building_site_target(ray, &building_sites.p0());
 
-    info!(
-        "🎯 Targets found - Enemy: {:?}, Resource: {:?}, BuildingSite: {:?}",
-        target_enemy.is_some(),
-        target_resource.is_some(),
-        target_building_site.is_some()
-    );
+    // Removed verbose target logging for performance
 
     let target_point = if let Some((_, resource_pos)) = target_resource {
         resource_pos
@@ -231,11 +223,7 @@ fn find_resource_target(
     ray: Ray3d,
     resources: &Query<(Entity, &Transform, &Selectable, &ResourceSource), With<ResourceSource>>,
 ) -> Option<(Entity, Vec3)> {
-    let resource_count = resources.iter().count();
-    info!(
-        "🎯 Checking {} resources for click detection",
-        resource_count
-    );
+    // Removed verbose resource count logging for performance
 
     for (resource_entity, resource_transform, selectable, _resource_source) in resources.iter() {
         let projected_distance_opt =
@@ -243,29 +231,17 @@ fn find_resource_target(
         if let Some(projected_distance) = projected_distance_opt {
             let distance_to_ray =
                 calculate_distance_to_ray(ray, resource_transform.translation, projected_distance);
-            info!(
-                "🎯 Resource {:?} at {:?} - distance_to_ray: {:.1}, selection_radius: {:.1}",
-                resource_entity,
-                resource_transform.translation,
-                distance_to_ray,
-                selectable.selection_radius
-            );
+            // Removed verbose resource distance logging for performance
 
             if distance_to_ray < selectable.selection_radius {
-                info!(
-                    "✅ Found resource target! Entity {:?} at distance {:.1}",
-                    resource_entity, distance_to_ray
-                );
+                // Removed verbose resource target confirmation logging for performance
                 return Some((resource_entity, resource_transform.translation));
             }
         } else {
-            info!(
-                "🎯 Resource {:?} - projected distance is None (behind camera)",
-                resource_entity
-            );
+            // Removed verbose behind camera logging for performance
         }
     }
-    info!("❌ No resource found within selection radius");
+    // Removed verbose no resource found logging for performance
     None
 }
 
@@ -556,10 +532,7 @@ fn execute_unit_command(
         combat.target = Some(enemy_entity);
         combat.auto_attack = true; // Enable auto_attack when given attack command
         movement.target_position = None;
-        info!(
-            "🗡️ Unit {:?} attacking target {:?}!",
-            unit.unit_id, enemy_entity
-        );
+        // Removed verbose attack command logging for performance
     } else if let Some((resource_entity, _resource_transform)) = target_resource {
         // Resource gathering command
         if let Some(mut resource_gatherer) = gatherer {
@@ -574,10 +547,7 @@ fn execute_unit_command(
             combat.is_attacking = false;
             combat.last_attack_time = 0.0;
 
-            info!(
-                "⛏️ Worker {:?} assigned to gather from resource {:?}!",
-                unit.unit_id, resource_entity
-            );
+            // Removed verbose worker assignment logging for performance
         } else if matches!(unit.unit_type, Some(UnitType::WorkerAnt)) {
             // WorkerAnt without ResourceGatherer - add the component
             let nearest_building = find_nearest_building(unit.player_id, unit_pos, buildings);
@@ -597,7 +567,7 @@ fn execute_unit_command(
             combat.is_attacking = false;
             combat.last_attack_time = 0.0;
 
-            info!("⛏️ Added ResourceGatherer to Worker {:?} and assigned to gather from resource {:?}!", unit.unit_id, resource_entity);
+            // Removed verbose ResourceGatherer addition logging for performance
         } else {
             // Not a worker, just move to location
             movement.target_position = Some(target_point);
@@ -605,10 +575,7 @@ fn execute_unit_command(
             combat.auto_attack = false; // Disable auto_attack for non-combat commands
             combat.is_attacking = false;
             combat.last_attack_time = 0.0;
-            info!(
-                "🚶 Unit {:?} moving to resource location: {:?}",
-                unit.unit_id, target_point
-            );
+            // Removed verbose move to resource logging for performance
         }
     } else {
         // Simple move command - force clear combat state for player units
@@ -617,10 +584,7 @@ fn execute_unit_command(
         combat.auto_attack = false; // Disable auto_attack for move commands
         combat.is_attacking = false; // Also clear attacking state
         combat.last_attack_time = 0.0; // Reset attack timing
-        info!(
-            "🚶 Unit {:?} moving to position: {:?}",
-            unit.unit_id, target_point
-        );
+        // Removed verbose move command logging for performance
     }
 }
 
@@ -711,8 +675,7 @@ fn distribute_workers_across_resources(
         dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let worker_count = selected_workers.len();
-    info!("🔀 Distributing {} workers across {} available resources", worker_count, available_resources.len());
+    // Removed verbose worker distribution logging for performance
 
     // Assign workers to resources in round-robin fashion, respecting max_gatherers
     let mut resource_index = 0;
@@ -749,7 +712,7 @@ fn distribute_workers_across_resources(
         resource_index = (resource_index + 1) % available_resources.len();
     }
 
-    info!("✅ Successfully assigned {} out of {} workers to resources", assigned_count, worker_count);
+    // Removed verbose worker assignment result logging for performance
 }
 
 /// Assign a specific worker to a specific resource
@@ -788,7 +751,7 @@ fn assign_worker_to_resource(
             combat.is_attacking = false;
             combat.last_attack_time = 0.0;
 
-            info!("⛏️ Worker {} assigned to resource {:?}", worker_id, resource_entity);
+            // Removed verbose individual worker assignment logging for performance
         } else if matches!(unit.unit_type, Some(UnitType::WorkerAnt)) {
             // WorkerAnt without ResourceGatherer - add the component
             commands.entity(worker_entity).insert(ResourceGatherer {
@@ -806,7 +769,7 @@ fn assign_worker_to_resource(
             combat.is_attacking = false;
             combat.last_attack_time = 0.0;
 
-            info!("⛏️ Added ResourceGatherer to Worker {} and assigned to resource {:?}", worker_id, resource_entity);
+            // Removed verbose ResourceGatherer addition for individual worker logging for performance
         }
     }
 }
@@ -849,10 +812,7 @@ fn handle_non_constructor_unit(
 ) {
     movement.target_position = Some(target_point);
     combat.target = None;
-    info!(
-        "🚶 Unit {:?} moving to construction site: {:?}",
-        unit.unit_id, target_point
-    );
+    // Removed verbose construction site movement logging for performance
 }
 
 fn get_building_site_info(
@@ -924,10 +884,7 @@ fn assign_construction_task(
     movement.target_position = Some(site_info.position);
     combat.target = None;
 
-    info!(
-        "🔨 Player 1 worker {:?} assigned to construct {:?} at {:?}!",
-        unit.unit_id, site_info.building_type, site_info.position
-    );
+    // Removed verbose construction assignment logging for performance
 }
 
 fn get_construction_time_for_building(building_type: &BuildingType) -> f32 {
@@ -945,7 +902,7 @@ fn get_construction_time_for_building(building_type: &BuildingType) -> f32 {
 fn handle_site_already_assigned(movement: &mut Movement, combat: &mut Combat, target_point: Vec3) {
     movement.target_position = Some(target_point);
     combat.target = None;
-    info!("⚠️ Building site already has worker assigned, moving to location instead");
+    // Removed verbose site already assigned logging for performance
 }
 
 pub fn spawn_test_units_system(
@@ -954,6 +911,7 @@ pub fn spawn_test_units_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     camera_q: Query<&Transform, With<crate::core::components::RTSCamera>>,
+    mut ai_resources: ResMut<crate::core::resources::AIResources>,
 ) {
     let Ok(camera_transform) = camera_q.get_single() else {
         return;
@@ -1048,5 +1006,14 @@ pub fn spawn_test_units_system(
             "Spawned second Queen building for AI Player 2 at {:?} to test overflow (completed)",
             spawn_pos
         );
+    }
+
+    // Test hotkey to add additional AI players for testing the resource display
+    if keyboard.just_pressed(KeyCode::KeyU) {
+        // Add AI players 3 and 4 if they don't exist
+        for player_id in 3..=4 {
+            ai_resources.add_ai_player(player_id);
+        }
+        info!("Added AI players 3 and 4 for resource display testing");
     }
 }

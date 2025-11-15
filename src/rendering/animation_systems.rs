@@ -18,9 +18,13 @@ impl Plugin for AnimationPlugin {
                 find_animation_players,
                 start_idle_animations, // Start animations for newly found players
                 // animation_speed_compensation, // DISABLED: Causes panics in Bevy animation system
-                animation_debug_system,
             )
                 .chain(),
+        )
+        // Only run debug system during Playing state to avoid startup screen clutter
+        .add_systems(
+            Update,
+            animation_debug_system.run_if(in_state(crate::core::game::GameState::Playing))
         )
         .add_event::<AnimationStateChangeEvent>();
     }

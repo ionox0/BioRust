@@ -181,19 +181,48 @@ pub struct AIResources {
 impl Default for AIResources {
     fn default() -> Self {
         let mut resources = std::collections::HashMap::new();
-        // Add AI player 2 with limited starting resources (similar to player)
-        resources.insert(
-            2,
-            PlayerResources {
-                nectar: 200.0,       // Slightly more than player for AI advantage (down from 800)
-                chitin: 60.0,        // Minimal chitin for early buildings (down from 800)
-                minerals: 30.0,      // Minimal minerals (down from 500)
-                pheromones: 90.0,    // Enough for a few combat units (down from 500)
-                max_population: 200, // Keep higher pop cap to support AI expansion
-                current_population: 0,
-            },
-        );
+        
+        // Add AI players 2, 3, and 4 with limited starting resources (similar to player)
+        for player_id in 2..=4 {
+            resources.insert(
+                player_id,
+                PlayerResources {
+                    nectar: 200.0,       // Slightly more than player for AI advantage (down from 800)
+                    chitin: 60.0,        // Minimal chitin for early buildings (down from 800)
+                    minerals: 30.0,      // Minimal minerals (down from 500)
+                    pheromones: 90.0,    // Enough for a few combat units (down from 500)
+                    max_population: 200, // Keep higher pop cap to support AI expansion
+                    current_population: 0,
+                },
+            );
+        }
+        
         Self { resources }
+    }
+}
+
+impl AIResources {
+    /// Add a new AI player if it doesn't already exist
+    pub fn add_ai_player(&mut self, player_id: u8) {
+        if !self.resources.contains_key(&player_id) {
+            self.resources.insert(
+                player_id,
+                PlayerResources {
+                    nectar: 200.0,
+                    chitin: 60.0,
+                    minerals: 30.0,
+                    pheromones: 90.0,
+                    max_population: 200,
+                    current_population: 0,
+                },
+            );
+        }
+    }
+
+    /// Remove an AI player
+    #[allow(dead_code)] // Placeholder for dynamic AI management
+    pub fn remove_ai_player(&mut self, player_id: u8) {
+        self.resources.remove(&player_id);
     }
 }
 
@@ -225,6 +254,7 @@ impl<'a> ResourceManager<'a> {
     }
 
     /// Spend resources for a player
+    #[allow(dead_code)] // Placeholder for resource spending functionality
     pub fn spend_resources(
         &mut self,
         player_id: u8,
@@ -350,23 +380,7 @@ impl GameCosts {
                 (ResourceType::Pheromones, 25.0),
             ],
         ); // 130 total - fast skirmisher
-        costs.unit_costs.insert(
-            UnitType::Ladybug,
-            vec![
-                (ResourceType::Nectar, 70.0),
-                (ResourceType::Chitin, 50.0),
-                (ResourceType::Pheromones, 20.0),
-            ],
-        ); // 140 total - balanced fighter
-
         // Additional utility and specialized units
-        costs.unit_costs.insert(
-            UnitType::LadybugScout,
-            vec![
-                (ResourceType::Nectar, 50.0),
-                (ResourceType::Pheromones, 25.0),
-            ],
-        ); // 75 total - light scout
         costs
             .unit_costs
             .insert(UnitType::TermiteWorker, vec![(ResourceType::Nectar, 60.0)]); // 60 total - specialized worker
@@ -441,6 +455,130 @@ impl GameCosts {
                 (ResourceType::Pheromones, 25.0),
             ],
         ); // 175 total - defensive specialist
+
+        // === NEW UNIT CATEGORIES FOR MULTI-TEAM SYSTEM ===
+
+        // Beetles family units
+        costs.unit_costs.insert(
+            UnitType::StagBeetle,
+            vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 60.0)],
+        ); // 140 total - heavy melee beetle
+        costs.unit_costs.insert(
+            UnitType::DungBeetle,
+            vec![(ResourceType::Nectar, 65.0), (ResourceType::Chitin, 35.0)],
+        ); // 100 total - worker/siege beetle
+        costs.unit_costs.insert(
+            UnitType::RhinoBeetle,
+            vec![(ResourceType::Nectar, 90.0), (ResourceType::Chitin, 80.0), (ResourceType::Minerals, 30.0)],
+        ); // 200 total - armored assault beetle
+        costs.unit_costs.insert(
+            UnitType::StinkBeetle,
+            vec![(ResourceType::Nectar, 70.0), (ResourceType::Pheromones, 50.0)],
+        ); // 120 total - area denial beetle
+        costs.unit_costs.insert(
+            UnitType::JewelBug,
+            vec![(ResourceType::Nectar, 55.0), (ResourceType::Pheromones, 25.0)],
+        ); // 80 total - fast support beetle
+
+        // Mantids family
+        costs.unit_costs.insert(
+            UnitType::CommonMantis,
+            vec![(ResourceType::Nectar, 75.0), (ResourceType::Chitin, 45.0), (ResourceType::Pheromones, 30.0)],
+        ); // 150 total - standard predator mantis
+        costs.unit_costs.insert(
+            UnitType::OrchidMantis,
+            vec![(ResourceType::Nectar, 85.0), (ResourceType::Chitin, 55.0), (ResourceType::Pheromones, 40.0)],
+        ); // 180 total - stealth/ambush mantis
+
+        // Fourmi (Ants) family variants
+        costs.unit_costs.insert(UnitType::RedAnt, vec![(ResourceType::Nectar, 55.0), (ResourceType::Pheromones, 20.0)]);
+        costs.unit_costs.insert(UnitType::BlackAnt, vec![(ResourceType::Nectar, 45.0)]);
+        costs.unit_costs.insert(UnitType::FireAnt, vec![(ResourceType::Nectar, 65.0), (ResourceType::Pheromones, 35.0)]);
+        costs.unit_costs.insert(UnitType::SoldierFourmi, vec![(ResourceType::Nectar, 70.0), (ResourceType::Pheromones, 30.0)]);
+        costs.unit_costs.insert(UnitType::WorkerFourmi, vec![(ResourceType::Nectar, 50.0)]);
+
+        // Small creatures family
+        costs.unit_costs.insert(UnitType::Aphids, vec![(ResourceType::Nectar, 25.0)]);
+        costs.unit_costs.insert(UnitType::Mites, vec![(ResourceType::Nectar, 20.0)]);
+        costs.unit_costs.insert(UnitType::Ticks, vec![(ResourceType::Nectar, 30.0), (ResourceType::Chitin, 15.0)]);
+        costs.unit_costs.insert(UnitType::Fleas, vec![(ResourceType::Nectar, 35.0)]);
+        costs.unit_costs.insert(UnitType::Lice, vec![(ResourceType::Nectar, 20.0)]);
+
+        // Cephalopoda family
+        costs.unit_costs.insert(
+            UnitType::Pillbug,
+            vec![(ResourceType::Nectar, 60.0), (ResourceType::Chitin, 40.0)],
+        ); // 100 total - defensive rolling unit
+        costs.unit_costs.insert(UnitType::Silverfish, vec![(ResourceType::Nectar, 40.0), (ResourceType::Pheromones, 20.0)]);
+        costs.unit_costs.insert(
+            UnitType::Woodlouse,
+            vec![(ResourceType::Nectar, 55.0), (ResourceType::Chitin, 35.0)],
+        ); // 90 total - armored defensive unit
+        costs.unit_costs.insert(UnitType::SandFleas, vec![(ResourceType::Nectar, 45.0), (ResourceType::Pheromones, 15.0)]);
+
+        // Butterflies family
+        costs.unit_costs.insert(
+            UnitType::Moths,
+            vec![(ResourceType::Nectar, 65.0), (ResourceType::Pheromones, 35.0)],
+        ); // 100 total - night flying units
+        costs.unit_costs.insert(UnitType::Caterpillars, vec![(ResourceType::Nectar, 40.0), (ResourceType::Chitin, 20.0)]);
+        costs.unit_costs.insert(
+            UnitType::PeacockMoth,
+            vec![(ResourceType::Nectar, 120.0), (ResourceType::Chitin, 60.0), (ResourceType::Pheromones, 40.0)],
+        ); // 220 total - elite large flyer
+
+        // Spiders family
+        costs.unit_costs.insert(
+            UnitType::WidowSpider,
+            vec![(ResourceType::Nectar, 85.0), (ResourceType::Chitin, 45.0), (ResourceType::Pheromones, 20.0)],
+        ); // 150 total - venomous predator
+        costs.unit_costs.insert(
+            UnitType::WolfSpiderVariant,
+            vec![(ResourceType::Nectar, 75.0), (ResourceType::Chitin, 55.0)],
+        ); // 130 total - pack hunter variant
+        costs.unit_costs.insert(
+            UnitType::Tarantula,
+            vec![(ResourceType::Nectar, 110.0), (ResourceType::Chitin, 80.0), (ResourceType::Minerals, 30.0)],
+        ); // 220 total - large ground predator
+        costs.unit_costs.insert(UnitType::DaddyLongLegs, vec![(ResourceType::Nectar, 45.0), (ResourceType::Pheromones, 15.0)]);
+
+        // Flies family
+        costs.unit_costs.insert(UnitType::HouseflyVariant, vec![(ResourceType::Nectar, 40.0), (ResourceType::Pheromones, 15.0)]);
+        costs.unit_costs.insert(
+            UnitType::Horsefly,
+            vec![(ResourceType::Nectar, 70.0), (ResourceType::Pheromones, 30.0)],
+        ); // 100 total - large aggressive fly
+        costs.unit_costs.insert(UnitType::Firefly, vec![(ResourceType::Nectar, 50.0), (ResourceType::Pheromones, 25.0)]);
+        costs.unit_costs.insert(
+            UnitType::DragonFlies,
+            vec![(ResourceType::Nectar, 90.0), (ResourceType::Chitin, 50.0), (ResourceType::Pheromones, 35.0)],
+        ); // 175 total - large aerial predator
+        costs.unit_costs.insert(UnitType::Damselfly, vec![(ResourceType::Nectar, 55.0), (ResourceType::Pheromones, 25.0)]);
+
+        // Bees family
+        costs.unit_costs.insert(
+            UnitType::Hornets,
+            vec![(ResourceType::Nectar, 80.0), (ResourceType::Chitin, 40.0), (ResourceType::Pheromones, 30.0)],
+        ); // 150 total - aggressive flying unit
+        costs.unit_costs.insert(UnitType::Wasps, vec![(ResourceType::Nectar, 65.0), (ResourceType::Pheromones, 35.0)]);
+        costs.unit_costs.insert(UnitType::Bumblebees, vec![(ResourceType::Nectar, 70.0), (ResourceType::Chitin, 30.0)]);
+        costs.unit_costs.insert(UnitType::Honeybees, vec![(ResourceType::Nectar, 55.0), (ResourceType::Chitin, 25.0)]);
+        costs.unit_costs.insert(
+            UnitType::MurderHornet,
+            vec![(ResourceType::Nectar, 130.0), (ResourceType::Chitin, 70.0), (ResourceType::Pheromones, 50.0)],
+        ); // 250 total - elite aggressive flyer
+
+        // Individual species
+        costs.unit_costs.insert(UnitType::Earwigs, vec![(ResourceType::Nectar, 60.0), (ResourceType::Chitin, 40.0)]);
+        costs.unit_costs.insert(
+            UnitType::ScorpionVariant,
+            vec![(ResourceType::Nectar, 75.0), (ResourceType::Chitin, 65.0), (ResourceType::Minerals, 35.0)],
+        ); // 175 total - heavy ground predator
+        costs.unit_costs.insert(UnitType::StickBugs, vec![(ResourceType::Nectar, 50.0), (ResourceType::Chitin, 30.0)]);
+        costs.unit_costs.insert(UnitType::LeafBugs, vec![(ResourceType::Nectar, 55.0), (ResourceType::Chitin, 25.0)]);
+        costs.unit_costs.insert(UnitType::Cicadas, vec![(ResourceType::Nectar, 45.0), (ResourceType::Pheromones, 35.0)]);
+        costs.unit_costs.insert(UnitType::Grasshoppers, vec![(ResourceType::Nectar, 50.0), (ResourceType::Pheromones, 20.0)]);
+        costs.unit_costs.insert(UnitType::Cockroaches, vec![(ResourceType::Nectar, 65.0), (ResourceType::Chitin, 35.0)]);
 
         // Building costs - balanced for strategic gameplay progression
         // Core production buildings (affordable for early expansion)

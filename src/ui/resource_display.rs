@@ -29,10 +29,18 @@ pub struct AIResourceDisplay;
 #[derive(Component)]
 pub struct AIResourceCounter {
     pub resource_type: ResourceType,
+    pub player_id: u8,
 }
 
 #[derive(Component)]
-pub struct AIPopulationCounter;
+pub struct AIPopulationCounter {
+    pub player_id: u8,
+}
+
+#[derive(Component)]
+pub struct AIPlayerContainer {
+    pub player_id: u8,
+}
 
 #[derive(Component)]
 pub struct ResourceTooltip;
@@ -213,7 +221,7 @@ pub fn update_resource_display(
 }
 
 // Setup AI resources display (top right corner, below main resource bar)
-pub fn setup_ai_resource_display(mut commands: Commands, ui_icons: Res<UIIcons>) {
+pub fn setup_ai_resource_display(mut commands: Commands, _ui_icons: Res<UIIcons>) {
     use crate::constants::ui::*;
 
     commands
@@ -223,130 +231,243 @@ pub fn setup_ai_resource_display(mut commands: Commands, ui_icons: Res<UIIcons>)
                 top: Val::Px(RESOURCE_BAR_HEIGHT + 10.0), // Position below main resource bar with margin
                 right: Val::Px(10.0), // Right side of screen
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(8.0)), // Slightly smaller padding for compactness
-                row_gap: Val::Px(4.0), // Tighter spacing
-                border: UiRect::all(Val::Px(2.0)),
-                max_width: Val::Px(160.0), // Constrain width to avoid overlapping
+                padding: UiRect::all(Val::Px(6.0)), // Even more compact padding
+                row_gap: Val::Px(6.0), // Spacing between players
+                border: UiRect::all(Val::Px(1.0)),
+                max_width: Val::Px(180.0), // Slightly wider to accommodate more info
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.8)),
-            BorderColor(Color::srgb(0.8, 0.3, 0.3)), // Red border for AI
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.85)),
+            BorderColor(Color::srgb(0.5, 0.5, 0.5)), // Neutral border for all AI
             ZIndex(1000),                            // High z-index to appear above other UI
             AIResourceDisplay,
         ))
         .with_children(|parent| {
-            // AI Player label - more compact
+            // Title label
             parent.spawn((
-                Text::new("AI Player 2"),
+                Text::new("AI Players"),
                 TextFont {
-                    font_size: 14.0, // Smaller font
+                    font_size: 12.0, // Smaller font
                     ..default()
                 },
-                TextColor(Color::srgb(0.8, 0.3, 0.3)),
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
                 Node {
-                    margin: UiRect::bottom(Val::Px(2.0)), // Small margin below title
+                    margin: UiRect::bottom(Val::Px(4.0)),
+                    align_self: AlignSelf::Center,
                     ..default()
                 },
             ));
-
-            // AI Resource counters - more compact
-            for (resource, icon_handle) in [
-                (ResourceType::Nectar, ui_icons.nectar_icon.clone()),
-                (ResourceType::Chitin, ui_icons.chitin_icon.clone()),
-                (ResourceType::Minerals, ui_icons.minerals_icon.clone()),
-                (ResourceType::Pheromones, ui_icons.pheromones_icon.clone()),
-            ] {
-                parent
-                    .spawn((Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        column_gap: Val::Px(3.0), // Tighter spacing
-                        margin: UiRect::vertical(Val::Px(1.0)), // Tighter vertical margins
-                        ..default()
-                    },))
-                    .with_children(|parent| {
-                        parent.spawn((
-                            ImageNode::new(icon_handle),
-                            Node {
-                                width: Val::Px(16.0), // Smaller icons
-                                height: Val::Px(16.0),
-                                ..default()
-                            },
-                        ));
-                        parent.spawn((
-                            Text::new("0"),
-                            TextFont {
-                                font_size: 13.0, // Smaller text
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                            AIResourceCounter {
-                                resource_type: resource,
-                            },
-                        ));
-                    });
-            }
-
-            // AI Population counter - more compact
-            parent
-                .spawn((Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(3.0), // Tighter spacing
-                    margin: UiRect::vertical(Val::Px(1.0)), // Tighter vertical margins
-                    ..default()
-                },))
-                .with_children(|parent| {
-                    parent.spawn((
-                        ImageNode::new(ui_icons.population_icon.clone()),
-                        Node {
-                            width: Val::Px(16.0), // Smaller icons
-                            height: Val::Px(16.0),
-                            ..default()
-                        },
-                    ));
-                    parent.spawn((
-                        Text::new("0/0"),
-                        TextFont {
-                            font_size: 13.0, // Smaller text
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        AIPopulationCounter,
-                    ));
-                });
+            
+            // Container for all AI players - initially empty, populated dynamically
         });
 }
 
-// Update AI resource display
+// Manage AI player containers dynamically
+pub fn manage_ai_resource_display(
+    mut commands: Commands,
+    ui_icons: Res<UIIcons>,
+    ai_resources: Res<crate::core::resources::AIResources>,
+    game_setup: Option<Res<GameSetup>>,
+    ai_display_query: Query<Entity, With<AIResourceDisplay>>,
+    ai_container_query: Query<(Entity, &AIPlayerContainer)>,
+) {
+    // Get the main AI display container
+    let Ok(ai_display_entity) = ai_display_query.get_single() else {
+        return;
+    };
+
+    // Get existing AI player containers
+    let existing_players: std::collections::HashSet<u8> = ai_container_query
+        .iter()
+        .map(|(_, container)| container.player_id)
+        .collect();
+
+    // Get AI players that should exist
+    let needed_players: std::collections::HashSet<u8> = ai_resources.resources.keys().copied().collect();
+
+    // Remove containers for players that no longer exist
+    for (entity, container) in ai_container_query.iter() {
+        if !needed_players.contains(&container.player_id) {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+
+    // Add containers for new players
+    for &player_id in &needed_players {
+        if !existing_players.contains(&player_id) {
+            // Get player color based on player ID
+            let player_color = crate::core::components::TeamColor::get_primitive_color(player_id);
+
+            // Get team name for this player (if available from game setup)
+            let display_name = if let Some(ref setup) = game_setup {
+                // Player IDs 2+ map to AI team indices 0+
+                if player_id >= 2 {
+                    let ai_index = (player_id - 2) as usize;
+                    if let Some(team_type) = setup.ai_teams.get(ai_index) {
+                        team_type.display_name().to_string()
+                    } else {
+                        format!("AI {}", player_id)
+                    }
+                } else {
+                    format!("Player {}", player_id)
+                }
+            } else {
+                format!("AI {}", player_id)
+            };
+
+            // Create container for this AI player
+            let player_container = commands
+                .spawn((
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        padding: UiRect::all(Val::Px(4.0)),
+                        border: UiRect::all(Val::Px(1.0)),
+                        margin: UiRect::bottom(Val::Px(2.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.05, 0.05, 0.05, 0.6)),
+                    BorderColor(player_color.into()),
+                    AIPlayerContainer { player_id },
+                ))
+                .with_children(|parent| {
+                    // Player label with team name
+                    parent.spawn((
+                        Text::new(display_name),
+                        TextFont {
+                            font_size: 11.0,
+                            ..default()
+                        },
+                        TextColor(player_color.into()),
+                        Node {
+                            margin: UiRect::bottom(Val::Px(2.0)),
+                            align_self: AlignSelf::Center,
+                            ..default()
+                        },
+                    ));
+
+                    // Resources in a compact row
+                    parent.spawn((
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            justify_content: JustifyContent::SpaceEvenly,
+                            column_gap: Val::Px(4.0),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|resource_row| {
+                        // Compact resource display - just numbers with tiny icons
+                        for (resource, icon_handle) in [
+                            (ResourceType::Nectar, ui_icons.nectar_icon.clone()),
+                            (ResourceType::Chitin, ui_icons.chitin_icon.clone()),
+                            (ResourceType::Minerals, ui_icons.minerals_icon.clone()),
+                            (ResourceType::Pheromones, ui_icons.pheromones_icon.clone()),
+                        ] {
+                            resource_row.spawn((
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    align_items: AlignItems::Center,
+                                    row_gap: Val::Px(1.0),
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|res_item| {
+                                // Tiny icon
+                                res_item.spawn((
+                                    ImageNode::new(icon_handle),
+                                    Node {
+                                        width: Val::Px(10.0),
+                                        height: Val::Px(10.0),
+                                        ..default()
+                                    },
+                                ));
+                                // Resource amount
+                                res_item.spawn((
+                                    Text::new("0"),
+                                    TextFont {
+                                        font_size: 9.0, // Very small text
+                                        ..default()
+                                    },
+                                    TextColor(Color::WHITE),
+                                    AIResourceCounter {
+                                        resource_type: resource,
+                                        player_id,
+                                    },
+                                ));
+                            });
+                        }
+                    });
+
+                    // Population display
+                    parent.spawn((
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            column_gap: Val::Px(2.0),
+                            margin: UiRect::top(Val::Px(1.0)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|pop_row| {
+                        pop_row.spawn((
+                            ImageNode::new(ui_icons.population_icon.clone()),
+                            Node {
+                                width: Val::Px(10.0),
+                                height: Val::Px(10.0),
+                                ..default()
+                            },
+                        ));
+                        pop_row.spawn((
+                            Text::new("0/0"),
+                            TextFont {
+                                font_size: 9.0, // Very small text
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                            AIPopulationCounter { player_id },
+                        ));
+                    });
+                })
+                .id();
+
+            // Add the new player container to the main display
+            commands.entity(ai_display_entity).add_child(player_container);
+        }
+    }
+}
+
+// Update AI resource display values
 pub fn update_ai_resource_display(
     ai_resources: Res<crate::core::resources::AIResources>,
     mut ai_resource_query: Query<(&AIResourceCounter, &mut Text)>,
     mut ai_population_query: Query<
-        &mut Text,
-        (With<AIPopulationCounter>, Without<AIResourceCounter>),
+        (&AIPopulationCounter, &mut Text),
+        Without<AIResourceCounter>,
     >,
 ) {
-    // Get AI Player 2's resources
-    let Some(ai_player_2) = ai_resources.resources.get(&2) else {
+    if !ai_resources.is_changed() {
         return;
-    };
-
-    for (counter, mut text) in ai_resource_query.iter_mut() {
-        let amount = match counter.resource_type {
-            ResourceType::Nectar => ai_player_2.nectar,
-            ResourceType::Chitin => ai_player_2.chitin,
-            ResourceType::Minerals => ai_player_2.minerals,
-            ResourceType::Pheromones => ai_player_2.pheromones,
-        };
-        **text = format!("{:.0}", amount);
     }
 
-    for mut text in ai_population_query.iter_mut() {
-        **text = format!(
-            "{}/{}",
-            ai_player_2.current_population, ai_player_2.max_population
-        );
+    for (counter, mut text) in ai_resource_query.iter_mut() {
+        if let Some(player_resources) = ai_resources.resources.get(&counter.player_id) {
+            let amount = match counter.resource_type {
+                ResourceType::Nectar => player_resources.nectar,
+                ResourceType::Chitin => player_resources.chitin,
+                ResourceType::Minerals => player_resources.minerals,
+                ResourceType::Pheromones => player_resources.pheromones,
+            };
+            **text = format!("{:.0}", amount);
+        }
+    }
+
+    for (counter, mut text) in ai_population_query.iter_mut() {
+        if let Some(player_resources) = ai_resources.resources.get(&counter.player_id) {
+            **text = format!(
+                "{}/{}",
+                player_resources.current_population, player_resources.max_population
+            );
+        }
     }
 }
 

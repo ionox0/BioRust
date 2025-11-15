@@ -15,8 +15,15 @@ mod combat_constants {
 }
 
 // Spatial grid for efficient target acquisition
+#[derive(Resource)]
 struct TargetGrid {
     cells: HashMap<(i32, i32), Vec<(Entity, Vec3, u8)>>,
+}
+
+impl Default for TargetGrid {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TargetGrid {
@@ -24,6 +31,10 @@ impl TargetGrid {
         Self {
             cells: HashMap::new(),
         }
+    }
+
+    fn clear(&mut self) {
+        self.cells.clear();
     }
 
     fn insert(&mut self, entity: Entity, position: Vec3, player_id: u8) {
@@ -64,20 +75,21 @@ impl TargetGrid {
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                target_management_system, // Combined target validation and acquisition
-                combat_execution_system,  // Combined attack and movement
-                damage_resolution_system,
-                health_regeneration_system,
-                death_system,
-                health_bar_system,
+        app.init_resource::<TargetGrid>()
+            .add_systems(
+                Update,
+                (
+                    target_management_system, // Combined target validation and acquisition
+                    combat_execution_system,  // Combined attack and movement
+                    damage_resolution_system,
+                    health_regeneration_system,
+                    death_system,
+                    health_bar_system,
+                )
+                    .chain(),
             )
-                .chain(),
-        )
-        .add_event::<DamageEvent>()
-        .add_event::<DeathEvent>();
+            .add_event::<DamageEvent>()
+            .add_event::<DeathEvent>();
     }
 }
 
@@ -89,10 +101,11 @@ pub fn target_management_system(
         (With<Health>, Without<DeathEvent>, Without<Building>),
     >,
     vision_query: Query<&Vision>,
+    mut target_grid: ResMut<TargetGrid>,
     _time: Res<Time>,
 ) {
-    // Build spatial grid for potential targets (performance optimization)
-    let mut target_grid = TargetGrid::new();
+    // Clear and rebuild spatial grid for potential targets
+    target_grid.clear();
     for (entity, transform, unit) in potential_targets.iter() {
         target_grid.insert(entity, transform.translation, unit.player_id);
     }
@@ -101,10 +114,7 @@ pub fn target_management_system(
         // First, validate current target
         if let Some(target_entity) = combat.target {
             if potential_targets.get(target_entity).is_err() {
-                debug!(
-                    "🛑 Clearing invalid combat target for unit (Player {})",
-                    unit.player_id
-                );
+                // Silently clear invalid target to reduce log spam
                 combat.target = None;
                 combat.last_attack_time = 0.0;
             }
@@ -215,13 +225,7 @@ pub fn combat_execution_system(
 
             if should_override_movement {
                 movement.target_position = Some(target_position);
-                debug!(
-                    "🗡️ Unit {:?} (Player {}) pursuing target: edge_dist={:.1}, range={:.1}",
-                    attacker_transform.translation,
-                    unit.player_id,
-                    edge_distance,
-                    combat.attack_range
-                );
+                // Removed debug logging for performance
             }
         } else if unit.player_id != 1 {
             // Stop AI units when in range
@@ -247,18 +251,13 @@ pub fn combat_execution_system(
                     damage_type,
                 });
 
-                info!("⚔️ Unit {:?} attacks {:?} for {} damage (edge_dist: {:.1}, attack_range: {:.1}, cooldown: {:.1})", 
-                      attacker_entity, target_entity, combat.attack_damage, edge_distance, combat.attack_range, combat.attack_cooldown);
+                // Removed attack logging for performance
             } else {
-                // Log why attack is not happening
-                let cooldown_remaining = combat.attack_cooldown - (current_time - combat.last_attack_time);
-                debug!("🕐 Unit {:?} cooling down for {:.2}s (edge_dist: {:.1}, attack_range: {:.1})", 
-                      attacker_entity, cooldown_remaining, edge_distance, combat.attack_range);
+                // Removed cooldown debug logging for performance
             }
         } else {
             combat.is_attacking = false;
-            debug!("📏 Unit {:?} out of range: edge_dist: {:.1}, attack_range: {:.1}", 
-                  attacker_entity, edge_distance, combat.attack_range);
+            // Removed range debug logging for performance
         }
     }
 }
@@ -292,10 +291,7 @@ pub fn damage_resolution_system(
                 stats.damage_taken += actual_damage;
             }
 
-            info!(
-                "Entity {:?} takes {} damage (current health: {})",
-                target_entity, actual_damage, health.current
-            );
+            // Removed damage logging for performance
 
             if health.current <= 0.0 {
                 commands.entity(target_entity).insert(Dying);
@@ -369,19 +365,13 @@ pub fn health_regeneration_system(
 pub fn death_system(
     mut commands: Commands,
     mut death_events: EventReader<DeathEvent>,
-    unit_query: Query<&RTSUnit>,
+    _unit_query: Query<&RTSUnit>,
     mut combat_query: Query<&mut Combat>,
 ) {
     for death_event in death_events.read() {
         let dead_entity = death_event.entity;
 
-        // Log death
-        if let Ok(unit) = unit_query.get(dead_entity) {
-            info!(
-                "Unit {:?} (Player {}) has died",
-                dead_entity, unit.player_id
-            );
-        }
+        // Removed death logging for performance
 
         // Clear this entity as a target from all combat components
         for mut combat in combat_query.iter_mut() {

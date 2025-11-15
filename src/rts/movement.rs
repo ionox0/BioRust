@@ -636,7 +636,7 @@ fn has_clear_path(
     start: Vec3,
     end: Vec3,
     resource_gatherer: Option<&ResourceGatherer>,
-    context: &MovementContext,
+    _context: &MovementContext,
     obstacle_grid: &crate::core::spatial_grid::IncrementalObstacleSpatialGrid,
 ) -> bool {
     let direction = end - start;

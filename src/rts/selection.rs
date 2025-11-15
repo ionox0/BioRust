@@ -20,7 +20,9 @@ pub fn click_selection_system(
     let Some(cursor_position) = window.cursor_position() else {
         return;
     };
-    let (camera, camera_transform) = camera_q.single();
+    let Ok((camera, camera_transform)) = camera_q.get_single() else {
+        return; // No camera found, skip selection logic
+    };
     let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
         return;
     };
@@ -95,7 +97,9 @@ pub fn drag_selection_system(
     selection_box_query: Query<Entity, With<SelectionBox>>,
 ) {
     let window = windows.single();
-    let (camera, camera_transform) = camera_q.single();
+    let Ok((camera, camera_transform)) = camera_q.get_single() else {
+        return; // No camera found, skip selection logic
+    };
 
     let Some(cursor_position) = window.cursor_position() else {
         return;
@@ -340,39 +344,65 @@ fn spawn_selection_indicator(
         })),
         Transform::from_translation(Vec3::new(
             transform.translation.x,
-            0.1, // Slightly above ground
+            transform.translation.y + 1.0, // Positioned relative to unit height
             transform.translation.z,
         )),
         SelectionIndicator { target: entity },
     ));
 }
 
-/// Creates a hollow ring mesh (circle outline) for selection indicators
+/// Creates a thick hollow ring mesh for selection indicators
 fn create_hollow_ring_mesh(radius: f32, segments: usize) -> Mesh {
     let mut positions = Vec::new();
     let mut indices = Vec::new();
+    let mut normals = Vec::new();
+    
+    let thickness = 0.3; // Ring thickness - increased for visibility
+    let inner_radius = radius - thickness;
+    let outer_radius = radius + thickness;
 
-    // Create vertices around the circle
+    // Create vertices for both inner and outer circles
     for i in 0..segments {
         let angle = (i as f32 / segments as f32) * std::f32::consts::TAU;
-        let x = angle.cos() * radius;
-        let z = angle.sin() * radius;
-        positions.push([x, 0.0, z]);
+        let cos_angle = angle.cos();
+        let sin_angle = angle.sin();
+        
+        // Inner circle vertex
+        positions.push([cos_angle * inner_radius, 0.0, sin_angle * inner_radius]);
+        normals.push([0.0, 1.0, 0.0]);
+        
+        // Outer circle vertex
+        positions.push([cos_angle * outer_radius, 0.0, sin_angle * outer_radius]);
+        normals.push([0.0, 1.0, 0.0]);
     }
 
-    // Create line indices to connect the vertices in a loop
+    // Create triangular indices for the ring
     for i in 0..segments {
         let next = (i + 1) % segments;
-        indices.push(i as u32);
-        indices.push(next as u32);
+        
+        let inner_current = i * 2;
+        let outer_current = i * 2 + 1;
+        let inner_next = next * 2;
+        let outer_next = next * 2 + 1;
+        
+        // First triangle (inner_current, outer_current, inner_next)
+        indices.push(inner_current as u32);
+        indices.push(outer_current as u32);
+        indices.push(inner_next as u32);
+        
+        // Second triangle (inner_next, outer_current, outer_next)
+        indices.push(inner_next as u32);
+        indices.push(outer_current as u32);
+        indices.push(outer_next as u32);
     }
 
     let mut mesh = Mesh::new(
-        bevy::render::render_resource::PrimitiveTopology::LineList,
+        bevy::render::render_resource::PrimitiveTopology::TriangleList,
         bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
     );
 
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
 
     mesh

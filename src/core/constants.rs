@@ -128,6 +128,10 @@ pub mod team_colors {
     pub const PLAYER_2_TINT: Color = Color::srgba(1.0, 0.1, 0.1, 1.0); // Bright Red
     pub const PLAYER_3_TINT: Color = Color::srgba(0.1, 1.0, 0.1, 1.0); // Bright Green
     pub const PLAYER_4_TINT: Color = Color::srgba(1.0, 0.9, 0.1, 1.0); // Bright Yellow
+    pub const PLAYER_5_TINT: Color = Color::srgba(1.0, 0.1, 1.0, 1.0); // Bright Magenta
+    pub const PLAYER_6_TINT: Color = Color::srgba(0.1, 1.0, 1.0, 1.0); // Bright Cyan
+    pub const PLAYER_7_TINT: Color = Color::srgba(1.0, 0.5, 0.1, 1.0); // Bright Orange
+    pub const PLAYER_8_TINT: Color = Color::srgba(0.6, 0.1, 1.0, 1.0); // Bright Purple
     pub const UNKNOWN_PLAYER_TINT: Color = Color::srgba(0.5, 0.5, 0.5, 1.0); // Dark Gray
 
     // Team colors for primitive models (very vibrant colors for strong visual distinction)
@@ -135,6 +139,10 @@ pub mod team_colors {
     pub const PLAYER_2_PRIMITIVE: Color = Color::srgb(1.0, 0.1, 0.1); // Bright red
     pub const PLAYER_3_PRIMITIVE: Color = Color::srgb(0.1, 1.0, 0.1); // Bright green
     pub const PLAYER_4_PRIMITIVE: Color = Color::srgb(1.0, 0.9, 0.1); // Bright yellow
+    pub const PLAYER_5_PRIMITIVE: Color = Color::srgb(1.0, 0.1, 1.0); // Bright magenta
+    pub const PLAYER_6_PRIMITIVE: Color = Color::srgb(0.1, 1.0, 1.0); // Bright cyan
+    pub const PLAYER_7_PRIMITIVE: Color = Color::srgb(1.0, 0.5, 0.1); // Bright orange
+    pub const PLAYER_8_PRIMITIVE: Color = Color::srgb(0.6, 0.1, 1.0); // Bright purple
     pub const UNKNOWN_PLAYER_PRIMITIVE: Color = Color::srgb(0.6, 0.6, 0.6); // Light gray
 }
 
@@ -188,12 +196,18 @@ pub mod models {
     pub const FOURMI_SCALE: f32 = 2.5;
     pub const CAIRNS_BIRDWING_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;
-    pub const ROLY_POLY_SCALE: f32 = 0.1;
+    pub const ROLY_POLY_SCALE: f32 = 0.0005; // Made smaller to fix oversized model
     pub const DRAGONFLY_SCALE: f32 = 200.0; // Further increased for better visibility
     pub const WOLF_SPIDER_SCALE: f32 = 2.5;
     pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const HOUSEFLY_SCALE: f32 = 4.0; // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
     pub const STINKBUG_SCALE: f32 = 5.0; // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
+    pub const FLYING_HORNET_SCALE: f32 = 0.625; // 20x smaller than 12.5 (12.5 ÷ 20)
+    pub const MOTH_SCALE: f32 = 17.5; // 7x larger than UNIFORM_UNIT_SCALE (2.5 × 7)
+    pub const ELEPHANT_HAWK_MOTH_SCALE: f32 = 25.0; // 10x larger than UNIFORM_UNIT_SCALE (2.5 × 10)
+    pub const ANIMATED_PEACOCK_MOTH_SCALE: f32 = 25.0; // 10x larger than UNIFORM_UNIT_SCALE (2.5 × 10)
+    pub const HAWKMOTH_LARVAE_SCALE: f32 = 50.0; // 20x larger than UNIFORM_UNIT_SCALE (2.5 × 20)
+    pub const WOODLOUSE_SCALE: f32 = 0.125; // 20x smaller than UNIFORM_UNIT_SCALE (2.5 ÷ 20)
 
     // Environment object scales
     pub const MUSHROOMS_SCALE: f32 = 20.5; // Larger scale for environment objects

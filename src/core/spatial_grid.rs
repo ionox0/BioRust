@@ -72,6 +72,7 @@ where
     }
     
     /// Clear all entries in the grid
+    #[allow(dead_code)] // Placeholder for grid management
     pub fn clear(&mut self) {
         self.cells.clear();
         self.entity_positions.clear();
@@ -156,11 +157,13 @@ where
     }
     
     /// Get the number of items in the grid
+    #[allow(dead_code)] // Placeholder for debugging
     pub fn len(&self) -> usize {
         self.entity_positions.len()
     }
     
     /// Check if the grid is empty
+    #[allow(dead_code)] // Placeholder for debugging
     pub fn is_empty(&self) -> bool {
         self.entity_positions.is_empty()
     }

@@ -284,21 +284,109 @@ impl EntityFactory {
         info!("Added animation controller to unit {:?}", unit_type);
 
         // Add special components for specific unit types
-        if let UnitType::WorkerAnt = unit_type {
-            entity.insert((
-                ResourceGatherer {
-                    gather_rate: 10.0,
-                    capacity: 5.0, // Reduced from 10.0 for faster testing
+        match unit_type {
+            // Primary gatherers for each team
+            UnitType::WorkerAnt | UnitType::WorkerFourmi | UnitType::TermiteWorker => {
+                entity.insert((
+                    ResourceGatherer {
+                        gather_rate: 10.0,
+                        capacity: 5.0,
+                        carried_amount: 0.0,
+                        resource_type: None,
+                        target_resource: None,
+                        drop_off_building: None,
+                    },
+                    Constructor {
+                        build_speed: 1.0,
+                        current_target: None,
+                    },
+                ));
+            },
+            // Team-specific gatherers
+            UnitType::DungBeetle => { // BeetleSwarm gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 8.0, // Slightly slower but hardy
+                    capacity: 6.0,    // Higher capacity
                     carried_amount: 0.0,
                     resource_type: None,
                     target_resource: None,
                     drop_off_building: None,
-                },
-                Constructor {
-                    build_speed: 1.0,
-                    current_target: None,
-                },
-            ));
+                });
+            },
+            UnitType::Silverfish => { // Predators & ShadowCrawlers gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 12.0, // Faster but fragile
+                    capacity: 4.0,     // Lower capacity
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            UnitType::Honeybees | UnitType::HoneyBee => { // SkyDominion & HiveMind gatherers
+                entity.insert(ResourceGatherer {
+                    gather_rate: 15.0, // Fast aerial gathering
+                    capacity: 3.0,     // Small capacity but fast trips
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            UnitType::Aphids => { // TinyLegion primary gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 6.0,  // Slow individually
+                    capacity: 2.0,     // Very small capacity (swarm tactics)
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            UnitType::Mites => { // TinyLegion & ShadowCrawlers secondary gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 8.0,
+                    capacity: 2.5,
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            // Additional team-specific gatherers that were missing
+            UnitType::Bumblebees => { // SkyDominion secondary gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 12.0, // Good aerial gathering
+                    capacity: 4.0,     // Moderate capacity
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            UnitType::Woodlouse => { // ShadowCrawlers tertiary gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 7.0,  // Steady ground gatherer
+                    capacity: 3.5,     // Medium capacity
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            UnitType::Pillbug => { // ShadowCrawlers alternate gatherer
+                entity.insert(ResourceGatherer {
+                    gather_rate: 6.5,  // Defensive gatherer
+                    capacity: 4.5,     // Higher capacity (can roll up and protect resources)
+                    carried_amount: 0.0,
+                    resource_type: None,
+                    target_resource: None,
+                    drop_off_building: None,
+                });
+            },
+            _ => {
+                // Non-gatherer units - no ResourceGatherer component
+            }
         }
     }
 
@@ -382,9 +470,17 @@ impl EntityFactory {
         let model_handle = model_assets.get_model_handle(&model_type);
         let model_scale = crate::rendering::model_loader::get_model_scale(&model_type);
 
+        // Add Y-offset for specific building types
+        let position = match model_type {
+            crate::rendering::model_loader::InsectModelType::Hive => {
+                config.position + Vec3::new(0.0, 10.0, 0.0) // Raise beehive by 10 units
+            }
+            _ => config.position,
+        };
+
         commands.spawn((
             SceneRoot(model_handle),
-            Transform::from_translation(config.position).with_scale(Vec3::splat(model_scale)),
+            Transform::from_translation(position).with_scale(Vec3::splat(model_scale)),
             InsectModel {
                 model_type,
                 scale: model_scale,

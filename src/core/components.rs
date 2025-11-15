@@ -40,6 +40,10 @@ impl TeamColor {
             2 => PLAYER_2_TINT,
             3 => PLAYER_3_TINT,
             4 => PLAYER_4_TINT,
+            5 => PLAYER_5_TINT,
+            6 => PLAYER_6_TINT,
+            7 => PLAYER_7_TINT,
+            8 => PLAYER_8_TINT,
             _ => UNKNOWN_PLAYER_TINT,
         };
         Self {
@@ -56,6 +60,10 @@ impl TeamColor {
             2 => PLAYER_2_PRIMITIVE,
             3 => PLAYER_3_PRIMITIVE,
             4 => PLAYER_4_PRIMITIVE,
+            5 => PLAYER_5_PRIMITIVE,
+            6 => PLAYER_6_PRIMITIVE,
+            7 => PLAYER_7_PRIMITIVE,
+            8 => PLAYER_8_PRIMITIVE,
             _ => UNKNOWN_PLAYER_PRIMITIVE,
         }
     }
@@ -364,8 +372,6 @@ pub enum UnitType {
     Scorpion,     // Heavy melee unit with armor
     SpiderHunter, // Light predator unit (spider_small.glb)
     WolfSpider,   // Heavy predator unit
-    Ladybug,      // Balanced mid-tier unit
-    LadybugScout, // Light scout variant (ladybug_simple.glb)
 
     // Units for newly added models
     Housefly,       // Fast flying harassment unit
@@ -373,6 +379,75 @@ pub enum UnitType {
     TermiteWarrior, // Heavy siege unit (giant_termite.glb)
     LegBeetle,      // Fast melee skirmisher
     Stinkbug,       // Area denial/support unit
+
+    // Expanded unit categories for multi-team system
+
+    // Beetles family
+    StagBeetle,        // Heavy melee beetle
+    DungBeetle,        // Worker/siege beetle
+    RhinoBeetle,       // Armored assault beetle
+    StinkBeetle,       // Area denial beetle (variant)
+    JewelBug,          // Fast support beetle
+
+    // Mantids family
+    CommonMantis,      // Standard predator mantis
+    OrchidMantis,      // Stealth/ambush mantis
+
+    // Fourmi (Ants) family variants
+    RedAnt,            // Fire/damage ant
+    BlackAnt,          // Standard worker ant
+    FireAnt,           // High damage/poison ant
+    SoldierFourmi,     // Military ant variant
+    WorkerFourmi,      // Economic ant variant
+
+    // Cephalopoda family (Isopods/Crustaceans)
+    Pillbug,           // Defensive rolling unit
+    Silverfish,        // Fast sneaky unit
+    Woodlouse,         // Armored defensive unit
+    SandFleas,         // Jumping swarm unit
+
+    // Small creatures family
+    Aphids,            // Tiny swarm units
+    Mites,             // Microscopic fast units
+    Ticks,             // Parasitic units
+    Fleas,             // Small jumping units
+    Lice,              // Tiny fast units
+
+    // Butterflies family
+    Moths,             // Night flying units
+    Caterpillars,      // Ground larvae units
+    PeacockMoth,       // Large beautiful flyer
+
+    // Spiders family
+    WidowSpider,       // Venomous predator
+    WolfSpiderVariant, // Pack hunter variant
+    Tarantula,         // Large ground predator  
+    DaddyLongLegs,     // Light fast spider
+
+    // Flies family
+    HouseflyVariant,   // Basic fly variant
+    Horsefly,          // Large aggressive fly
+    Firefly,           // Light/energy fly
+    DragonFlies,       // Large aerial predator
+    Damselfly,         // Light aerial scout
+
+    // Bees family
+    Hornets,           // Aggressive flying unit
+    Wasps,             // Fast attack flyers
+    Bumblebees,        // Heavy flying unit
+    Honeybees,         // Economic flying unit
+    MurderHornet,      // Elite aggressive flyer
+
+    // Termites family
+    Earwigs,           // Pincer assault unit
+
+    // Individual species
+    ScorpionVariant,   // Heavy ground predator
+    StickBugs,         // Camouflaged units
+    LeafBugs,          // Stealth units
+    Cicadas,           // Sound/support units
+    Grasshoppers,      // Jumping assault units
+    Cockroaches,       // Tough survivor units
 }
 
 #[derive(Component, Debug, Clone)]
@@ -609,8 +684,10 @@ pub enum BuildingStateType {
     /// Moving to a construction site
     MovingToSite,
     /// Actively constructing the building
+    #[allow(dead_code)] // Placeholder for building construction states
     Constructing,
     /// Construction completed, returning to idle
+    #[allow(dead_code)] // Placeholder for building construction states
     ConstructionComplete,
 }
 
@@ -641,10 +718,13 @@ pub enum MovementStateType {
     /// Moving to a destination
     Moving,
     /// Following another entity
+    #[allow(dead_code)] // Placeholder for unit following behavior
     Following,
     /// Patrolling between waypoints
+    #[allow(dead_code)] // Placeholder for patrol behavior
     Patrolling,
     /// Guarding a specific location
+    #[allow(dead_code)] // Placeholder for guard behavior
     Guarding,
 }
 
@@ -710,6 +790,7 @@ pub enum EnvironmentObjectType {
     /// Mushroom clusters for natural decoration
     Mushrooms,
     /// Hive structures for insect theme
+    #[allow(dead_code)] // Placeholder for hive environment objects
     Hive,
     /// Wood stick debris for natural clutter
     WoodStick,
@@ -719,4 +800,224 @@ pub enum EnvironmentObjectType {
     Rocks,
     /// Pine cone resources for natural pheromone gathering
     PineCone,
+}
+
+/// Team system for multi-player gameplay with specialized unit rosters
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TeamType {
+    /// Heavy armored specialists - beetles and tanks
+    BeetleSwarm,
+    /// Predator specialists - spiders and mantids  
+    Predators,
+    /// Aerial superiority - flying units
+    SkyDominion,
+    /// Mass swarm tactics - small fast units
+    TinyLegion,
+    /// Balanced mixed forces - traditional RTS
+    BalancedColony,
+    /// Ant specialists - classic ant colony
+    AntEmpire,
+    /// Stealth and ambush specialists
+    ShadowCrawlers,
+    /// Siege and support specialists  
+    HiveMind,
+}
+
+impl TeamType {
+    /// Get the display name for this team
+    pub fn display_name(&self) -> &str {
+        match self {
+            TeamType::BeetleSwarm => "Beetle Swarm",
+            TeamType::Predators => "Predator Pack", 
+            TeamType::SkyDominion => "Sky Dominion",
+            TeamType::TinyLegion => "Tiny Legion",
+            TeamType::BalancedColony => "Balanced Colony",
+            TeamType::AntEmpire => "Ant Empire",
+            TeamType::ShadowCrawlers => "Shadow Crawlers",
+            TeamType::HiveMind => "Hive Mind",
+        }
+    }
+
+    /// Get the description for this team
+    pub fn description(&self) -> &str {
+        match self {
+            TeamType::BeetleSwarm => "Heavy armored beetles with powerful siege capabilities",
+            TeamType::Predators => "Deadly spiders and mantids with stealth and venom",
+            TeamType::SkyDominion => "Flying units dominate from the air",
+            TeamType::TinyLegion => "Swarm tactics with mass small units",
+            TeamType::BalancedColony => "Well-rounded forces for any situation", 
+            TeamType::AntEmpire => "Classic ant colony with workers and soldiers",
+            TeamType::ShadowCrawlers => "Stealth specialists and ambush predators",
+            TeamType::HiveMind => "Support and siege units with area control",
+        }
+    }
+
+    /// Get the available units for this team
+    pub fn get_unit_roster(&self) -> Vec<UnitType> {
+        match self {
+            TeamType::BeetleSwarm => vec![
+                // Workers (gatherers)
+                UnitType::DungBeetle, // Primary gatherer
+                // Combat beetles 
+                UnitType::StagBeetle,
+                UnitType::RhinoBeetle,
+                UnitType::BeetleKnight,
+                UnitType::JewelBug,
+                UnitType::LegBeetle,
+                // Siege beetles
+                UnitType::BatteringBeetle,
+                UnitType::StinkBeetle,
+                // Support
+                UnitType::Cockroaches, // Related to beetles
+            ],
+            TeamType::Predators => vec![
+                // Workers (gatherers)
+                UnitType::Silverfish, // Primary gatherer
+                // Spider predators
+                UnitType::WidowSpider,
+                UnitType::WolfSpider,
+                UnitType::WolfSpiderVariant,
+                UnitType::Tarantula,
+                UnitType::SpiderHunter,
+                UnitType::EliteSpider,
+                UnitType::DaddyLongLegs,
+                // Mantis predators
+                UnitType::CommonMantis,
+                UnitType::OrchidMantis,
+                UnitType::SpearMantis,
+            ],
+            TeamType::SkyDominion => vec![
+                // Workers (gatherers)
+                UnitType::Honeybees, // Primary gatherer
+                UnitType::HoneyBee, // Secondary gatherer
+                // Flying combat units
+                UnitType::Bumblebees,
+                UnitType::Hornets,
+                UnitType::Wasps,
+                UnitType::MurderHornet,
+                UnitType::DragonFly,
+                UnitType::DragonFlies,
+                UnitType::Damselfly,
+                // Flying support
+                UnitType::Moths,
+                UnitType::PeacockMoth,
+                UnitType::Housefly,
+                UnitType::HouseflyVariant,
+                UnitType::Horsefly,
+                UnitType::Firefly,
+            ],
+            TeamType::TinyLegion => vec![
+                // Swarm workers (gatherers) 
+                UnitType::Aphids, // Primary gatherer
+                UnitType::Mites, // Secondary gatherer
+                // Mass swarm units
+                UnitType::Lice,
+                UnitType::Fleas,
+                UnitType::SandFleas,
+                UnitType::Ticks,
+                UnitType::Grasshoppers,
+                UnitType::Caterpillars,
+                // Support
+                UnitType::Cicadas,
+            ],
+            TeamType::BalancedColony => vec![
+                // Classic balanced roster - mixed species
+                UnitType::WorkerAnt, // Primary gatherer
+                UnitType::SoldierAnt,
+                UnitType::ScoutAnt,
+                UnitType::BeetleKnight,
+                UnitType::SpearMantis,
+                UnitType::DragonFly,
+                UnitType::HoneyBee,
+                UnitType::Scorpion,
+                UnitType::DefenderBug,
+                UnitType::BatteringBeetle,
+                UnitType::AcidSpitter,
+            ],
+            TeamType::AntEmpire => vec![
+                // Pure ant specialists
+                UnitType::WorkerAnt, // Primary gatherer
+                UnitType::SoldierAnt,
+                UnitType::ScoutAnt,
+                UnitType::WorkerFourmi, // Secondary gatherer
+                UnitType::SoldierFourmi,
+                UnitType::RedAnt,
+                UnitType::BlackAnt,
+                UnitType::FireAnt,
+                // Termites (related to ants)
+                UnitType::TermiteWorker, // Tertiary gatherer
+                UnitType::TermiteWarrior,
+                // Support
+                UnitType::Earwigs, // Related social insects
+            ],
+            TeamType::ShadowCrawlers => vec![
+                // Stealth workers (gatherers)
+                UnitType::Silverfish, // Primary gatherer
+                UnitType::Mites, // Secondary gatherer (small/stealthy)
+                // Camouflage units
+                UnitType::StickBugs,
+                UnitType::LeafBugs,
+                UnitType::OrchidMantis,
+                // Night hunters
+                UnitType::WidowSpider,
+                UnitType::Moths,
+                UnitType::DaddyLongLegs,
+                // Ground stealth
+                UnitType::Woodlouse,
+                UnitType::Pillbug,
+                UnitType::Ticks,
+            ],
+            TeamType::HiveMind => vec![
+                // Social worker insects (gatherers)
+                UnitType::Honeybees, // Primary gatherer
+                UnitType::TermiteWorker, // Secondary gatherer
+                // Area denial
+                UnitType::Stinkbug,
+                UnitType::StinkBeetle,
+                UnitType::AcidSpitter,
+                // Communication/support
+                UnitType::Cicadas,
+                UnitType::Firefly,
+                // Heavy support
+                UnitType::BatteringBeetle,
+                UnitType::TermiteWarrior,
+                // Defense
+                UnitType::DefenderBug,
+                UnitType::Cockroaches,
+                UnitType::ScorpionVariant,
+            ],
+        }
+    }
+
+    /// Get all available team types
+    pub fn all_teams() -> Vec<TeamType> {
+        vec![
+            TeamType::BeetleSwarm,
+            TeamType::Predators,
+            TeamType::SkyDominion,
+            TeamType::TinyLegion,
+            TeamType::BalancedColony,
+            TeamType::AntEmpire,
+            TeamType::ShadowCrawlers,
+            TeamType::HiveMind,
+        ]
+    }
+}
+
+/// Component to track which team a player belongs to
+#[derive(Component, Debug, Clone)]
+pub struct PlayerTeam {
+    #[allow(dead_code)] // Placeholder for team-based gameplay
+    pub team_type: TeamType,
+    #[allow(dead_code)] // Placeholder for team-based gameplay
+    pub player_id: u8,
+}
+
+/// Resource to store game setup configuration
+#[derive(Resource, Debug, Clone)]
+pub struct GameSetup {
+    pub player_team: TeamType,
+    pub ai_teams: Vec<TeamType>,
+    #[allow(dead_code)] // Placeholder for multiplayer setup
+    pub player_count: u8,
 }

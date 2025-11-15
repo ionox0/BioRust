@@ -245,12 +245,94 @@ pub fn update_tooltip_system(
             );
 
             let unit_type = match unit.unit_type {
+                // Classic units
                 Some(UnitType::WorkerAnt) => "Worker Ant",
                 Some(UnitType::SoldierAnt) => "Soldier Ant",
                 Some(UnitType::BeetleKnight) => "Beetle Knight",
                 Some(UnitType::SpearMantis) => "Spear Mantis",
                 Some(UnitType::ScoutAnt) => "Scout Ant",
                 Some(UnitType::DragonFly) => "DragonFly",
+                Some(UnitType::BatteringBeetle) => "Battering Beetle",
+                Some(UnitType::AcidSpitter) => "Acid Spitter",
+                Some(UnitType::DefenderBug) => "Defender Bug",
+                Some(UnitType::EliteSpider) => "Elite Spider",
+
+                // Beetles family
+                Some(UnitType::StagBeetle) => "Stag Beetle",
+                Some(UnitType::DungBeetle) => "Dung Beetle",
+                Some(UnitType::RhinoBeetle) => "Rhino Beetle",
+                Some(UnitType::StinkBeetle) => "Stink Beetle",
+                Some(UnitType::JewelBug) => "Jewel Bug",
+                Some(UnitType::LegBeetle) => "Leg Beetle",
+
+                // Mantids family
+                Some(UnitType::CommonMantis) => "Common Mantis",
+                Some(UnitType::OrchidMantis) => "Orchid Mantis",
+
+                // Ants family
+                Some(UnitType::RedAnt) => "Red Ant",
+                Some(UnitType::BlackAnt) => "Black Ant",
+                Some(UnitType::FireAnt) => "Fire Ant",
+                Some(UnitType::SoldierFourmi) => "Soldier Fourmi",
+                Some(UnitType::WorkerFourmi) => "Worker Fourmi",
+
+                // Isopods family
+                Some(UnitType::Pillbug) => "Pill Bug",
+                Some(UnitType::Silverfish) => "Silverfish",
+                Some(UnitType::Woodlouse) => "Woodlouse",
+                Some(UnitType::SandFleas) => "Sand Fleas",
+
+                // Small creatures family
+                Some(UnitType::Aphids) => "Aphids",
+                Some(UnitType::Mites) => "Mites",
+                Some(UnitType::Ticks) => "Ticks",
+                Some(UnitType::Fleas) => "Fleas",
+                Some(UnitType::Lice) => "Lice",
+
+                // Butterflies family
+                Some(UnitType::Moths) => "Moths",
+                Some(UnitType::Caterpillars) => "Caterpillars",
+                Some(UnitType::PeacockMoth) => "Peacock Moth",
+
+                // Spiders family
+                Some(UnitType::WidowSpider) => "Widow Spider",
+                Some(UnitType::WolfSpiderVariant) => "Wolf Spider",
+                Some(UnitType::Tarantula) => "Tarantula",
+                Some(UnitType::DaddyLongLegs) => "Daddy Long Legs",
+                Some(UnitType::SpiderHunter) => "Spider Hunter",
+                Some(UnitType::WolfSpider) => "Wolf Spider",
+
+                // Flies family
+                Some(UnitType::HouseflyVariant) => "Housefly",
+                Some(UnitType::Horsefly) => "Horsefly",
+                Some(UnitType::Firefly) => "Firefly",
+                Some(UnitType::DragonFlies) => "Dragonflies",
+                Some(UnitType::Damselfly) => "Damselfly",
+                Some(UnitType::Housefly) => "Housefly",
+
+                // Bees family
+                Some(UnitType::Hornets) => "Hornets",
+                Some(UnitType::Wasps) => "Wasps",
+                Some(UnitType::Bumblebees) => "Bumblebees",
+                Some(UnitType::Honeybees) => "Honeybees",
+                Some(UnitType::MurderHornet) => "Murder Hornet",
+                Some(UnitType::HoneyBee) => "Honey Bee",
+
+                // Termites family
+                Some(UnitType::Earwigs) => "Earwigs",
+                Some(UnitType::TermiteWorker) => "Termite Worker",
+                Some(UnitType::TermiteWarrior) => "Termite Warrior",
+
+                // Individual species
+                Some(UnitType::ScorpionVariant) => "Scorpion",
+                Some(UnitType::StickBugs) => "Stick Bugs",
+                Some(UnitType::LeafBugs) => "Leaf Bugs",
+                Some(UnitType::Cicadas) => "Cicadas",
+                Some(UnitType::Grasshoppers) => "Grasshoppers",
+                Some(UnitType::Cockroaches) => "Cockroaches",
+                Some(UnitType::Scorpion) => "Scorpion",
+                Some(UnitType::Stinkbug) => "Stink Bug",
+
                 _ => "Unit",
             };
 

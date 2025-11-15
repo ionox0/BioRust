@@ -384,10 +384,13 @@ fn count_active_units(
     ai_resources: &mut ResMut<crate::core::resources::AIResources>,
 ) {
     for unit in units.iter() {
-        if unit.player_id == 1 {
-            player_resources.current_population += 1;
-        } else if let Some(ai_player_resources) = ai_resources.resources.get_mut(&unit.player_id) {
-            ai_player_resources.current_population += 1;
+        // Only count actual units (unit_type: Some(...)), not buildings (unit_type: None)
+        if unit.unit_type.is_some() {
+            if unit.player_id == 1 {
+                player_resources.current_population += 1;
+            } else if let Some(ai_player_resources) = ai_resources.resources.get_mut(&unit.player_id) {
+                ai_player_resources.current_population += 1;
+            }
         }
     }
 }

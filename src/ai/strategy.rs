@@ -65,6 +65,7 @@ pub struct PlayerStrategy {
     pub last_building_failure_time: f32,
     pub priority_queue: Vec<StrategyGoal>,
     pub phase: StrategyPhase,
+    #[allow(dead_code)] // Placeholder for strategy transitions
     pub previous_phase: Option<StrategyPhase>,
     pub economy_targets: EconomyTargets,
     pub military_targets: MilitaryTargets,
@@ -88,7 +89,9 @@ pub enum StrategyPhase {
 
 #[derive(Debug, Clone)]
 pub struct EconomyTargets {
+    #[allow(dead_code)] // Placeholder for AI worker management
     pub desired_workers: u32,
+    #[allow(dead_code)] // Placeholder for AI building planning
     pub next_building: Option<BuildingType>,
     pub resource_priorities: Vec<ResourceType>,
 }
@@ -385,7 +388,6 @@ fn update_strategy_phase(
                 | UnitType::DefenderBug
                 | UnitType::SpiderHunter
                 | UnitType::WolfSpider
-                | UnitType::Ladybug
                 | UnitType::LegBeetle
                 | UnitType::Scorpion
                 | UnitType::TermiteWarrior
@@ -695,13 +697,13 @@ fn try_build_unit(
         UnitType::DefenderBug => BuildingType::HunterChamber,
         UnitType::SpiderHunter => BuildingType::HunterChamber,
         UnitType::WolfSpider => BuildingType::HunterChamber,
-        UnitType::Ladybug => BuildingType::HunterChamber,
-        UnitType::LadybugScout => BuildingType::HunterChamber,
         // Flying units from Nursery
         UnitType::HoneyBee => BuildingType::Nursery,
         UnitType::Housefly => BuildingType::Nursery,
         // Worker variants
         UnitType::TermiteWorker => BuildingType::Queen,
+        // Default mapping for all other unit types
+        _ => BuildingType::Queen, // Default to Queen for unspecified units
     };
 
     // Debug: Count available buildings
@@ -1189,6 +1191,7 @@ struct BuildingPlacementContext {
     building_type: BuildingType,
     base_position: Vec3,
     existing_buildings: Vec<(Vec3, BuildingType)>,
+    #[allow(dead_code)] // Placeholder for resource-based building placement
     target_resource_types: Vec<ResourceType>,
     relevant_resources: Vec<(Vec3, ResourceType, f32)>,
 }
@@ -1564,7 +1567,6 @@ fn calculate_unit_counts(units: &Query<&RTSUnit>, player_id: u8) -> UnitCounts {
                 | UnitType::DefenderBug
                 | UnitType::SpiderHunter
                 | UnitType::WolfSpider
-                | UnitType::Ladybug
                 | UnitType::LegBeetle
                 | UnitType::Scorpion
                 | UnitType::TermiteWarrior

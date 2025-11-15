@@ -1,6 +1,8 @@
 use bevy::prelude::*;
+use crate::core::game::GameState;
 
 pub mod construction;
+pub mod cursor_manager;
 pub mod formation;
 pub mod movement;
 pub mod production;
@@ -11,6 +13,7 @@ pub mod unstuck;
 pub mod vision;
 
 use construction::{ai_construction_workflow_system, construction_system};
+use cursor_manager::{cursor_management_system, CursorState};
 use formation::formation_system;
 use movement::movement_system;
 use production::{building_completion_system, population_management_system, production_system};
@@ -27,7 +30,9 @@ pub struct RTSSystemsPlugin;
 
 impl Plugin for RTSSystemsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<FormationSettings>().add_systems(
+        app.init_resource::<FormationSettings>()
+            .init_resource::<CursorState>()
+            .add_systems(
             Update,
             (
                 add_stuck_detection_system,
@@ -47,7 +52,8 @@ impl Plugin for RTSSystemsPlugin {
                 spawn_test_units_system,
                 building_completion_system,
                 population_management_system,
-            ),
+                cursor_management_system,
+            ).run_if(in_state(GameState::Playing)),
         );
     }
 }

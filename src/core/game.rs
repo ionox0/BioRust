@@ -1,13 +1,14 @@
 use crate::core::resources::*;
 use crate::world::systems::*;
+use crate::ui::team_selection::*;
 use bevy::prelude::*;
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
-    MainMenu,
     #[default]
-    Playing, // Start directly in Playing state to test animations
-             // Removed unused states: Loading, Paused, GameOver
+    MainMenu,
+    TeamSelection,
+    Playing,
 }
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
@@ -39,8 +40,8 @@ impl Plugin for GamePlugin {
             .init_resource::<PlayerResources>()
             .init_resource::<AIResources>()
             .init_resource::<SpatialGrids>()
+            .init_resource::<TeamSelectionState>()
             .insert_resource(GameCosts::initialize())
-            .add_systems(Startup, (setup_game, spawn_rts_elements))
             .add_systems(
                 Update,
                 (
@@ -53,6 +54,18 @@ impl Plugin for GamePlugin {
             .add_systems(
                 Update,
                 handle_menu_input.run_if(in_state(GameState::MainMenu)),
-            );
+            )
+            .add_systems(OnEnter(GameState::TeamSelection), setup_team_selection_ui)
+            .add_systems(
+                Update,
+                (
+                    handle_team_selection,
+                    handle_ai_count_selection,
+                    handle_start_game,
+                ).run_if(in_state(GameState::TeamSelection)),
+            )
+            .add_systems(OnExit(GameState::TeamSelection), cleanup_team_selection_ui)
+            .add_systems(OnEnter(GameState::Playing), (spawn_rts_elements_with_teams, setup_game_ui));
+            // Team building panel updates handled in UI plugin
     }
 }

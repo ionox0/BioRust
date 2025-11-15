@@ -152,7 +152,7 @@ fn handle_advanced_combat_ai(
     combat: &mut Combat,
     unit_transform: &Transform,
     unit: &RTSUnit,
-    health: &RTSHealth,
+    _health: &RTSHealth,
     state: &mut CombatState,
     all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
     buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
@@ -704,7 +704,7 @@ pub fn combat_to_resource_transition_system(
         if !has_enemies {
             // Handle AI workers returning to resource gathering
             let mut workers_reassigned = 0;
-            for (entity, mut movement, mut combat, unit, mut gatherer, mut combat_state_opt) in ai_workers.iter_mut() {
+            for (_entity, mut movement, mut combat, unit, mut gatherer, mut combat_state_opt) in ai_workers.iter_mut() {
                 if unit.player_id == player_id {
                     // Clear combat state and movement
                     movement.target_position = None;

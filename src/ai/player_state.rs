@@ -9,6 +9,7 @@ pub struct AIPlayer {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Placeholder for future AI types
 pub enum AIType {
     Aggressive,
     Economic,
@@ -22,6 +23,7 @@ pub enum AIDecision {
     BuildBuilding(BuildingType),
     AttackPlayer(u8),
     GatherResources,
+    #[allow(dead_code)] // Placeholder for future expansion features
     Expand,
 }
 
@@ -59,12 +61,14 @@ impl PlayerCounts {
                         | UnitType::Scorpion
                         | UnitType::SpiderHunter
                         | UnitType::WolfSpider
-                        | UnitType::Ladybug
-                        | UnitType::LadybugScout
                         | UnitType::Housefly
                         | UnitType::TermiteWarrior
                         | UnitType::LegBeetle
                         | UnitType::Stinkbug => {
+                            self.military_count += 1;
+                        }
+                        _ => {
+                            // Handle all other unit types as military units
                             self.military_count += 1;
                         }
                     }
