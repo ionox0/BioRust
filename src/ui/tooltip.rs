@@ -244,96 +244,117 @@ pub fn update_tooltip_system(
                 &health_query,
             );
 
-            let unit_type = match unit.unit_type {
-                // Classic units
-                Some(UnitType::WorkerAnt) => "Worker Ant",
-                Some(UnitType::SoldierAnt) => "Soldier Ant",
-                Some(UnitType::BeetleKnight) => "Beetle Knight",
-                Some(UnitType::SpearMantis) => "Spear Mantis",
-                Some(UnitType::ScoutAnt) => "Scout Ant",
-                Some(UnitType::DragonFly) => "DragonFly",
-                Some(UnitType::BatteringBeetle) => "Battering Beetle",
-                Some(UnitType::AcidSpitter) => "Acid Spitter",
-                Some(UnitType::DefenderBug) => "Defender Bug",
-                Some(UnitType::EliteSpider) => "Elite Spider",
+            // Check if this is a building first
+            let entity_name = if let Ok(building) = building_query.get(hovered_entity) {
+                let building_name = match building.building_type {
+                    BuildingType::Queen => "Queen Chamber",
+                    BuildingType::Nursery => "Nursery",
+                    BuildingType::WarriorChamber => "Warrior Chamber",
+                    BuildingType::HunterChamber => "Hunter Chamber",
+                    BuildingType::Stable => "Stable",
+                    BuildingType::FungalGarden => "Fungal Garden",
+                    BuildingType::WoodProcessor => "Wood Processor",
+                    BuildingType::MineralProcessor => "Mineral Processor",
+                    BuildingType::StorageChamber => "Storage Chamber",
+                    BuildingType::EvolutionChamber => "Evolution Chamber",
+                    BuildingType::TradingPost => "Trading Post",
+                    BuildingType::ChitinWall => "Chitin Wall",
+                    BuildingType::GuardTower => "Guard Tower",
+                };
+                building_name
+            } else {
+                // It's a unit, not a building
+                match unit.unit_type {
+                    // Classic units
+                    Some(UnitType::WorkerAnt) => "Worker Ant",
+                    Some(UnitType::SoldierAnt) => "Soldier Ant",
+                    Some(UnitType::BeetleKnight) => "Black Ox Beetle Knight",
+                    Some(UnitType::SpearMantis) => "Spear Mantis",
+                    Some(UnitType::ScoutAnt) => "Cairns Birdwing",
+                    Some(UnitType::DragonFly) => "Meganeura DragonFly",
+                    Some(UnitType::BatteringBeetle) => "Battering Black Ox Beetle",
+                    Some(UnitType::AcidSpitter) => "Acid Spitter",
+                    Some(UnitType::DefenderBug) => "Defender Bug",
+                    Some(UnitType::EliteSpider) => "Animated Elite Spider",
 
-                // Beetles family
-                Some(UnitType::StagBeetle) => "Stag Beetle",
-                Some(UnitType::DungBeetle) => "Dung Beetle",
-                Some(UnitType::RhinoBeetle) => "Rhino Beetle",
-                Some(UnitType::StinkBeetle) => "Stink Beetle",
-                Some(UnitType::JewelBug) => "Jewel Bug",
-                Some(UnitType::LegBeetle) => "Leg Beetle",
+                    // Beetles family
+                    Some(UnitType::StagBeetle) => "Stag Beetle",
+                    Some(UnitType::DungBeetle) => "Dung Beetle",
+                    Some(UnitType::RhinoBeetle) => "Rhino Beetle",
+                    Some(UnitType::StinkBeetle) => "Stink Beetle",
+                    Some(UnitType::JewelBug) => "Jewel Bug",
+                    Some(UnitType::LegBeetle) => "Leg Beetle",
 
-                // Mantids family
-                Some(UnitType::CommonMantis) => "Common Mantis",
-                Some(UnitType::OrchidMantis) => "Orchid Mantis",
+                    // Mantids family
+                    Some(UnitType::CommonMantis) => "Common Mantis",
+                    Some(UnitType::OrchidMantis) => "Orchid Mantis",
 
-                // Ants family
-                Some(UnitType::RedAnt) => "Red Ant",
-                Some(UnitType::BlackAnt) => "Black Ant",
-                Some(UnitType::FireAnt) => "Fire Ant",
-                Some(UnitType::SoldierFourmi) => "Soldier Fourmi",
-                Some(UnitType::WorkerFourmi) => "Worker Fourmi",
+                    // Ants family
+                    Some(UnitType::RedAnt) => "Red Ant",
+                    Some(UnitType::BlackAnt) => "Black Ant",
+                    Some(UnitType::FireAnt) => "Fire Ant",
+                    Some(UnitType::SoldierFourmi) => "Soldier Fourmi",
+                    Some(UnitType::WorkerFourmi) => "Worker Fourmi",
 
-                // Isopods family
-                Some(UnitType::Pillbug) => "Pill Bug",
-                Some(UnitType::Silverfish) => "Silverfish",
-                Some(UnitType::Woodlouse) => "Woodlouse",
-                Some(UnitType::SandFleas) => "Sand Fleas",
+                    // Isopods family
+                    Some(UnitType::Pillbug) => "Pill Bug",
+                    Some(UnitType::Silverfish) => "Silverfish",
+                    Some(UnitType::Woodlouse) => "Woodlouse",
+                    Some(UnitType::SandFleas) => "Sand Flea",
 
-                // Small creatures family
-                Some(UnitType::Aphids) => "Aphids",
-                Some(UnitType::Mites) => "Mites",
-                Some(UnitType::Ticks) => "Ticks",
-                Some(UnitType::Fleas) => "Fleas",
-                Some(UnitType::Lice) => "Lice",
+                    // Small creatures family
+                    Some(UnitType::Aphids) => "Aphid",
+                    Some(UnitType::Mites) => "Mite",
+                    Some(UnitType::Ticks) => "Tick",
+                    Some(UnitType::Fleas) => "Flea",
+                    Some(UnitType::Lice) => "Louse",
 
-                // Butterflies family
-                Some(UnitType::Moths) => "Moths",
-                Some(UnitType::Caterpillars) => "Caterpillars",
-                Some(UnitType::PeacockMoth) => "Peacock Moth",
+                    // Butterflies family
+                    Some(UnitType::Moths) => "Moth",
+                    Some(UnitType::Caterpillars) => "Caterpillar",
+                    Some(UnitType::PeacockMoth) => "Peacock Moth",
 
-                // Spiders family
-                Some(UnitType::WidowSpider) => "Widow Spider",
-                Some(UnitType::WolfSpiderVariant) => "Wolf Spider",
-                Some(UnitType::Tarantula) => "Tarantula",
-                Some(UnitType::DaddyLongLegs) => "Daddy Long Legs",
-                Some(UnitType::SpiderHunter) => "Spider Hunter",
-                Some(UnitType::WolfSpider) => "Wolf Spider",
+                    // Spiders family
+                    Some(UnitType::WidowSpider) => "Widow Spider",
+                    Some(UnitType::WolfSpiderVariant) => "Wolf Spider",
+                    Some(UnitType::Tarantula) => "Tarantula",
+                    Some(UnitType::DaddyLongLegs) => "Daddy Long Legs",
+                    Some(UnitType::SpiderHunter) => "Small Spider Hunter",
+                    Some(UnitType::WolfSpider) => "Wolf Spider",
 
-                // Flies family
-                Some(UnitType::HouseflyVariant) => "Housefly",
-                Some(UnitType::Horsefly) => "Horsefly",
-                Some(UnitType::Firefly) => "Firefly",
-                Some(UnitType::DragonFlies) => "Dragonflies",
-                Some(UnitType::Damselfly) => "Damselfly",
-                Some(UnitType::Housefly) => "Housefly",
+                    // Flies family
+                    Some(UnitType::HouseflyVariant) => "Housefly",
+                    Some(UnitType::Horsefly) => "Horsefly",
+                    Some(UnitType::Firefly) => "Firefly",
+                    Some(UnitType::DragonFlies) => "Dragonfly",
+                    Some(UnitType::Damselfly) => "Damselfly",
+                    Some(UnitType::Housefly) => "Common Housefly",
 
-                // Bees family
-                Some(UnitType::Hornets) => "Hornets",
-                Some(UnitType::Wasps) => "Wasps",
-                Some(UnitType::Bumblebees) => "Bumblebees",
-                Some(UnitType::Honeybees) => "Honeybees",
-                Some(UnitType::MurderHornet) => "Murder Hornet",
-                Some(UnitType::HoneyBee) => "Honey Bee",
+                    // Bees family
+                    Some(UnitType::Hornets) => "Hornet",
+                    Some(UnitType::Wasps) => "Wasp",
+                    Some(UnitType::Bumblebees) => "Bumblebee",
+                    Some(UnitType::Honeybees) => "Honeybee",
+                    Some(UnitType::MurderHornet) => "Murder Hornet",
+                    Some(UnitType::HoneyBee) => "Bee V1",
 
-                // Termites family
-                Some(UnitType::Earwigs) => "Earwigs",
-                Some(UnitType::TermiteWorker) => "Termite Worker",
-                Some(UnitType::TermiteWarrior) => "Termite Warrior",
+                    // Termites family
+                    Some(UnitType::Earwigs) => "Earwig",
+                    Some(UnitType::TermiteWorker) => "Termite Worker",
+                    Some(UnitType::TermiteWarrior) => "Giant Termite Warrior",
 
-                // Individual species
-                Some(UnitType::ScorpionVariant) => "Scorpion",
-                Some(UnitType::StickBugs) => "Stick Bugs",
-                Some(UnitType::LeafBugs) => "Leaf Bugs",
-                Some(UnitType::Cicadas) => "Cicadas",
-                Some(UnitType::Grasshoppers) => "Grasshoppers",
-                Some(UnitType::Cockroaches) => "Cockroaches",
-                Some(UnitType::Scorpion) => "Scorpion",
-                Some(UnitType::Stinkbug) => "Stink Bug",
+                    // Individual species
+                    Some(UnitType::ScorpionVariant) => "Scorpion",
+                    Some(UnitType::StickBugs) => "Stick Bug",
+                    Some(UnitType::LeafBugs) => "Leaf Bug",
+                    Some(UnitType::Cicadas) => "Cicada",
+                    Some(UnitType::Grasshoppers) => "Cairns Birdwing",
+                    Some(UnitType::Cockroaches) => "Cockroach",
+                    Some(UnitType::Scorpion) => "Scorpion",
+                    Some(UnitType::Stinkbug) => "Stink Bug",
 
-                _ => "Unit",
+                    _ => "Unit",
+                }
             };
 
             let player_name = if unit.player_id == 1 {
@@ -345,7 +366,7 @@ pub fn update_tooltip_system(
             // Update tooltip text
             **tooltip_text = format!(
                 "{} ({})\nHealth: {:.0}/{:.0}\nTask: {}",
-                unit_type, player_name, health.current, health.max, task
+                entity_name, player_name, health.current, health.max, task
             );
 
             // Position tooltip near cursor

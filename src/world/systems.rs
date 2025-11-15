@@ -275,6 +275,9 @@ pub fn spawn_rts_elements_with_teams(
     model_assets: Option<Res<crate::rendering::model_loader::ModelAssets>>,
     game_setup: Option<Res<GameSetup>>,
     mut ai_resources: ResMut<crate::core::resources::AIResources>,
+    mut economy_manager: ResMut<crate::ai::economy::EconomyManager>,
+    mut intelligence: ResMut<crate::ai::intelligence::IntelligenceSystem>,
+    mut ai_strategy: ResMut<crate::ai::strategy::AIStrategy>,
 ) {
     info!("🎮 SPAWN SYSTEM TRIGGERED: Starting team-based RTS element spawning");
     
@@ -354,6 +357,7 @@ pub fn spawn_rts_elements_with_teams(
     // Spawn player team units with debug mode for model visibility  
     let player_roster = setup.player_team.get_unit_roster();
     let unit_spacing = 15.0;
+    let mut spawn_index = 0;
     
     // If this is 8-player mode (7 AI + 1 human), spawn more units for model debugging
     let units_to_spawn = if setup.ai_teams.len() >= 7 { 
@@ -362,9 +366,9 @@ pub fn spawn_rts_elements_with_teams(
         player_roster.len().min(6) // Normal mode - spawn up to 6 units
     };
     
-    for (i, unit_type) in player_roster.iter().enumerate().take(units_to_spawn) {
-        let offset_x = (i % 4) as f32 * unit_spacing; // 4 units per row for better layout
-        let offset_z = (i / 4) as f32 * unit_spacing + 30.0;
+    for (_i, unit_type) in player_roster.iter().enumerate().take(units_to_spawn) {
+        let offset_x = (spawn_index % 4) as f32 * unit_spacing; // 4 units per row for better layout
+        let offset_z = (spawn_index / 4) as f32 * unit_spacing + 30.0;
         
         let unit_config = SpawnConfig::unit(
             EntityType::from_unit(unit_type.clone()),
@@ -381,6 +385,35 @@ pub fn spawn_rts_elements_with_teams(
         
         info!("🐛 DEBUG: Spawned {} (team: {:?}) for player 1", 
               format!("{:?}", unit_type), setup.player_team);
+        spawn_index += 1;
+    }
+    
+    // Add extra resource gatherers for player 1 (start with at least 5 total)
+    let primary_gatherer = get_primary_gatherer(&setup.player_team);
+    let gatherers_in_roster = player_roster.iter()
+        .filter(|unit| is_gatherer(unit))
+        .count();
+    let extra_gatherers_needed = 5_usize.saturating_sub(gatherers_in_roster);
+    
+    for _ in 0..extra_gatherers_needed {
+        let offset_x = (spawn_index % 4) as f32 * unit_spacing;
+        let offset_z = (spawn_index / 4) as f32 * unit_spacing + 30.0;
+        
+        let gatherer_config = SpawnConfig::unit(
+            EntityType::from_unit(primary_gatherer.clone()),
+            get_terrain_position(player1_base.x + offset_x, player1_base.z + offset_z, 2.0),
+            1,
+        );
+        EntityFactory::spawn(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            gatherer_config,
+            model_assets.as_deref(),
+        );
+        
+        info!("🐛 EXTRA: Spawned additional {} gatherer for player 1", format!("{:?}", primary_gatherer));
+        spawn_index += 1;
     }
 
     // Spawn player buildings
@@ -446,6 +479,17 @@ pub fn spawn_rts_elements_with_teams(
         ai_resources.add_ai_player(player_id);
         info!("🏧 Added AI player {} to resources system", player_id);
         
+        // Add AI player to economy management system 
+        economy_manager.add_ai_player(player_id);
+        
+        // Initialize intelligence system for this AI player (monitoring player 1)
+        intelligence.initialize_player(player_id, 1);
+        info!("🧠 Added AI player {} to intelligence system", player_id);
+        
+        // Initialize strategy system for this AI player
+        ai_strategy.add_ai_player(player_id);
+        info!("🎯 Added AI player {} to strategy system", player_id);
+        
         if let Some(&base_pos_2d) = base_positions.get(ai_index) {
             let ai_base = get_terrain_position(base_pos_2d.x, base_pos_2d.z, 0.0);
 
@@ -465,6 +509,7 @@ pub fn spawn_rts_elements_with_teams(
 
             // Spawn AI team units with debug mode for model visibility
             let ai_roster = ai_team.get_unit_roster();
+            let mut ai_spawn_index = 0;
             
             // If this is 8-player mode (7 AI + 1 human), spawn more units for model debugging
             let units_to_spawn = if setup.ai_teams.len() >= 7 { 
@@ -473,9 +518,9 @@ pub fn spawn_rts_elements_with_teams(
                 ai_roster.len().min(6) // Normal mode - spawn up to 6 units
             };
             
-            for (i, unit_type) in ai_roster.iter().enumerate().take(units_to_spawn) {
-                let offset_x = (i % 4) as f32 * unit_spacing; // 4 units per row for better layout
-                let offset_z = (i / 4) as f32 * unit_spacing - 30.0; // Opposite side from player
+            for (_i, unit_type) in ai_roster.iter().enumerate().take(units_to_spawn) {
+                let offset_x = (ai_spawn_index % 4) as f32 * unit_spacing; // 4 units per row for better layout
+                let offset_z = (ai_spawn_index / 4) as f32 * unit_spacing - 30.0; // Opposite side from player
                 
                 let ai_unit_config = SpawnConfig::unit(
                     EntityType::from_unit(unit_type.clone()),
@@ -492,6 +537,40 @@ pub fn spawn_rts_elements_with_teams(
                 
                 info!("🐛 DEBUG: Spawned {} (team: {:?}) for player {}", 
                       format!("{:?}", unit_type), ai_team, player_id);
+                ai_spawn_index += 1;
+            }
+            
+            // Add extra resource gatherers for AI teams
+            let ai_primary_gatherer = get_primary_gatherer(ai_team);
+            let ai_gatherers_in_roster = ai_roster.iter()
+                .filter(|unit| is_gatherer(unit))
+                .count();
+            
+            // Give Tiny Legion 10 gatherers, others get 5
+            let min_gatherers: usize = if matches!(ai_team, TeamType::TinyLegion) { 10 } else { 5 };
+            let ai_extra_gatherers_needed = min_gatherers.saturating_sub(ai_gatherers_in_roster);
+            
+            for _ in 0..ai_extra_gatherers_needed {
+                let offset_x = (ai_spawn_index % 4) as f32 * unit_spacing;
+                let offset_z = (ai_spawn_index / 4) as f32 * unit_spacing - 30.0;
+                
+                let ai_gatherer_config = SpawnConfig::unit(
+                    EntityType::from_unit(ai_primary_gatherer.clone()),
+                    get_terrain_position(ai_base.x + offset_x, ai_base.z + offset_z, 2.0),
+                    player_id,
+                );
+                EntityFactory::spawn(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    ai_gatherer_config,
+                    model_assets.as_deref(),
+                );
+                
+                info!("🐛 EXTRA: Spawned additional {} gatherer for AI player {} ({})", 
+                      format!("{:?}", ai_primary_gatherer), player_id, 
+                      if matches!(ai_team, TeamType::TinyLegion) { "TinyLegion" } else { "Standard" });
+                ai_spawn_index += 1;
             }
 
             // Spawn AI buildings
@@ -739,6 +818,33 @@ pub fn handle_rts_camera_input(
             }
         }
     }
+}
+
+// Helper functions for gatherer spawning
+
+/// Get the primary gatherer unit type for a team
+fn get_primary_gatherer(team: &TeamType) -> UnitType {
+    use crate::core::components::*;
+    match team {
+        TeamType::BeetleSwarm => UnitType::DungBeetle,
+        TeamType::Predators => UnitType::Silverfish,
+        TeamType::SkyDominion => UnitType::Honeybees,
+        TeamType::TinyLegion => UnitType::Aphids,
+        TeamType::BalancedColony => UnitType::WorkerAnt,
+        TeamType::AntEmpire => UnitType::WorkerAnt,
+        TeamType::ShadowCrawlers => UnitType::Silverfish,
+        TeamType::HiveMind => UnitType::Honeybees,
+    }
+}
+
+/// Check if a unit type is a resource gatherer
+fn is_gatherer(unit_type: &UnitType) -> bool {
+    use crate::core::components::*;
+    matches!(unit_type, 
+        UnitType::WorkerAnt | UnitType::WorkerFourmi | UnitType::TermiteWorker |
+        UnitType::DungBeetle | UnitType::Silverfish | UnitType::Honeybees |
+        UnitType::HoneyBee | UnitType::Aphids | UnitType::Mites
+    )
 }
 
 // Removed old unused systems (update_enemies, handle_collisions, update_ui)

@@ -118,9 +118,8 @@ impl Plugin for AIPlugin {
     }
 }
 
-/// Setup intelligence system for AI players
-fn setup_ai_intelligence(mut intelligence: ResMut<IntelligenceSystem>) {
-    // Initialize intelligence tracking for AI player 2 (monitoring player 1)
-    intelligence.initialize_player(2, 1);
-    info!("AI Intelligence System initialized - AI Player 2 will scout Player 1");
+/// Setup intelligence system for AI players - now dynamically initialized in world system
+fn setup_ai_intelligence(_intelligence: ResMut<IntelligenceSystem>) {
+    // Intelligence system is now initialized dynamically when AI players are spawned
+    info!("AI Intelligence System ready for dynamic initialization");
 }

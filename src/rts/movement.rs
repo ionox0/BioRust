@@ -509,7 +509,17 @@ fn update_position_with_terrain(
 
     // Enforce map boundaries - clamp position to map limits
     let mut final_position = clamp_to_map_boundary(new_position);
-    final_position.y = terrain_height + 2.0;
+    
+    // Ensure units always stay above terrain with a minimum height offset
+    let min_height_above_terrain = 2.0;
+    final_position.y = (terrain_height + min_height_above_terrain).max(min_height_above_terrain);
+    
+    // Additional safety check: never let units go below ground level
+    if final_position.y < 0.5 {
+        final_position.y = 0.5;
+        debug!("Unit was below ground level, adjusted to minimum height: {}", final_position.y);
+    }
+    
     transform.translation = final_position;
 }
 
@@ -906,4 +916,27 @@ fn add_ant_pathfinding_randomness(entity: Entity, direction: Vec3, magnitude: f3
     let final_direction = (rotated_direction + random_offset).normalize_or_zero();
 
     final_direction * magnitude
+}
+
+/// System to correct units that have drifted below terrain level
+/// Runs periodically to catch any units that may have fallen through
+pub fn terrain_collision_correction_system(
+    mut units_query: Query<&mut Transform, With<RTSUnit>>,
+    terrain_heights: Res<crate::world::static_terrain::StaticTerrainHeights>,
+) {
+    for mut transform in units_query.iter_mut() {
+        let current_pos = transform.translation;
+        let terrain_height = terrain_heights.get_height(current_pos.x, current_pos.z);
+        let min_height_above_terrain = 2.0;
+        let required_height = (terrain_height + min_height_above_terrain).max(min_height_above_terrain);
+        
+        // If unit is below required height, correct it
+        if current_pos.y < required_height {
+            transform.translation.y = required_height;
+            debug!(
+                "Corrected unit terrain position from {:.2} to {:.2} (terrain: {:.2})", 
+                current_pos.y, required_height, terrain_height
+            );
+        }
+    }
 }

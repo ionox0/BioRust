@@ -76,10 +76,11 @@ pub struct ModelAssets {
     pub fourmi: Handle<Scene>,          // Ant (French: "fourmi")
     pub cairns_birdwing: Handle<Scene>, // Butterfly
     pub roly_poly: Handle<Scene>,       // Pill bug (isopod)
-    pub mystery_model: Handle<Scene>,   // Unknown/special model
+    pub dragonfly_2: Handle<Scene>,   // Unknown/special model
     pub common_housefly: Handle<Scene>, // Common housefly
     pub giant_termite: Handle<Scene>,   // Giant termite
     pub leg_beetle: Handle<Scene>,      // Leg beetle
+    pub jewel_bug: Handle<Scene>,       // Jewel bug
     pub stinkbug: Handle<Scene>,        // Stinkbug
     pub termite: Handle<Scene>,         // Regular termite
 
@@ -146,10 +147,11 @@ impl Default for ModelAssets {
             fourmi: Handle::default(),
             cairns_birdwing: Handle::default(),
             roly_poly: Handle::default(),
-            mystery_model: Handle::default(),
+            dragonfly_2: Handle::default(),
             common_housefly: Handle::default(),
             giant_termite: Handle::default(),
             leg_beetle: Handle::default(),
+            jewel_bug: Handle::default(),
             stinkbug: Handle::default(),
             termite: Handle::default(),
 
@@ -239,6 +241,7 @@ pub enum InsectModelType {
     CommonHousefly, // Common housefly - fast flying unit
     GiantTermite,   // Giant termite - heavy siege unit
     LegBeetle,      // Leg beetle - specialized melee unit
+    JewelBug,       // Jewel bug - fast support beetle
     Stinkbug,       // Stinkbug - area denial unit
     Termite,        // Regular termite - builder/worker variant
 
@@ -256,7 +259,7 @@ pub enum InsectModelType {
     Mite,                    // Mite - microscopic unit
     Moth,                    // Generic moth - night flying unit
     Tick,                    // Tick - parasitic unit
-    UnknownSpecies1,         // Unknown model 1 - special unit
+    Dragonfly2,         // Unknown model 1 - special unit
     UnknownSpecies2,         // Unknown model 2 - special unit
     Woodlouse,               // Woodlouse - defensive unit
 
@@ -395,9 +398,9 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
         "Pill bug",
     ),
     ModelConfig::new(
-        "mystery_model",
-        "models/insects/unknown.glb#Scene0",
-        "Mystery model",
+        "dragonfly_2",
+        "models/insects/dragonfly_2.glb#Scene0",
+        "Dragonfly 2",
     ),
     ModelConfig::new(
         "common_housefly",
@@ -413,6 +416,11 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
         "leg_beetle",
         "models/insects/leg_beetle.glb#Scene0",
         "Leg beetle",
+    ),
+    ModelConfig::new(
+        "jewel_bug",
+        "models/insects/jewel_bug.glb#Scene0",
+        "Jewel bug",
     ),
     ModelConfig::new("stinkbug", "models/insects/stinkbug.glb#Scene0", "Stinkbug"),
     ModelConfig::new(
@@ -524,7 +532,7 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ),
     ModelConfig::new(
         "hawkmoth_larvae",
-        "models/insects/hawkmoth_larvae.glb#Scene0",
+        "models/insects/hawkmoth_larvae_2.glb#Scene0",
         "Hawkmoth larvae",
     ),
     ModelConfig::new(
@@ -627,9 +635,9 @@ pub fn load_models(mut model_assets: ResMut<ModelAssets>, asset_server: Res<Asse
     );
     load_model_handle(&mut model_assets.roly_poly, &asset_server, "roly_poly");
     load_model_handle(
-        &mut model_assets.mystery_model,
+        &mut model_assets.dragonfly_2,
         &asset_server,
-        "mystery_model",
+        "dragonfly_2",
     );
     load_model_handle(
         &mut model_assets.common_housefly,
@@ -642,6 +650,7 @@ pub fn load_models(mut model_assets: ResMut<ModelAssets>, asset_server: Res<Asse
         "giant_termite",
     );
     load_model_handle(&mut model_assets.leg_beetle, &asset_server, "leg_beetle");
+    load_model_handle(&mut model_assets.jewel_bug, &asset_server, "jewel_bug");
     load_model_handle(&mut model_assets.stinkbug, &asset_server, "stinkbug");
     load_model_handle(&mut model_assets.termite, &asset_server, "termite");
 
@@ -879,8 +888,13 @@ fn calculate_model_rotation(model_type: &InsectModelType) -> f32 {
         }
         
         // Models that need 180° rotation (double the base rotation)
-        InsectModelType::Flea | InsectModelType::CairnsBirdwing | InsectModelType::Aphid => {
+        InsectModelType::Flea | InsectModelType::Aphid => {
             base_rotation + std::f32::consts::PI // 180° + 180° = 360° (0°)
+        }
+        
+        // CairnsBirdwing needs just the base 180° rotation
+        InsectModelType::CairnsBirdwing => {
+            base_rotation // 180° to face forward
         }
         
         // Tick needs 90° clockwise rotation (same as termite)
@@ -1026,10 +1040,11 @@ impl ModelAssets {
             InsectModelType::Fourmi => self.fourmi.clone(),
             InsectModelType::CairnsBirdwing => self.cairns_birdwing.clone(),
             InsectModelType::RolyPoly => self.roly_poly.clone(),
-            InsectModelType::DragonFly => self.mystery_model.clone(),
+            InsectModelType::DragonFly => self.dragonfly_2.clone(),
             InsectModelType::CommonHousefly => self.common_housefly.clone(),
             InsectModelType::GiantTermite => self.giant_termite.clone(),
             InsectModelType::LegBeetle => self.leg_beetle.clone(),
+            InsectModelType::JewelBug => self.jewel_bug.clone(),
             InsectModelType::Stinkbug => self.stinkbug.clone(),
             InsectModelType::Termite => self.termite.clone(),
 
@@ -1047,8 +1062,8 @@ impl ModelAssets {
             InsectModelType::Mite => self.mite.clone(),
             InsectModelType::Moth => self.moth.clone(),
             InsectModelType::Tick => self.tick.clone(),
-            InsectModelType::UnknownSpecies1 => self.mystery_model.clone(), // Fallback to mystery
-            InsectModelType::UnknownSpecies2 => self.mystery_model.clone(), // Fallback to mystery
+            InsectModelType::Dragonfly2 => self.dragonfly_2.clone(), // Fallback to mystery
+            InsectModelType::UnknownSpecies2 => self.dragonfly_2.clone(), // Fallback to mystery 2
             InsectModelType::Woodlouse => self.woodlouse.clone(),
 
             // Environment objects
@@ -1199,7 +1214,7 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::DungBeetle => InsectModelType::Beetle, // Dung beetle
         crate::core::components::UnitType::RhinoBeetle => InsectModelType::RhinoBeetle, // Rhino beetle
         crate::core::components::UnitType::StinkBeetle => InsectModelType::Stinkbug, // Stink beetle variant
-        crate::core::components::UnitType::JewelBug => InsectModelType::LegBeetle, // Jewel bug
+        crate::core::components::UnitType::JewelBug => InsectModelType::JewelBug, // Jewel bug
 
         // Mantids family
         crate::core::components::UnitType::CommonMantis => InsectModelType::QueenFacedBug, // Common mantis
@@ -1214,7 +1229,7 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
 
         // Cephalopoda family (Isopods/Crustaceans)
         crate::core::components::UnitType::Pillbug => InsectModelType::RolyPoly, // Pillbug
-        crate::core::components::UnitType::Silverfish => InsectModelType::UnknownSpecies1, // Silverfish
+        crate::core::components::UnitType::Dragonfly2 => InsectModelType::Dragonfly2, // Dragonfly2
         crate::core::components::UnitType::Woodlouse => InsectModelType::Woodlouse, // Woodlouse
         crate::core::components::UnitType::SandFleas => InsectModelType::Flea, // Sand fleas
 
@@ -1257,7 +1272,7 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::ScorpionVariant => InsectModelType::Scorpion, // Scorpion variant
         crate::core::components::UnitType::StickBugs => InsectModelType::MantisTenoderaAridifolia, // Stick bugs
         crate::core::components::UnitType::LeafBugs => InsectModelType::QueenFacedBug, // Leaf bugs
-        crate::core::components::UnitType::Cicadas => InsectModelType::UnknownSpecies1, // Cicadas
+        crate::core::components::UnitType::Cicadas => InsectModelType::Dragonfly2, // ?
         crate::core::components::UnitType::Grasshoppers => InsectModelType::CairnsBirdwing, // Grasshoppers
         crate::core::components::UnitType::Cockroaches => InsectModelType::Beetle, // Cockroaches
 
@@ -1357,6 +1372,7 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::CommonHousefly => HOUSEFLY_SCALE, // Increased for better visibility
         InsectModelType::GiantTermite => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::LegBeetle => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::JewelBug => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::Stinkbug => STINKBUG_SCALE,   // Increased for better visibility
         InsectModelType::Termite => UNIFORM_UNIT_SCALE, // 1.5
 
@@ -1367,14 +1383,14 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::ElephantHawkMoth => crate::constants::models::ELEPHANT_HAWK_MOTH_SCALE, // 25.0 (10x larger)
         InsectModelType::Flea => 4.0,                   // Much larger scale for tiny flea visibility
         InsectModelType::FlyingHornet => crate::constants::models::FLYING_HORNET_SCALE, // 12.5 (5x larger)
-        InsectModelType::GoliathBirdeater => 0.5, // 5x smaller than UNIFORM_UNIT_SCALE (2.5 / 5)
+        InsectModelType::GoliathBirdeater => 1.0, // 2x larger than before (0.5 × 2) - now 2.5x smaller than uniform scale
         InsectModelType::HawkmothLarvae => crate::constants::models::HAWKMOTH_LARVAE_SCALE, // 50.0 (20x larger)
-        InsectModelType::JapaneseRhinocerosBeetle => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::JapaneseRhinocerosBeetle => crate::constants::models::JAPANESE_RHINOCEROS_BEETLE_SCALE, // 20.0 (8x larger)
         InsectModelType::MantisTenoderaAridifolia => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::Mite => 5.0,                   // Very large scale for microscopic mite
         InsectModelType::Moth => crate::constants::models::MOTH_SCALE,    // 17.5 (7x larger)
         InsectModelType::Tick => 4.0,                   // Large scale for tiny tick visibility
-        InsectModelType::UnknownSpecies1 => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::Dragonfly2 => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::UnknownSpecies2 => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::Woodlouse => crate::core::constants::models::WOODLOUSE_SCALE, // 20x smaller
 

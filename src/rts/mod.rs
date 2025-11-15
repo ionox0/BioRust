@@ -16,7 +16,7 @@ pub mod vision;
 use construction::{ai_construction_workflow_system, construction_system};
 use cursor_manager::{cursor_management_system, CursorState};
 use formation::formation_system;
-use movement::movement_system;
+use movement::{movement_system, terrain_collision_correction_system};
 use production::{building_completion_system, population_management_system, production_system};
 use resource_gathering::resource_gathering_system;
 use selection::{
@@ -55,6 +55,7 @@ impl Plugin for RTSSystemsPlugin {
                     formation_system,
                     create_selection_indicators,
                     spawn_test_units_system,
+                    terrain_collision_correction_system, // Periodically correct units below terrain
                 ).run_if(in_state(GameState::Playing))
                 .run_if(should_run_unit_management),
             )

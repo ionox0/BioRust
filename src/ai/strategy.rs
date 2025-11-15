@@ -118,12 +118,17 @@ pub enum StrategyGoal {
 
 impl Default for AIStrategy {
     fn default() -> Self {
-        let mut strategies = std::collections::HashMap::new();
+        Self { 
+            strategies: std::collections::HashMap::new() 
+        }
+    }
+}
 
-        // Initialize AI player 2 with POPULATION-FOCUSED strategy: 1. Increase Population → 2. Eliminate Enemy
-        strategies.insert(
-            2,
-            PlayerStrategy {
+impl AIStrategy {
+    /// Add a new AI player with a population-focused strategy
+    pub fn add_ai_player(&mut self, player_id: u8) {
+        if !self.strategies.contains_key(&player_id) {
+            let strategy = PlayerStrategy {
                 strategy_type: StrategyType::Economic, // Population growth requires economic focus initially
                 last_building_time: 0.0,
                 last_unit_time: 0.0,
@@ -151,7 +156,7 @@ impl Default for AIStrategy {
                 phase: StrategyPhase::EarlyGame,
                 previous_phase: None,
                 economy_targets: EconomyTargets {
-                    desired_workers: 25, // Massive population target - increased from 15 to 25
+                    desired_workers: 25, // Massive population target
                     next_building: Some(BuildingType::Nursery), // Housing priority for population
                     resource_priorities: vec![
                         ResourceType::Nectar,     // For population growth (worker production)
@@ -161,7 +166,7 @@ impl Default for AIStrategy {
                     ],
                 },
                 military_targets: MilitaryTargets {
-                    desired_military_units: 35, // MASSIVE army for enemy elimination (increased from 20 to 35)
+                    desired_military_units: 35, // MASSIVE army for enemy elimination
                     preferred_unit_types: vec![
                         UnitType::DragonFly,       // STRONGEST - 5x speed air superiority
                         UnitType::BeetleKnight,    // Heavy assault for enemy elimination
@@ -172,10 +177,11 @@ impl Default for AIStrategy {
                     ],
                     next_military_building: Some(BuildingType::WarriorChamber),
                 },
-            },
-        );
-
-        Self { strategies }
+            };
+            
+            self.strategies.insert(player_id, strategy);
+            info!("🎯 Added AI player {} with population-focused strategy", player_id);
+        }
     }
 }
 

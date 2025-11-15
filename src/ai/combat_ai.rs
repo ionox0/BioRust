@@ -530,7 +530,7 @@ pub fn combat_to_resource_transition_system(
 fn has_enemies_for_player(player_id: u8, all_units: &Query<&RTSUnit, With<RTSUnit>>) -> bool {
     all_units
         .iter()
-        .any(|unit| unit.player_id != player_id && unit.player_id == 1)
+        .any(|unit| unit.player_id != player_id)
 }
 
 fn clear_combat_state(

@@ -26,25 +26,32 @@ pub struct ResourceAllocation {
 
 impl Default for EconomyManager {
     fn default() -> Self {
-        let mut player_economy = HashMap::new();
+        Self { 
+            player_economy: HashMap::new() 
+        }
+    }
+}
 
-        // Initialize AI player 2 with balanced economy
-        let mut ideal_distribution = HashMap::new();
-        ideal_distribution.insert(ResourceType::Nectar, 3); // Food priority
-        ideal_distribution.insert(ResourceType::Chitin, 3); // Building materials
-        ideal_distribution.insert(ResourceType::Minerals, 2); // Secondary
-        ideal_distribution.insert(ResourceType::Pheromones, 2); // Least priority
+impl EconomyManager {
+    /// Add a new AI player to the economy management system
+    pub fn add_ai_player(&mut self, player_id: u8) {
+        if !self.player_economy.contains_key(&player_id) {
+            let mut ideal_distribution = HashMap::new();
+            ideal_distribution.insert(ResourceType::Nectar, 3); // Food priority
+            ideal_distribution.insert(ResourceType::Chitin, 3); // Building materials
+            ideal_distribution.insert(ResourceType::Minerals, 2); // Secondary
+            ideal_distribution.insert(ResourceType::Pheromones, 2); // Least priority
 
-        player_economy.insert(
-            2,
-            PlayerEconomy {
-                resource_priorities: Vec::new(),
-                ideal_worker_distribution: ideal_distribution,
-                last_optimization_time: 0.0,
-            },
-        );
-
-        Self { player_economy }
+            self.player_economy.insert(
+                player_id,
+                PlayerEconomy {
+                    resource_priorities: Vec::new(),
+                    ideal_worker_distribution: ideal_distribution,
+                    last_optimization_time: 0.0,
+                },
+            );
+            info!("🏭 Added AI player {} to economy management system", player_id);
+        }
     }
 }
 

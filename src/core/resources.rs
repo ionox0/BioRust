@@ -513,10 +513,10 @@ impl GameCosts {
         costs.unit_costs.insert(UnitType::SoldierFourmi, vec![(ResourceType::Nectar, 70.0), (ResourceType::Pheromones, 30.0)]);
         costs.unit_costs.insert(UnitType::WorkerFourmi, vec![(ResourceType::Nectar, 50.0)]);
 
-        // Small creatures family
+        // Small creatures family - ultra-cheap swarm units
         costs.unit_costs.insert(UnitType::Aphids, vec![(ResourceType::Nectar, 25.0)]);
-        costs.unit_costs.insert(UnitType::Mites, vec![(ResourceType::Nectar, 20.0)]);
-        costs.unit_costs.insert(UnitType::Ticks, vec![(ResourceType::Nectar, 30.0), (ResourceType::Chitin, 15.0)]);
+        costs.unit_costs.insert(UnitType::Mites, vec![(ResourceType::Nectar, 8.0)]); // Very cheap swarm unit
+        costs.unit_costs.insert(UnitType::Ticks, vec![(ResourceType::Nectar, 12.0)]); // Very cheap, removed chitin cost
         costs.unit_costs.insert(UnitType::Fleas, vec![(ResourceType::Nectar, 35.0)]);
         costs.unit_costs.insert(UnitType::Lice, vec![(ResourceType::Nectar, 20.0)]);
 

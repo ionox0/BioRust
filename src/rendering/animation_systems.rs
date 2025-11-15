@@ -68,13 +68,14 @@ pub fn animation_state_manager(
             &Combat,
             Option<&RTSHealth>,
             &UnitAnimationController,
+            &RTSUnit,
         ),
         With<RTSUnit>,
     >,
 ) {
-    for (entity, movement, combat, health, controller) in units.iter() {
+    for (entity, movement, combat, health, controller, rts_unit) in units.iter() {
         // Determine the appropriate animation state based on unit behavior
-        let new_state = determine_animation_state(movement, combat, health, &controller);
+        let new_state = determine_animation_state(movement, combat, health, controller, rts_unit);
 
         // Send animation change event if state changed
         if controller.current_state != new_state {
@@ -93,6 +94,7 @@ fn determine_animation_state(
     combat: &Combat,
     health: Option<&RTSHealth>,
     _controller: &UnitAnimationController,
+    rts_unit: &RTSUnit,
 ) -> AnimationState {
     // Priority order: Death > Attacking > Moving > Idle
 
@@ -111,6 +113,15 @@ fn determine_animation_state(
     // Check movement state
     let velocity = movement.current_velocity.length();
     if velocity > 0.1 {
+        // Use Special animation state for flying units when moving
+        // This allows flying units like AcidSpitter to use their flying animation
+        if let Some(unit_type) = &rts_unit.unit_type {
+            if is_flying_unit(unit_type) {
+                return AnimationState::Special; // Flying animation
+            }
+        }
+        
+        // Non-flying units use normal movement animations
         if velocity > movement.max_speed * 0.7 {
             AnimationState::Running
         } else {
@@ -119,6 +130,32 @@ fn determine_animation_state(
     } else {
         AnimationState::Idle
     }
+}
+
+/// Check if a unit type should use flying animations when moving
+fn is_flying_unit(unit_type: &crate::core::components::UnitType) -> bool {
+    use crate::core::components::UnitType;
+    matches!(
+        unit_type,
+        UnitType::DragonFly
+            | UnitType::AcidSpitter
+            | UnitType::HoneyBee
+            | UnitType::Housefly
+            | UnitType::Moths
+            | UnitType::Hornets
+            | UnitType::Wasps
+            | UnitType::Bumblebees
+            | UnitType::Honeybees
+            | UnitType::MurderHornet
+            | UnitType::HouseflyVariant
+            | UnitType::Horsefly
+            | UnitType::Firefly
+            | UnitType::DragonFlies
+            | UnitType::Damselfly
+            | UnitType::ScoutAnt // Butterfly model
+            | UnitType::Grasshoppers // Butterfly model
+            | UnitType::PeacockMoth
+    )
 }
 
 // System to handle animation updates

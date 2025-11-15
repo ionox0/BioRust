@@ -429,6 +429,7 @@ pub enum UnitType {
     Horsefly,          // Large aggressive fly
     Firefly,           // Light/energy fly
     DragonFlies,       // Large aerial predator
+    Dragonfly2,
     Damselfly,         // Light aerial scout
 
     // Bees family

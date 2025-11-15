@@ -126,10 +126,16 @@ fn spawn_produced_unit(
         calculate_auto_rally_point(building_transform.translation, player_id)
     };
 
-    // Spawn unit with movement toward rally point to spread out immediately
+    // Spawn unit above the building to avoid clipping through terrain
+    let spawn_position = Vec3::new(
+        building_transform.translation.x,
+        building_transform.translation.y + 3.0, // Spawn 3 units above building
+        building_transform.translation.z,
+    );
+    
     let config = SpawnConfig::unit(
         EntityType::Unit(unit_type.clone()),
-        building_transform.translation,
+        spawn_position,
         player_id,
     );
     let entity = EntityFactory::spawn(commands, meshes, materials, config, None);

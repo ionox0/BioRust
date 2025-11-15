@@ -184,7 +184,7 @@ pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
         regeneration_rate: 0.8, // Good regen for elite status
     },
     combat: CombatStats {
-        attack_damage: 65.0, // Very high damage for elite
+        attack_damage: 35.0, // Moderate damage - relies on speed and mobility
         attack_range: 22.0,  // Excellent range
         attack_speed: 1.5,   // Good attack speed
         attack_type: AttackType::Melee,
@@ -200,6 +200,64 @@ pub const DRAGONFLY_STATS: UnitStatsConfig = UnitStatsConfig {
         line_of_sight: true,
     },
     collision_radius: 3.0,
+};
+
+/// Mites - Ultra-cheap swarm unit (8 cost)
+/// Role: SWARM - Expendable scouts with minimal stats
+/// Effectiveness: Numbers over individual strength
+pub const MITES_STATS: UnitStatsConfig = UnitStatsConfig {
+    health: HealthStats {
+        current: 15.0, // Very low health - dies in 1-2 hits
+        max: 15.0,
+        armor: 0.0,             // No armor protection
+        regeneration_rate: 0.0, // No regeneration
+    },
+    combat: CombatStats {
+        attack_damage: 3.0, // Minimal damage
+        attack_range: 8.0,  // Short range
+        attack_speed: 1.0,  // Slow attacks
+        attack_type: AttackType::Melee,
+        auto_attack: false,
+    },
+    movement: MovementStats {
+        max_speed: 60.0, // Slower than normal scouts
+        acceleration: 40.0,
+        turning_speed: 2.5,
+    },
+    vision: VisionStats {
+        sight_range: 80.0, // Limited vision
+        line_of_sight: true,
+    },
+    collision_radius: crate::constants::collision::DEFAULT_UNIT_COLLISION_RADIUS,
+};
+
+/// Ticks - Ultra-cheap siege unit (12 cost)
+/// Role: SWARM SIEGE - Weak siege unit for swarming buildings
+/// Effectiveness: Cheap siege damage in numbers
+pub const TICKS_STATS: UnitStatsConfig = UnitStatsConfig {
+    health: HealthStats {
+        current: 25.0, // Low health but slightly more than mites
+        max: 25.0,
+        armor: 1.0,             // Minimal armor
+        regeneration_rate: 0.0, // No regeneration
+    },
+    combat: CombatStats {
+        attack_damage: 8.0, // Low siege damage
+        attack_range: 10.0, // Short siege range
+        attack_speed: 0.8,  // Slow siege attacks
+        attack_type: AttackType::Siege,
+        auto_attack: false,
+    },
+    movement: MovementStats {
+        max_speed: 45.0, // Very slow movement
+        acceleration: 30.0,
+        turning_speed: 2.0, // Poor maneuverability
+    },
+    vision: VisionStats {
+        sight_range: 70.0, // Limited vision
+        line_of_sight: true,
+    },
+    collision_radius: crate::constants::collision::DEFAULT_UNIT_COLLISION_RADIUS,
 };
 
 /// Generate unit statistics dynamically based on unit type and role
@@ -296,7 +354,7 @@ fn get_unit_role(unit_type: &UnitType) -> UnitRole {
         UnitType::Lice | UnitType::Horsefly | UnitType::Cicadas => UnitRole::Siege,
         
         // Elite units - special powerful units
-        UnitType::DragonFly | UnitType::AcidSpitter |
+        UnitType::DragonFly | UnitType::Dragonfly2 | UnitType::AcidSpitter |
         UnitType::Moths | UnitType::Caterpillars | UnitType::PeacockMoth => UnitRole::Elite,
     }
 }
@@ -361,6 +419,8 @@ pub fn get_unit_stats(unit_type: &UnitType) -> UnitStatsConfig {
     // Use generated stats for most units, with special cases for unique units
     match unit_type {
         UnitType::DragonFly => DRAGONFLY_STATS, // Keep special elite stats
+        UnitType::Mites => MITES_STATS,         // Ultra-cheap swarm scout
+        UnitType::Ticks => TICKS_STATS,         // Ultra-cheap swarm siege
         _ => generate_unit_stats(unit_type),
     }
 }

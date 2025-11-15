@@ -190,7 +190,7 @@ pub mod models {
 
     // New models
     pub const MEGANEURA_SCALE: f32 = 25.0; // Massively increased - 10x bigger (dragonfly)
-    pub const ANIMATED_SPIDER_SCALE: f32 = 2.5;
+    pub const ANIMATED_SPIDER_SCALE: f32 = 12.5; // 5x larger than before (2.5 × 5)
     pub const RHINO_BEETLE_SCALE: f32 = 2.5;
     pub const HORNET_SCALE: f32 = 5.0;
     pub const FOURMI_SCALE: f32 = 2.5;
@@ -206,8 +206,9 @@ pub mod models {
     pub const MOTH_SCALE: f32 = 17.5; // 7x larger than UNIFORM_UNIT_SCALE (2.5 × 7)
     pub const ELEPHANT_HAWK_MOTH_SCALE: f32 = 25.0; // 10x larger than UNIFORM_UNIT_SCALE (2.5 × 10)
     pub const ANIMATED_PEACOCK_MOTH_SCALE: f32 = 25.0; // 10x larger than UNIFORM_UNIT_SCALE (2.5 × 10)
-    pub const HAWKMOTH_LARVAE_SCALE: f32 = 50.0; // 20x larger than UNIFORM_UNIT_SCALE (2.5 × 20)
+    pub const HAWKMOTH_LARVAE_SCALE: f32 = 100.0; // 40x larger than UNIFORM_UNIT_SCALE (2.5 × 40) - 5x smaller than before
     pub const WOODLOUSE_SCALE: f32 = 0.125; // 20x smaller than UNIFORM_UNIT_SCALE (2.5 ÷ 20)
+    pub const JAPANESE_RHINOCEROS_BEETLE_SCALE: f32 = 20.0; // 8x larger than UNIFORM_UNIT_SCALE (2.5 × 8)
 
     // Environment object scales
     pub const MUSHROOMS_SCALE: f32 = 20.5; // Larger scale for environment objects

@@ -229,10 +229,14 @@ pub fn combat_execution_system(
                 movement.target_position = Some(target_position);
                 // Removed debug logging for performance
             }
-        } else if unit.player_id != 1 {
-            // Stop AI units when in range
-            movement.target_position = None;
-            movement.current_velocity = Vec3::ZERO;
+        } else {
+            // CRITICAL FIX: Stop ALL units when in combat range to prevent drift
+            // Only stop movement when units are actually attacking (within attack range)
+            // This prevents drift during combat without breaking AI movement behavior
+            if edge_distance <= combat.attack_range {
+                movement.target_position = None;
+                movement.current_velocity = Vec3::ZERO;
+            }
         }
 
         // Handle attacks
