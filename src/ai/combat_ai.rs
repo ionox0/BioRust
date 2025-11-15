@@ -1,5 +1,6 @@
 use crate::ai::tactics::{TacticalManager, TacticalStance};
 use crate::core::components::*;
+use crate::core::query_cache::UnitQueryCache;
 use bevy::prelude::*;
 
 // CombatState component is now defined in core::components
@@ -18,7 +19,8 @@ pub fn ai_combat_system(
         ),
         With<Combat>,
     >,
-    all_units: Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    // Use query cache instead of expensive repeated queries
+    query_cache: Res<UnitQueryCache>,
     // Add queries for obstacles
     buildings: Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
     environment_objects: Query<
@@ -70,7 +72,7 @@ pub fn ai_combat_system(
             unit,
             health,
             &mut state,
-            &all_units,
+            &query_cache,
             &buildings,
             &environment_objects,
             stance,
@@ -154,7 +156,7 @@ fn handle_advanced_combat_ai(
     unit: &RTSUnit,
     _health: &RTSHealth,
     state: &mut CombatState,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
+    query_cache: &UnitQueryCache,
     buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
     environment_objects: &Query<
         (&Transform, &CollisionRadius),
@@ -163,7 +165,7 @@ fn handle_advanced_combat_ai(
     stance: TacticalStance,
     current_time: f32,
 ) {
-    let target_info = find_best_target(unit_transform, unit, all_units, state.target_entity);
+    let target_info = find_best_target_cached(unit_transform, unit, query_cache, state.target_entity);
 
     if let Some((target_entity, target_pos, target_distance, _target_priority)) = target_info {
         update_combat_state_for_engagement(
@@ -187,11 +189,11 @@ fn handle_advanced_combat_ai(
         );
     } else {
         transition_to_idle_state(state, current_time);
-        handle_no_target_behavior(
+        handle_no_target_behavior_cached(
             movement,
             unit_transform,
             unit,
-            all_units,
+            query_cache,
             buildings,
             environment_objects,
             stance,
@@ -203,6 +205,52 @@ fn handle_advanced_combat_ai(
 
 
 /// Find the best target with prioritization
+// Optimized version using query cache
+fn find_best_target_cached(
+    unit_transform: &Transform,
+    unit: &RTSUnit,
+    query_cache: &UnitQueryCache,
+    target_entity: Option<Entity>,
+) -> Option<(Entity, Vec3, f32, u32)> {
+    let detection_range = 200.0; // Increased from 120.0 to 200.0 for more aggressive seeking
+    let mut best_target: Option<(Entity, Vec3, f32, u32)> = None;
+    let mut best_priority = 0u32;
+
+    // Check if current target is still valid using cache
+    if let Some(target_entity) = target_entity {
+        if let Some(target_data) = query_cache.health_units.get(&target_entity) {
+            if target_data.basic.player_id != unit.player_id && target_data.health.current > 0.0 {
+                let distance = unit_transform.translation.distance(target_data.basic.transform.translation);
+                if distance <= detection_range {
+                    let priority = calculate_target_priority(&target_data.basic.unit, &target_data.health);
+                    return Some((target_entity, target_data.basic.transform.translation, distance, priority));
+                }
+            }
+        }
+    }
+
+    // Find best target using cached enemy units
+    for enemy_data in query_cache.get_enemy_units(unit.player_id) {
+        if let Some(health_data) = query_cache.health_units.get(&enemy_data.entity) {
+            if health_data.health.current <= 0.0 {
+                continue; // Skip dead units
+            }
+
+            let distance = unit_transform.translation.distance(enemy_data.transform.translation);
+            if distance <= detection_range {
+                let priority = calculate_target_priority(&enemy_data.unit, &health_data.health);
+                if priority > best_priority {
+                    best_priority = priority;
+                    best_target = Some((enemy_data.entity, enemy_data.transform.translation, distance, priority));
+                }
+            }
+        }
+    }
+
+    best_target
+}
+
+// Keep the original function for backwards compatibility
 fn find_best_target(
     unit_transform: &Transform,
     unit: &RTSUnit,
@@ -594,6 +642,121 @@ fn handle_default_combat(
     }
 }
 
+// Cached version for performance
+fn handle_no_target_behavior_cached(
+    movement: &mut Movement,
+    unit_transform: &Transform,
+    unit: &RTSUnit,
+    query_cache: &UnitQueryCache,
+    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    environment_objects: &Query<
+        (&Transform, &CollisionRadius),
+        (With<EnvironmentObject>, Without<RTSUnit>),
+    >,
+    stance: TacticalStance,
+    current_time: f32,
+    state: &mut CombatState,
+) {
+    state.target_entity = None;
+    
+    match stance {
+        TacticalStance::Aggressive => {
+            // Aggressively search for targets using cached data
+            let patrol_range = 150.0;
+            let enemy_units = query_cache.get_units_in_range(unit_transform.translation, patrol_range);
+            
+            if !enemy_units.is_empty() {
+                // Move towards detected enemies
+                if let Some(closest_enemy) = enemy_units
+                    .into_iter()
+                    .filter(|u| u.player_id != unit.player_id)
+                    .min_by(|a, b| {
+                        let dist_a = unit_transform.translation.distance(a.transform.translation);
+                        let dist_b = unit_transform.translation.distance(b.transform.translation);
+                        dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                {
+                    movement.target_position = Some(closest_enemy.transform.translation);
+                    state.last_state_change = current_time;
+                }
+            } else {
+                patrol_behavior_optimized(movement, unit_transform, current_time, state);
+            }
+        }
+        TacticalStance::Defensive => {
+            // Stay near friendly units or patrol a smaller area
+            defensive_behavior_optimized(movement, unit_transform, query_cache, unit, current_time, state);
+        }
+        TacticalStance::Harass => {
+            // Harass behavior - hit and run tactics
+            patrol_behavior_optimized(movement, unit_transform, current_time, state);
+        }
+        TacticalStance::Expand => {
+            // Expansion behavior - secure new areas
+            patrol_behavior_optimized(movement, unit_transform, current_time, state);
+        }
+    }
+}
+
+fn defensive_behavior_optimized(
+    movement: &mut Movement,
+    unit_transform: &Transform,
+    query_cache: &UnitQueryCache,
+    unit: &RTSUnit,
+    current_time: f32,
+    state: &mut CombatState,
+) {
+    // Find nearby friendly units
+    let friendly_units = query_cache.get_player_units(unit.player_id);
+    let nearby_friendlies: Vec<_> = friendly_units
+        .into_iter()
+        .filter(|u| {
+            let distance = unit_transform.translation.distance(u.transform.translation);
+            distance < 100.0 && distance > 5.0 // Not too close, not too far
+        })
+        .collect();
+
+    if !nearby_friendlies.is_empty() {
+        // Stay near friendly units
+        let center = nearby_friendlies
+            .iter()
+            .fold(Vec3::ZERO, |acc, u| acc + u.transform.translation) / nearby_friendlies.len() as f32;
+        
+        let distance_to_center = unit_transform.translation.distance(center);
+        if distance_to_center > 50.0 {
+            movement.target_position = Some(center);
+            state.last_state_change = current_time;
+        }
+    } else {
+        // No friendlies nearby, patrol defensively
+        patrol_behavior_optimized(movement, unit_transform, current_time, state);
+    }
+}
+
+fn patrol_behavior_optimized(
+    movement: &mut Movement,
+    unit_transform: &Transform,
+    current_time: f32,
+    state: &mut CombatState,
+) {
+    if movement.target_position.is_none() || 
+       (current_time - state.last_state_change > 10.0 && 
+        movement.target_position.map_or(true, |pos| unit_transform.translation.distance(pos) < 5.0)) {
+        
+        // Set a new patrol target
+        let patrol_radius = 80.0;
+        let angle = (current_time * 0.5).sin() * std::f32::consts::TAU;
+        let patrol_offset = Vec3::new(
+            angle.cos() * patrol_radius,
+            0.0,
+            angle.sin() * patrol_radius,
+        );
+        movement.target_position = Some(unit_transform.translation + patrol_offset);
+        state.last_state_change = current_time;
+    }
+}
+
+// Keep original function for backwards compatibility
 fn handle_no_target_behavior(
     movement: &mut Movement,
     unit_transform: &Transform,

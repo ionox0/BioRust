@@ -171,9 +171,18 @@ impl EntityFactory {
         // Determine correct rotation for each model type
         let rotation = Self::get_model_rotation(unit_type, &model_type);
 
+        // Apply unit-specific position adjustments
+        let adjusted_position = match unit_type {
+            UnitType::StinkBeetle | UnitType::Stinkbug => {
+                // Stink beetle/bug needs to be 10 units higher
+                Vec3::new(config.position.x, config.position.y + 10.0, config.position.z)
+            },
+            _ => config.position,
+        };
+        
         commands.spawn((
             SceneRoot(model_handle),
-            Transform::from_translation(config.position)
+            Transform::from_translation(adjusted_position)
                 .with_scale(Vec3::splat(model_scale))
                 .with_rotation(rotation),
             InsectModel {
@@ -197,13 +206,22 @@ impl EntityFactory {
         let (mesh, _) = Self::get_unit_primitive_mesh(unit_type);
         // Use the calculated model_scale instead of the primitive's default scale
 
+        // Apply unit-specific position adjustments for primitives
+        let adjusted_position = match unit_type {
+            UnitType::StinkBeetle | UnitType::Stinkbug => {
+                // Stink beetle/bug needs to be 10 units higher
+                Vec3::new(config.position.x, config.position.y + 10.0, config.position.z)
+            },
+            _ => config.position,
+        };
+        
         commands.spawn((
             Mesh3d(meshes.add(mesh)),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: TeamColor::get_primitive_color(config.player_id),
                 ..default()
             })),
-            Transform::from_translation(config.position).with_scale(Vec3::splat(model_scale)),
+            Transform::from_translation(adjusted_position).with_scale(Vec3::splat(model_scale)),
             TeamColor::new(config.player_id),
         ))
     }

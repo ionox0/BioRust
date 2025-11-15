@@ -1008,12 +1008,5 @@ pub fn spawn_test_units_system(
         );
     }
 
-    // Test hotkey to add additional AI players for testing the resource display
-    if keyboard.just_pressed(KeyCode::KeyU) {
-        // Add AI players 3 and 4 if they don't exist
-        for player_id in 3..=4 {
-            ai_resources.add_ai_player(player_id);
-        }
-        info!("Added AI players 3 and 4 for resource display testing");
-    }
+    // Removed test hotkey - AI teams now start with proper buildings by default
 }

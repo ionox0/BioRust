@@ -201,7 +201,7 @@ pub mod models {
     pub const WOLF_SPIDER_SCALE: f32 = 2.5;
     pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const HOUSEFLY_SCALE: f32 = 4.0; // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
-    pub const STINKBUG_SCALE: f32 = 5.0; // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
+    pub const STINKBUG_SCALE: f32 = 10.0; // 2x larger (was 5.0) for better visibility
     pub const FLYING_HORNET_SCALE: f32 = 0.625; // 20x smaller than 12.5 (12.5 ÷ 20)
     pub const MOTH_SCALE: f32 = 17.5; // 7x larger than UNIFORM_UNIT_SCALE (2.5 × 7)
     pub const ELEPHANT_HAWK_MOTH_SCALE: f32 = 25.0; // 10x larger than UNIFORM_UNIT_SCALE (2.5 × 10)

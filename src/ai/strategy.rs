@@ -513,6 +513,7 @@ fn execute_next_goal(
                 meshes,
                 materials,
                 buildings,
+                ai_resources,
                 current_time,
                 log_limiter,
             ) {
@@ -540,6 +541,7 @@ fn execute_next_goal(
                 meshes,
                 materials,
                 buildings,
+                ai_resources,
                 current_time,
                 log_limiter,
             ) {
@@ -650,6 +652,7 @@ fn try_build_unit(
     _meshes: &mut ResMut<Assets<Mesh>>,
     _materials: &mut ResMut<Assets<StandardMaterial>>,
     buildings: &mut Query<(&mut ProductionQueue, &Building, &RTSUnit), With<Building>>,
+    ai_resources: &mut ResMut<AIResources>,
     current_time: f32,
     log_limiter: &mut LogRateLimiter,
 ) -> bool {
@@ -732,14 +735,34 @@ fn try_build_unit(
     debug!("🏗️ AI Player {} building check for {:?}: total={}, player={}, type_match={}, complete={}, available={}", 
            player_id, required_building, total_buildings, player_buildings, matching_buildings, complete_matching_buildings, available_buildings);
 
-    // Use the shared overflow system for AI unit queuing
-    if crate::rts::production::try_queue_unit_with_overflow(
-        unit_type.clone(),
-        required_building.clone(),
-        buildings,
-        player_id,
-    ) {
-        return true;
+    // For now, manually queue units since the shared function needs resource parameters we don't have here
+    // TODO: Refactor to use try_queue_unit_with_overflow when resource access is available
+    
+    // Find a suitable building and queue the unit manually
+    for (mut queue, building, unit) in buildings.iter_mut() {
+        if unit.player_id == player_id
+            && building.building_type == required_building
+            && building.is_complete
+            && queue.queue.len() < 8
+        {
+            // Deduct resources when queueing the unit
+            if let Some(cost) = game_costs.unit_costs.get(&unit_type) {
+                if ai_resources.can_afford(player_id, cost) {
+                    // Spend the resources
+                    ai_resources.spend_resources(player_id, cost);
+                    queue.queue.push(unit_type.clone());
+                    info!("🏭 AI Player {} queued {:?} in {:?} (queue: {}/8) - spent: {:?}", 
+                          player_id, unit_type, required_building, queue.queue.len(), cost);
+                    return true;
+                } else {
+                    debug!("❌ AI Player {} insufficient resources to queue {:?} - cost: {:?}", player_id, unit_type, cost);
+                    return false;
+                }
+            } else {
+                warn!("❌ No cost found for unit type {:?}", unit_type);
+                return false;
+            }
+        }
     }
 
     let log_key = format!(

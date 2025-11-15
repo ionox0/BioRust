@@ -612,7 +612,7 @@ fn create_visual_queue_display(
             Node {
                 position_type: PositionType::Absolute,
                 bottom: Val::Px(320.0), // Just above the building panel
-                right: Val::Px(20.0),   // Right side of screen
+                left: Val::Px(20.0),    // Left side of screen
                 padding: UiRect::all(Val::Px(15.0)),
                 border: UiRect::all(Val::Px(2.0)),
                 min_width: Val::Px(280.0),
@@ -803,7 +803,7 @@ fn create_visual_queue_display_no_icons(
             Node {
                 position_type: PositionType::Absolute,
                 bottom: Val::Px(320.0), // Just above the building panel
-                right: Val::Px(20.0),   // Right side of screen
+                left: Val::Px(20.0),    // Left side of screen
                 padding: UiRect::all(Val::Px(15.0)),
                 border: UiRect::all(Val::Px(2.0)),
                 min_width: Val::Px(280.0),

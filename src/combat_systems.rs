@@ -1,4 +1,5 @@
 use crate::core::components::*;
+use crate::core::ai_intervals::should_run_combat;
 use bevy::prelude::*;
 use std::collections::HashMap;
 
@@ -86,7 +87,8 @@ impl Plugin for CombatPlugin {
                     death_system,
                     health_bar_system,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(should_run_combat), // Use AI intervals for combat systems
             )
             .add_event::<DamageEvent>()
             .add_event::<DeathEvent>();

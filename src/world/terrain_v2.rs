@@ -1008,10 +1008,7 @@ pub fn collect_generated_chunks(
                 // Extract the result from the completed task
                 let result = block_on(&mut task.task);
 
-                info!(
-                    "✅ Async terrain generation completed for chunk ({}, {}) size {}",
-                    result.chunk_key.x, result.chunk_key.z, result.chunk_key.size
-                );
+                // Removed terrain generation completion logging for performance
 
                 // Create mesh from the generated data
                 let chunk_entity = create_mesh_from_chunk_data(

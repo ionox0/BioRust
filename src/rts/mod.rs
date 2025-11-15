@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::core::game::GameState;
+use crate::core::ai_intervals::{should_run_unit_management, should_run_resources};
 
 pub mod construction;
 pub mod cursor_manager;
@@ -32,28 +33,43 @@ impl Plugin for RTSSystemsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FormationSettings>()
             .init_resource::<CursorState>()
+            // Real-time systems that need to run every frame for responsiveness
             .add_systems(
-            Update,
-            (
-                add_stuck_detection_system,
-                movement_system,
-                unstuck_system,
-                resource_gathering_system,
-                click_selection_system,
-                drag_selection_system,
-                production_system,
-                construction_system,
-                ai_construction_workflow_system,
-                formation_system,
-                vision_system,
-                unit_command_system,
-                create_selection_indicators,
-                selection_indicator_system,
-                spawn_test_units_system,
-                building_completion_system,
-                population_management_system,
-                cursor_management_system,
-            ).run_if(in_state(GameState::Playing)),
-        );
+                Update,
+                (
+                    movement_system,              // Units need smooth movement
+                    click_selection_system,       // Player input must be responsive
+                    drag_selection_system,        // Player input must be responsive
+                    unit_command_system,          // Player commands must be responsive
+                    cursor_management_system,     // UI must be responsive
+                    vision_system,               // Vision updates for real-time gameplay
+                ).run_if(in_state(GameState::Playing)),
+            )
+            // Unit management systems - run every 0.3 seconds
+            .add_systems(
+                Update,
+                (
+                    add_stuck_detection_system,
+                    unstuck_system,
+                    formation_system,
+                    create_selection_indicators,
+                    selection_indicator_system,
+                    spawn_test_units_system,
+                ).run_if(in_state(GameState::Playing))
+                .run_if(should_run_unit_management),
+            )
+            // Resource and production systems - run every 1 second
+            .add_systems(
+                Update,
+                (
+                    resource_gathering_system,
+                    production_system,
+                    construction_system,
+                    ai_construction_workflow_system,
+                    building_completion_system,
+                    population_management_system,
+                ).run_if(in_state(GameState::Playing))
+                .run_if(should_run_resources),
+            );
     }
 }

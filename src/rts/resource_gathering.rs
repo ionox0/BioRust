@@ -358,14 +358,7 @@ fn deliver_resources_to_player(
     let mut manager = crate::core::resources::ResourceManager::new(player_resources, ai_resources);
     manager.add_resource(player_id, resource_type.clone(), amount);
 
-    if player_id == 1 {
-        info!("Player delivered {:.1} {:?}", amount, resource_type);
-    } else {
-        info!(
-            "AI Player {} delivered {:.1} {:?}",
-            player_id, amount, resource_type
-        );
-    }
+    // Removed resource delivery logging for performance
 }
 
 fn should_start_delivery(gatherer: &ResourceGatherer) -> bool {
@@ -483,10 +476,7 @@ fn handle_travel_to_dropoff(
             > 5.0
     {
         movement.target_position = Some(building_transform.translation);
-        info!(
-            "🚚 Worker {} (player {}) returning to base with {:.1} resources (distance: {:.1})",
-            unit.unit_id, unit.player_id, gatherer.carried_amount, distance
-        );
+        // Removed worker return logging for performance
     }
 }
 
@@ -523,10 +513,7 @@ fn handle_post_delivery_movement(
     if let Some(resource_entity) = gatherer.target_resource {
         if let Ok((_, _, resource_transform)) = resources.get(resource_entity) {
             movement.target_position = Some(resource_transform.translation);
-            info!(
-                "🔄 Worker {:?} returning to gather more resources",
-                unit.unit_id
-            );
+            // Removed worker return-to-gather logging for performance
         } else {
             // Resource no longer exists, clear target and movement so AI can assign new resource
             gatherer.target_resource = None;

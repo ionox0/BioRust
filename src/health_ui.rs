@@ -1,4 +1,5 @@
 use crate::core::components::*;
+use crate::core::ai_intervals::should_run_combat;
 use bevy::prelude::*;
 
 pub struct HealthUIPlugin;
@@ -12,7 +13,7 @@ impl Plugin for HealthUIPlugin {
                 update_health_bars,
                 cleanup_orphaned_health_bars,
                 health_status_indicator_system,
-            ),
+            ).run_if(should_run_combat), // Health bars update with combat intervals (0.2s)
         );
     }
 }

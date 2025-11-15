@@ -15,6 +15,7 @@ use ai::AIPlugin;
 use combat_systems::CombatPlugin;
 use core::constants;
 use core::game::*;
+use core::query_cache::QueryCachePlugin;
 use core::time_controls::TimeControlPlugin;
 use health_ui::HealthUIPlugin;
 use ui::UIPlugin;
@@ -42,28 +43,38 @@ fn main() {
     info!("🎮 Game logging initialized successfully!");
 
     App::new()
-        .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: constants::WINDOW_TITLE.into(),
-                    resolution: (constants::WINDOW_WIDTH, constants::WINDOW_HEIGHT).into(),
-                    mode: bevy::window::WindowMode::Windowed,
-                    ..default()
-                }),
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: constants::WINDOW_TITLE.into(),
+                resolution: (constants::WINDOW_WIDTH, constants::WINDOW_HEIGHT).into(),
+                mode: bevy::window::WindowMode::Windowed,
                 ..default()
             }),
+            ..default()
+        }))
+        // Core game plugins
+        .add_plugins((
             GamePlugin,
+            QueryCachePlugin, // High-performance query cache system - must be early in the pipeline
             TerrainPluginV2,
             GridPlugin,
+        ))
+        // Gameplay plugins
+        .add_plugins((
             rts::RTSSystemsPlugin,
             CombatPlugin,
             HealthUIPlugin,
             UIPlugin, // Contains comprehensive resource display system
+        ))
+        // AI and rendering plugins
+        .add_plugins((
             AIPlugin,
-            // ResourceUIPlugin,  // REMOVED: Duplicate overlapping resource display
             ModelLoaderPlugin,
             HoverEffectsPlugin,
             AnimationPlugin,
+        ))
+        // Additional systems
+        .add_plugins((
             EntityStatePlugin,
             CollisionPlugin,
             TimeControlPlugin, // Fast-forward and time control system

@@ -58,7 +58,7 @@ pub fn setup_menu(mut commands: Commands) {
     ));
 
     commands.spawn((
-        Text::new("Press SPACE to Start RTS Mode"),
+        Text::new("BioRust - Press SPACE to Start"),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(50.0),
@@ -614,8 +614,12 @@ pub fn spawn_rts_elements_with_teams(
     // Get game setup or use defaults
     let setup = game_setup.as_deref().cloned().unwrap_or_else(|| GameSetup {
         player_team: TeamType::BalancedColony,
-        ai_teams: vec![TeamType::Predators],
-        player_count: 2,
+        // Default to fewer AI teams for better performance
+        ai_teams: vec![
+            TeamType::Predators,
+            TeamType::ShadowCrawlers,
+        ],
+        player_count: 3, // Updated to reflect actual player count (1 human + 2 AI)
     });
 
     info!("🎯 SPAWN CONFIG: Player team: {:?}, AI teams: {:?}, Total players: {}", 
