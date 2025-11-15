@@ -30,17 +30,27 @@ use rendering::model_loader::ModelLoaderPlugin;
 
 
 fn main() {
-    // Set log level to info to see debug messages, but filter out verbose asset warnings
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info,bevy_gltf=warn,bevy_ui::layout=error");
+    // Conditional logging initialization - only in debug builds
+    #[cfg(all(debug_assertions, feature = "logging"))]
+    {
+        // Set log level to info to see debug messages, but filter out verbose asset warnings
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "info,bevy_gltf=warn,bevy_ui::layout=error");
+        }
+
+        // Initialize console logging with tracing-subscriber
+        tracing_subscriber::fmt::init();
+        
+        // Test that logging works
+        println!("🚀 Starting RTS Game... (Debug build with logging)");
+        info!("🎮 Game logging initialized successfully!");
     }
-
-    // Initialize console logging
-    tracing_subscriber::fmt::init();
-
-    // Test that logging works
-    println!("🚀 Starting RTS Game...");
-    info!("🎮 Game logging initialized successfully!");
+    
+    // Release build - minimal output
+    #[cfg(not(all(debug_assertions, feature = "logging")))]
+    {
+        println!("🚀 Starting RTS Game... (Release build)");
+    }
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {

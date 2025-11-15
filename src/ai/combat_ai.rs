@@ -251,63 +251,6 @@ fn find_best_target_cached(
 }
 
 // Keep the original function for backwards compatibility
-fn find_best_target(
-    unit_transform: &Transform,
-    unit: &RTSUnit,
-    all_units: &Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
-    target_entity: Option<Entity>,
-) -> Option<(Entity, Vec3, f32, u32)> {
-    let detection_range = 200.0; // Increased from 120.0 to 200.0 for more aggressive seeking
-    let mut best_target: Option<(Entity, Vec3, f32, u32)> = None;
-    let mut best_priority = 0u32;
-
-    // Check if current target is still valid
-    if let Some(target_entity) = target_entity {
-        if let Ok((_entity, target_transform, target_unit, target_health)) =
-            all_units.get(target_entity)
-        {
-            if target_unit.player_id != unit.player_id && target_health.current > 0.0 {
-                let distance = unit_transform
-                    .translation
-                    .distance(target_transform.translation);
-                if distance < detection_range {
-                    let priority = calculate_target_priority(target_unit, target_health);
-                    best_target = Some((
-                        target_entity,
-                        target_transform.translation,
-                        distance,
-                        priority,
-                    ));
-                    best_priority = priority;
-                }
-            }
-        }
-    }
-
-    // Find all enemies in range and prioritize
-    for (entity, enemy_transform, enemy_unit, enemy_health) in all_units.iter() {
-        if enemy_unit.player_id != unit.player_id && enemy_health.current > 0.0 {
-            let distance = unit_transform
-                .translation
-                .distance(enemy_transform.translation);
-
-            if distance < detection_range {
-                let priority = calculate_target_priority(enemy_unit, enemy_health);
-
-                // Prefer higher priority targets, or closer targets of same priority
-                if priority > best_priority
-                    || (priority == best_priority
-                        && (best_target.is_none() || distance < best_target.as_ref().unwrap().2))
-                {
-                    best_priority = priority;
-                    best_target = Some((entity, enemy_transform.translation, distance, priority));
-                }
-            }
-        }
-    }
-
-    best_target
-}
 
 /// Calculate target priority (higher = more important to attack)
 fn calculate_target_priority(target_unit: &RTSUnit, target_health: &RTSHealth) -> u32 {
@@ -648,8 +591,8 @@ fn handle_no_target_behavior_cached(
     unit_transform: &Transform,
     unit: &RTSUnit,
     query_cache: &UnitQueryCache,
-    buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
-    environment_objects: &Query<
+    _buildings: &Query<(&Transform, &CollisionRadius), (With<Building>, Without<RTSUnit>)>,
+    _environment_objects: &Query<
         (&Transform, &CollisionRadius),
         (With<EnvironmentObject>, Without<RTSUnit>),
     >,
@@ -857,103 +800,157 @@ pub fn combat_to_resource_transition_system(
     resource_sources: Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
     buildings: Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
 ) {
-    // Check if victory conditions are met for each AI player
     for player_id in 2..=4 {
-        // AI players 2-4
-        let has_enemies = all_units
-            .iter()
-            .any(|unit| unit.player_id != player_id && unit.player_id == 1);
+        if !has_enemies_for_player(player_id, &all_units) {
+            let workers_reassigned = reassign_workers_to_resources(
+                player_id, 
+                &mut ai_workers, 
+                &resource_sources, 
+                &buildings
+            );
+            
+            let units_converted = convert_military_to_workers(
+                player_id,
+                &mut commands,
+                &mut military_units,
+                &resource_sources,
+                &buildings,
+            );
 
-        if !has_enemies {
-            // Handle AI workers returning to resource gathering
-            let mut workers_reassigned = 0;
-            for (_entity, mut movement, mut combat, unit, mut gatherer, mut combat_state_opt) in ai_workers.iter_mut() {
-                if unit.player_id == player_id {
-                    // Clear combat state and movement
-                    movement.target_position = None;
-                    movement.current_velocity = Vec3::ZERO;
-                    combat.target = None;
-                    combat.is_attacking = false;
-                    combat.last_attack_time = 0.0;
-
-                    // Clear combat state
-                    if let Some(ref mut combat_state) = combat_state_opt {
-                        combat_state.target_entity = None;
-                        combat_state.state = crate::core::components::CombatStateType::Idle;
-                        combat_state.target_position = None;
-                    }
-
-                    // If worker doesn't have a resource assignment, find one
-                    if gatherer.target_resource.is_none() {
-                        if let Some((resource_entity, resource_pos)) = find_nearest_resource(&unit, &resource_sources) {
-                            gatherer.target_resource = Some(resource_entity);
-                            gatherer.resource_type = Some(resource_pos.1.clone());
-                            gatherer.carried_amount = 0.0;
-                            gatherer.drop_off_building = find_nearest_building_for_worker(unit, &buildings);
-                            movement.target_position = Some(resource_pos.0);
-                            
-                            info!("🔄 AI Worker {} (player {}) returning to gather {:?} after combat", 
-                                  unit.unit_id, unit.player_id, resource_pos.1);
-                            workers_reassigned += 1;
-                        }
-                    } else {
-                        // Worker already has assignment, just ensure they're moving to it
-                        if let Ok((_, resource_source, resource_transform)) = resource_sources.get(gatherer.target_resource.unwrap()) {
-                            if resource_source.amount > 0.0 {
-                                movement.target_position = Some(resource_transform.translation);
-                                info!("🔄 AI Worker {} (player {}) resuming resource gathering after combat", 
-                                      unit.unit_id, unit.player_id);
-                                workers_reassigned += 1;
-                            } else {
-                                // Resource depleted, find a new one
-                                gatherer.target_resource = None;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Handle pure military units (convert to workers if desired)
-            let mut units_converted = 0;
-            for (entity, mut movement, mut combat, unit, mut combat_state_opt) in military_units.iter_mut() {
-                if unit.player_id == player_id {
-                    // Clear combat state and movement
-                    movement.target_position = None;
-                    movement.current_velocity = Vec3::ZERO;
-                    combat.target = None;
-                    combat.is_attacking = false;
-                    combat.last_attack_time = 0.0;
-
-                    // Clear combat state
-                    if let Some(ref mut combat_state) = combat_state_opt {
-                        combat_state.target_entity = None;
-                        combat_state.state = crate::core::components::CombatStateType::Idle;
-                        combat_state.target_position = None;
-                    }
-
-                    // Convert to resource gatherer
-                    if let Some((resource_entity, resource_pos)) = find_nearest_resource(&unit, &resource_sources) {
-                        commands.entity(entity).insert(ResourceGatherer {
-                            gather_rate: 8.0,
-                            capacity: 4.0,
-                            carried_amount: 0.0,
-                            resource_type: Some(resource_pos.1.clone()),
-                            target_resource: Some(resource_entity),
-                            drop_off_building: find_nearest_building_for_worker(unit, &buildings),
-                        });
-                        movement.target_position = Some(resource_pos.0);
-                        units_converted += 1;
-                    }
-                }
-            }
-
-            // Log summary
             if workers_reassigned > 0 || units_converted > 0 {
                 info!("🏆 VICTORY! AI Player {} - {} workers resumed gathering, {} military converted to workers", 
                       player_id, workers_reassigned, units_converted);
             }
         }
     }
+}
+
+fn has_enemies_for_player(player_id: u8, all_units: &Query<&RTSUnit, With<RTSUnit>>) -> bool {
+    all_units
+        .iter()
+        .any(|unit| unit.player_id != player_id && unit.player_id == 1)
+}
+
+fn clear_combat_state(
+    movement: &mut Movement,
+    combat: &mut Combat,
+    combat_state_opt: Option<&mut CombatState>
+) {
+    movement.target_position = None;
+    movement.current_velocity = Vec3::ZERO;
+    combat.target = None;
+    combat.is_attacking = false;
+    combat.last_attack_time = 0.0;
+
+    if let Some(combat_state) = combat_state_opt {
+        combat_state.target_entity = None;
+        combat_state.state = crate::core::components::CombatStateType::Idle;
+        combat_state.target_position = None;
+    }
+}
+
+fn reassign_workers_to_resources(
+    player_id: u8,
+    ai_workers: &mut Query<
+        (Entity, &mut Movement, &mut Combat, &RTSUnit, &mut ResourceGatherer, Option<&mut CombatState>),
+        (With<Combat>, With<ResourceGatherer>),
+    >,
+    resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
+) -> i32 {
+    let mut workers_reassigned = 0;
+    
+    for (_entity, mut movement, mut combat, unit, mut gatherer, mut combat_state_opt) in ai_workers.iter_mut() {
+        if unit.player_id != player_id {
+            continue;
+        }
+
+        clear_combat_state(&mut movement, &mut combat, combat_state_opt.as_deref_mut());
+
+        if gatherer.target_resource.is_none() {
+            if let Some((resource_entity, resource_pos)) = find_nearest_resource(&unit, &resource_sources) {
+                assign_worker_to_resource(&mut gatherer, &mut movement, resource_entity, resource_pos, unit, buildings);
+                workers_reassigned += 1;
+            }
+        } else {
+            workers_reassigned += resume_existing_resource_assignment(&mut gatherer, &mut movement, unit, resource_sources);
+        }
+    }
+    
+    workers_reassigned
+}
+
+fn assign_worker_to_resource(
+    gatherer: &mut ResourceGatherer,
+    movement: &mut Movement,
+    resource_entity: Entity,
+    resource_pos: (Vec3, ResourceType),
+    unit: &RTSUnit,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
+) {
+    gatherer.target_resource = Some(resource_entity);
+    gatherer.resource_type = Some(resource_pos.1.clone());
+    gatherer.carried_amount = 0.0;
+    gatherer.drop_off_building = find_nearest_building_for_worker(unit, buildings);
+    movement.target_position = Some(resource_pos.0);
+    
+    info!("🔄 AI Worker {} (player {}) returning to gather {:?} after combat", 
+          unit.unit_id, unit.player_id, resource_pos.1);
+}
+
+fn resume_existing_resource_assignment(
+    gatherer: &mut ResourceGatherer,
+    movement: &mut Movement,
+    unit: &RTSUnit,
+    resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+) -> i32 {
+    if let Ok((_, resource_source, resource_transform)) = resource_sources.get(gatherer.target_resource.unwrap()) {
+        if resource_source.amount > 0.0 {
+            movement.target_position = Some(resource_transform.translation);
+            info!("🔄 AI Worker {} (player {}) resuming resource gathering after combat", 
+                  unit.unit_id, unit.player_id);
+            return 1;
+        } else {
+            gatherer.target_resource = None;
+        }
+    }
+    0
+}
+
+fn convert_military_to_workers(
+    player_id: u8,
+    commands: &mut Commands,
+    military_units: &mut Query<
+        (Entity, &mut Movement, &mut Combat, &RTSUnit, Option<&mut CombatState>),
+        (With<Combat>, Without<ResourceGatherer>),
+    >,
+    resource_sources: &Query<(Entity, &ResourceSource, &Transform), Without<RTSUnit>>,
+    buildings: &Query<(Entity, &Transform, &Building, &RTSUnit), With<Building>>,
+) -> i32 {
+    let mut units_converted = 0;
+    
+    for (entity, mut movement, mut combat, unit, mut combat_state_opt) in military_units.iter_mut() {
+        if unit.player_id != player_id {
+            continue;
+        }
+
+        clear_combat_state(&mut movement, &mut combat, combat_state_opt.as_deref_mut());
+
+        if let Some((resource_entity, resource_pos)) = find_nearest_resource(&unit, &resource_sources) {
+            commands.entity(entity).insert(ResourceGatherer {
+                gather_rate: 8.0,
+                capacity: 4.0,
+                carried_amount: 0.0,
+                resource_type: Some(resource_pos.1.clone()),
+                target_resource: Some(resource_entity),
+                drop_off_building: find_nearest_building_for_worker(unit, buildings),
+            });
+            movement.target_position = Some(resource_pos.0);
+            units_converted += 1;
+        }
+    }
+    
+    units_converted
 }
 
 /// Find the nearest available resource for a unit

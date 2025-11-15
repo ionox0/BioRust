@@ -447,7 +447,7 @@ pub fn selection_indicator_system(
     {
         if let Ok((selectable, unit_transform)) = selectables.get(selection_indicator.target) {
             if selectable.is_selected {
-                // Update indicator position to follow the unit
+                // Update indicator position to follow the unit (keep original Y for ring height)
                 indicator_transform.translation.x = unit_transform.translation.x;
                 indicator_transform.translation.z = unit_transform.translation.z;
             } else {

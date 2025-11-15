@@ -180,24 +180,11 @@ pub struct AIResources {
 
 impl Default for AIResources {
     fn default() -> Self {
-        let mut resources = std::collections::HashMap::new();
-        
-        // Add AI players 2, 3, and 4 with limited starting resources (similar to player)
-        for player_id in 2..=4 {
-            resources.insert(
-                player_id,
-                PlayerResources {
-                    nectar: 200.0,       // Slightly more than player for AI advantage (down from 800)
-                    chitin: 60.0,        // Minimal chitin for early buildings (down from 800)
-                    minerals: 30.0,      // Minimal minerals (down from 500)
-                    pheromones: 90.0,    // Enough for a few combat units (down from 500)
-                    max_population: 200, // Keep higher pop cap to support AI expansion
-                    current_population: 0,
-                },
-            );
+        // Start with empty resources - AI players will be added dynamically when the game starts
+        // based on the actual team selection configuration
+        Self { 
+            resources: std::collections::HashMap::new() 
         }
-        
-        Self { resources }
     }
 }
 
@@ -208,14 +195,15 @@ impl AIResources {
             self.resources.insert(
                 player_id,
                 PlayerResources {
-                    nectar: 200.0,
-                    chitin: 60.0,
-                    minerals: 30.0,
-                    pheromones: 90.0,
-                    max_population: 200,
+                    nectar: 200.0,       // Slightly more than player for AI advantage
+                    chitin: 60.0,        // Minimal chitin for early buildings
+                    minerals: 30.0,      // Minimal minerals
+                    pheromones: 90.0,    // Enough for a few combat units
+                    max_population: 200, // Keep higher pop cap to support AI expansion
                     current_population: 0,
                 },
             );
+            info!("🏧 Added AI player {} to resources system with starting resources", player_id);
         }
     }
 

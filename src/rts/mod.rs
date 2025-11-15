@@ -43,6 +43,7 @@ impl Plugin for RTSSystemsPlugin {
                     unit_command_system,          // Player commands must be responsive
                     cursor_management_system,     // UI must be responsive
                     vision_system,               // Vision updates for real-time gameplay
+                    selection_indicator_system,   // Selection rings must track movement in real-time
                 ).run_if(in_state(GameState::Playing)),
             )
             // Unit management systems - run every 0.3 seconds
@@ -53,7 +54,6 @@ impl Plugin for RTSSystemsPlugin {
                     unstuck_system,
                     formation_system,
                     create_selection_indicators,
-                    selection_indicator_system,
                     spawn_test_units_system,
                 ).run_if(in_state(GameState::Playing))
                 .run_if(should_run_unit_management),

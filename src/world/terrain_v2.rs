@@ -6,6 +6,7 @@ use futures::executor::block_on;
 use hashbrown::HashMap;
 use noise::{NoiseFn, Perlin};
 use std::collections::VecDeque;
+use crate::constants::movement::TERRAIN_BOUNDARY;
 
 // Enhanced terrain constants for gentler hills and better textures
 pub const QT_MIN_CELL_SIZE: f32 = 64.0; // Good chunk size for RTS tactical gameplay
@@ -13,7 +14,7 @@ pub const QT_MIN_CELL_RESOLUTION: u32 = 16; // Vertices per chunk edge
                                             // Removed unused PLANET_RADIUS constant
 pub const NOISE_HEIGHT: f32 = 15.0; // Moderate height variation for RTS gameplay
 pub const NOISE_SCALE: f32 = 400.0; // Better scale for tactical terrain features
-pub const LOD_DISTANCE_MULTIPLIER: f32 = 6.0; // Less aggressive subdivision to maintain more chunks
+pub const LOD_DISTANCE_MULTIPLIER: f32 = 8.0; // Higher multiplier for fewer chunks when zoomed out
 
 pub struct TerrainPluginV2;
 
@@ -118,7 +119,7 @@ impl Default for TerrainChunkManager {
             terrain_material: None,
             last_update_time: 0.0,
             terrain_texture: None,
-            max_concurrent_tasks: 4, // Allow up to 4 concurrent terrain generation tasks
+            max_concurrent_tasks: 2, // Reduced to 2 for better performance when zoomed out
         }
     }
 }
@@ -338,13 +339,16 @@ pub fn update_visible_chunks_quadtree(
         }
 
         // Add minimum time between updates to prevent flashing
-        let min_update_interval = 1.0; // At least 1 second between terrain updates
+        let min_update_interval = 1.5; // Increased from 1.0 to 1.5 seconds for better performance when zoomed out
         if current_time - terrain_manager.last_update_time < min_update_interval {
             return;
         }
 
-        // Check if player moved significantly (optimization from Bug_Game)
-        let movement_threshold = 100.0; // Much smaller threshold to ensure terrain loads properly
+        // Check if player moved significantly (optimization from Bug_Game)  
+        // Scale movement threshold with camera height - higher camera = larger threshold
+        let base_threshold = 50.0;
+        let height_multiplier = (camera_pos.y / 100.0).max(1.0);
+        let movement_threshold = base_threshold * height_multiplier; // Larger threshold when zoomed out
         if camera_pos.distance(terrain_manager.last_player_position) < movement_threshold
             && !terrain_manager.dirty
         {
@@ -363,9 +367,11 @@ pub fn update_visible_chunks_quadtree(
 
         // Build quadtree with grid-aligned center to prevent seaming
         let grid_size = terrain_settings.min_cell_size * 16.0; // Align to multiple of min cell size
-                                                               // Limit view distance to terrain boundary (1500 units from center)
-        use crate::constants::movement::TERRAIN_BOUNDARY;
-        let view_distance = TERRAIN_BOUNDARY * 1.4; // Slightly larger to ensure coverage
+        
+        // Dynamic view distance based on camera height for better performance when zoomed out
+        let camera_height = camera_pos.y.max(50.0); // Minimum view distance at low heights
+        let base_view_distance = (camera_height * 2.0).min(1200.0); // Scale with height, capped at 1200
+        let view_distance = base_view_distance;
 
         // Round to exact grid boundaries to ensure consistent chunk alignment
         let quadtree_center = Vec3::new(
@@ -450,13 +456,16 @@ pub fn update_visible_chunks_quadtree(
 }
 
 pub fn retire_old_chunks(mut commands: Commands, mut terrain_manager: ResMut<TerrainChunkManager>) {
-    // Be very conservative with chunk retirement to prevent flashing
-    // Only retire if we have accumulated many old chunks
-    if terrain_manager.old_chunks.len() > 20 {
-        // Retire only 1 chunk per frame to minimize visual pop
-        if let Some(entity) = terrain_manager.old_chunks.pop_front() {
-            debug!("Actually despawning old chunk entity: {:?}", entity);
-            commands.entity(entity).despawn_recursive();
+    // More aggressive chunk retirement for better performance when zoomed out
+    // Retire old chunks more frequently to free up memory
+    if terrain_manager.old_chunks.len() > 10 {
+        // Retire up to 3 chunks per frame for faster cleanup
+        let chunks_to_retire = terrain_manager.old_chunks.len().min(3);
+        for _ in 0..chunks_to_retire {
+            if let Some(entity) = terrain_manager.old_chunks.pop_front() {
+                debug!("Actually despawning old chunk entity: {:?}", entity);
+                commands.entity(entity).despawn_recursive();
+            }
         }
     }
 }

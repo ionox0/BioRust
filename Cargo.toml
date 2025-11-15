@@ -4,20 +4,55 @@ version = "0.1.0"
 edition = "2021"
 
 [profile.release]
-debug = false
-strip = false
+debug = 0
+strip = true
+lto = true
+# Disable logging features for maximum performance in release builds
 
 [profile.profiling]
 inherits = "release"
 debug = true
 
+[profile.dev]
+# Enable logging for debug builds - this is the default but explicitly stated
+# The default features include "logging" which enables tracing-subscriber and tracing-flame
+
 [dependencies]
-bevy = { version = "0.15", features = ["jpeg", "trace"] }
+# Conditional features for logging - full logging in debug, minimal in release
+bevy = { version = "0.15", features = [
+    "bevy_asset",
+    "bevy_audio", 
+    "bevy_gilrs",
+    "bevy_scene",
+    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_gltf",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "x11",
+    "hdr",
+    "ktx2",
+    "zstd",
+    "vorbis",
+    "jpeg",
+    "png",
+    "webgl2"
+] }
 rand = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 noise = "0.9"
 hashbrown = "0.15"
 bevy_animation = "0.15.0"
 futures = "0.3"
-tracing-subscriber = "0.3.20"
-tracing-flame = "0.2.0"
+
+# Conditional logging dependencies - only include in debug builds
+tracing-subscriber = { version = "0.3.20", optional = true }
+tracing-flame = { version = "0.2.0", optional = true }
+
+[features]
+default = ["logging"]
+# Enable full logging for debug builds
+logging = ["dep:tracing-subscriber", "dep:tracing-flame"]
