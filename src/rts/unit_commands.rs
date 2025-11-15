@@ -671,7 +671,7 @@ fn distribute_workers_across_resources(
 
     // Assign workers to resources in round-robin fashion, respecting max_gatherers
     let mut resource_index = 0;
-    let mut assigned_count = 0;
+    let mut _assigned_count = 0;
 
     for (worker_entity, worker_pos, worker_id) in selected_workers {
         // Find next available resource
@@ -692,7 +692,6 @@ fn distribute_workers_across_resources(
                     );
                     
                     *current_gatherers += 1; // Track assignment locally
-                    assigned_count += 1;
                     break;
                 }
             }
@@ -711,7 +710,7 @@ fn distribute_workers_across_resources(
 fn assign_worker_to_resource(
     worker_entity: Entity,
     worker_pos: Vec3,
-    worker_id: u32,
+    _worker_id: u32,
     resource_entity: Entity,
     resource_pos: Vec3,
     units: &mut Query<
@@ -799,7 +798,7 @@ fn can_construct_building(unit: &RTSUnit, has_gatherer: bool) -> bool {
 fn handle_non_constructor_unit(
     movement: &mut Movement,
     combat: &mut Combat,
-    unit: &RTSUnit,
+    _unit: &RTSUnit,
     target_point: Vec3,
 ) {
     movement.target_position = Some(target_point);
@@ -860,7 +859,7 @@ fn assign_construction_task(
     site_info: BuildingSiteInfo,
     movement: &mut Movement,
     combat: &mut Combat,
-    unit: &RTSUnit,
+    _unit: &RTSUnit,
 ) {
     let total_build_time = get_construction_time_for_building(&site_info.building_type);
 
@@ -903,7 +902,7 @@ pub fn spawn_test_units_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     camera_q: Query<&Transform, With<crate::core::components::RTSCamera>>,
-    mut ai_resources: ResMut<crate::core::resources::AIResources>,
+    _ai_resources: ResMut<crate::core::resources::AIResources>,
 ) {
     let Ok(camera_transform) = camera_q.get_single() else {
         return;

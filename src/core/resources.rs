@@ -213,15 +213,6 @@ impl AIResources {
         self.resources.remove(&player_id);
     }
 
-    /// Get resources for a specific player
-    pub fn get_player_resources(&self, player_id: u8) -> Option<&PlayerResources> {
-        self.resources.get(&player_id)
-    }
-
-    /// Get mutable resources for a specific player
-    pub fn get_player_resources_mut(&mut self, player_id: u8) -> Option<&mut PlayerResources> {
-        self.resources.get_mut(&player_id)
-    }
 
     /// Spend resources for a specific player
     pub fn spend_resources(
@@ -249,17 +240,6 @@ impl AIResources {
         }
     }
 
-    /// Add resources for a specific player
-    pub fn add_resource(
-        &mut self,
-        player_id: u8,
-        resource_type: crate::core::components::ResourceType,
-        amount: f32,
-    ) {
-        if let Some(player_res) = self.resources.get_mut(&player_id) {
-            player_res.add_resource(resource_type, amount);
-        }
-    }
 }
 
 /// Helper struct to provide unified access to player resources regardless of player ID

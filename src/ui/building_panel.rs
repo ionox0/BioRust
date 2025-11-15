@@ -7,7 +7,6 @@ use crate::ui::{
     },
     icons::UIIcons,
     placement::{BuildingPlacement, PlacementStatusText},
-    resource_display::setup_resource_display,
 };
 use bevy::prelude::*;
 
@@ -17,36 +16,6 @@ pub struct BuildingPanel;
 #[derive(Component)]
 pub struct ProductionQueueDisplay;
 
-pub fn setup_building_ui(mut commands: Commands, ui_icons: Res<UIIcons>, game_costs: Res<crate::core::resources::GameCosts>) {
-    use crate::constants::resources::*;
-
-    // Main UI root
-    commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                justify_content: JustifyContent::SpaceBetween,
-                ..default()
-            },
-            GlobalZIndex(100),
-        ))
-        .with_children(|parent| {
-            setup_resource_display(parent, &ui_icons);
-            setup_building_panel(parent, &ui_icons, &game_costs);
-        });
-
-    // Initialize player resources (will sync with main PlayerResources)
-    commands.insert_resource(PlayerResources {
-        nectar: STARTING_NECTAR,
-        chitin: STARTING_CHITIN,
-        minerals: STARTING_MINERALS,
-        pheromones: STARTING_PHEROMONES,
-        current_population: 0,
-        max_population: STARTING_POPULATION_LIMIT,
-    });
-}
 
 pub fn setup_building_panel(parent: &mut ChildBuilder, ui_icons: &UIIcons, game_costs: &crate::core::resources::GameCosts) {
     // Bottom panel - Building interface (increased height for better unit layout)

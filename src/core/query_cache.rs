@@ -13,12 +13,6 @@ pub struct UnitQueryCache {
     pub basic_units: HashMap<Entity, BasicUnitData>,
     /// Units with health info
     pub health_units: HashMap<Entity, HealthUnitData>,
-    /// Units with combat info  
-    pub combat_units: HashMap<Entity, CombatUnitData>,
-    /// Units with movement info
-    pub movement_units: HashMap<Entity, MovementUnitData>,
-    /// Units with gathering info
-    pub gatherer_units: HashMap<Entity, GathererUnitData>,
     /// Dirty flag to indicate when cache needs refresh
     pub dirty: bool,
     /// Last update frame for cache invalidation
@@ -39,28 +33,8 @@ pub struct BasicUnitData {
 pub struct HealthUnitData {
     pub basic: BasicUnitData,
     pub health: RTSHealth,
-    pub max_health: f32,
 }
 
-#[derive(Debug, Clone)]
-pub struct CombatUnitData {
-    pub basic: BasicUnitData,
-    pub combat: Combat,
-    pub health: RTSHealth,
-}
-
-#[derive(Debug, Clone)]
-pub struct MovementUnitData {
-    pub basic: BasicUnitData,
-    pub movement: Movement,
-}
-
-#[derive(Debug, Clone)]
-pub struct GathererUnitData {
-    pub basic: BasicUnitData,
-    pub gatherer: ResourceGatherer,
-    pub movement: Movement,
-}
 
 #[derive(Debug, Default)]
 pub struct CacheStats {
@@ -71,18 +45,6 @@ pub struct CacheStats {
 }
 
 impl UnitQueryCache {
-    pub fn new() -> Self {
-        Self {
-            basic_units: HashMap::new(),
-            health_units: HashMap::new(),
-            combat_units: HashMap::new(),
-            movement_units: HashMap::new(),
-            gatherer_units: HashMap::new(),
-            dirty: true,
-            last_update_frame: 0,
-            stats: CacheStats::default(),
-        }
-    }
 
     /// Mark cache as dirty (needs refresh)
     pub fn invalidate(&mut self) {
@@ -114,33 +76,6 @@ impl UnitQueryCache {
             .collect()
     }
 
-    /// Get combat units for a player
-    pub fn get_player_combat_units(&self, player_id: u8) -> Vec<&CombatUnitData> {
-        self.combat_units
-            .values()
-            .filter(|unit| unit.basic.player_id == player_id)
-            .collect()
-    }
-
-    /// Get gatherer units for a player
-    pub fn get_player_gatherers(&self, player_id: u8) -> Vec<&GathererUnitData> {
-        self.gatherer_units
-            .values()
-            .filter(|unit| unit.basic.player_id == player_id)
-            .collect()
-    }
-
-    /// Get idle gatherers (not currently gathering or moving)
-    pub fn get_idle_gatherers(&self, player_id: u8) -> Vec<&GathererUnitData> {
-        self.gatherer_units
-            .values()
-            .filter(|unit| {
-                unit.basic.player_id == player_id
-                    && unit.gatherer.target_resource.is_none()
-                    && unit.movement.target_position.is_none()
-            })
-            .collect()
-    }
 
     /// Update cache statistics
     pub fn update_stats(&mut self, update_time_ms: f64) {
@@ -148,15 +83,6 @@ impl UnitQueryCache {
         self.stats.last_update_ms = update_time_ms;
     }
 
-    /// Record cache hit for monitoring
-    pub fn record_hit(&mut self) {
-        self.stats.cache_hits += 1;
-    }
-
-    /// Record cache miss for monitoring
-    pub fn record_miss(&mut self) {
-        self.stats.cache_misses += 1;
-    }
 }
 
 /// System to update the unit query cache
@@ -164,9 +90,6 @@ pub fn update_unit_cache_system(
     mut cache: ResMut<UnitQueryCache>,
     basic_query: Query<(Entity, &Transform, &RTSUnit), With<RTSUnit>>,
     health_query: Query<(Entity, &Transform, &RTSUnit, &RTSHealth), With<RTSUnit>>,
-    combat_query: Query<(Entity, &Transform, &RTSUnit, &Combat, &RTSHealth), (With<RTSUnit>, With<Combat>)>,
-    movement_query: Query<(Entity, &Transform, &RTSUnit, &Movement), (With<RTSUnit>, With<Movement>)>,
-    gatherer_query: Query<(Entity, &Transform, &RTSUnit, &ResourceGatherer, &Movement), (With<RTSUnit>, With<ResourceGatherer>)>,
     time: Res<Time>,
 ) {
     let start_time = std::time::Instant::now();
@@ -180,9 +103,6 @@ pub fn update_unit_cache_system(
     // Clear existing cache data
     cache.basic_units.clear();
     cache.health_units.clear();
-    cache.combat_units.clear();
-    cache.movement_units.clear();
-    cache.gatherer_units.clear();
 
     // Update basic unit cache
     for (entity, transform, unit) in basic_query.iter() {
@@ -205,53 +125,9 @@ pub fn update_unit_cache_system(
         cache.health_units.insert(entity, HealthUnitData {
             basic: basic.clone(),
             health: health.clone(),
-            max_health: health.max,
         });
     }
 
-    // Update combat unit cache
-    for (entity, transform, unit, combat, health) in combat_query.iter() {
-        let basic = BasicUnitData {
-            entity,
-            transform: *transform,
-            unit: unit.clone(),
-            player_id: unit.player_id,
-        };
-        cache.combat_units.insert(entity, CombatUnitData {
-            basic,
-            combat: combat.clone(),
-            health: health.clone(),
-        });
-    }
-
-    // Update movement unit cache
-    for (entity, transform, unit, movement) in movement_query.iter() {
-        let basic = BasicUnitData {
-            entity,
-            transform: *transform,
-            unit: unit.clone(),
-            player_id: unit.player_id,
-        };
-        cache.movement_units.insert(entity, MovementUnitData {
-            basic,
-            movement: movement.clone(),
-        });
-    }
-
-    // Update gatherer unit cache
-    for (entity, transform, unit, gatherer, movement) in gatherer_query.iter() {
-        let basic = BasicUnitData {
-            entity,
-            transform: *transform,
-            unit: unit.clone(),
-            player_id: unit.player_id,
-        };
-        cache.gatherer_units.insert(entity, GathererUnitData {
-            basic,
-            gatherer: gatherer.clone(),
-            movement: movement.clone(),
-        });
-    }
 
     // Update cache metadata
     cache.dirty = false;

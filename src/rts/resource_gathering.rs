@@ -463,9 +463,9 @@ fn log_dropoff_distance(distance: f32, unit: &RTSUnit) {
 fn handle_travel_to_dropoff(
     movement: &mut Movement,
     building_transform: &Transform,
-    gatherer: &ResourceGatherer,
-    unit: &RTSUnit,
-    distance: f32,
+    _gatherer: &ResourceGatherer,
+    _unit: &RTSUnit,
+    _distance: f32,
 ) {
     // Set movement target to building if not already moving there
     if movement.target_position.is_none()

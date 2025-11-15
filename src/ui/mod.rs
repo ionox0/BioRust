@@ -5,7 +5,6 @@ pub mod button_styles;
 pub mod icons;
 pub mod placement;
 pub mod resource_display;
-pub mod team_building_panel;
 pub mod team_selection;
 pub mod tooltip;
 
