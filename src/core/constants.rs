@@ -199,8 +199,8 @@ pub mod models {
     pub const FOURMI_SCALE: f32 = 2.5;
     pub const CAIRNS_BIRDWING_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;
-    pub const ROLY_POLY_SCALE: f32 = 2.5; // Standard unit scale for defensive pill bug
-    pub const DRAGONFLY_SCALE: f32 = 40.0; // Reduced 5x for proper size
+    pub const ROLY_POLY_SCALE: f32 = 0.14; // 7x smaller scale for defensive pill bug
+    pub const DRAGONFLY_SCALE: f32 = 70.0; // Adjusted scale for Cicada/Dragonfly visibility
     pub const WOLF_SPIDER_SCALE: f32 = 2.5;
     pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const HOUSEFLY_SCALE: f32 = 4.0; // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
@@ -212,9 +212,11 @@ pub mod models {
     pub const HAWKMOTH_LARVAE_SCALE: f32 = 100.0; // 40x larger than UNIFORM_UNIT_SCALE (2.5 × 40) - 5x smaller than before
     pub const WOODLOUSE_SCALE: f32 = 0.125; // 20x smaller than UNIFORM_UNIT_SCALE (2.5 ÷ 20)
     pub const JAPANESE_RHINOCEROS_BEETLE_SCALE: f32 = 20.0; // 8x larger than UNIFORM_UNIT_SCALE (2.5 × 8)
+    pub const MANTIS_TENODERA_ARIDIFOLIA_SCALE: f32 = 50.0; // 20x larger than UNIFORM_UNIT_SCALE (2.5 × 20)
+    pub const TICK_SCALE: f32 = 20.0; // Adjusted scale for tick visibility
 
     // Environment object scales
-    pub const MUSHROOMS_SCALE: f32 = 20.5; // Larger scale for environment objects
+    pub const MUSHROOMS_SCALE: f32 = 51.25; // 2.5x larger scale for resource visibility (20.5 * 2.5)
     pub const GRASS_SCALE: f32 = 50.0; // Natural grass scale
     pub const GRASS_2_SCALE: f32 = 10.2; // Slightly larger grass variant
     pub const HIVE_SCALE: f32 = 0.02; // Moderate hive structure (adjusted for visibility)
@@ -226,11 +228,11 @@ pub mod models {
 
     // New environment object scales (increased for visibility)
     pub const CHERRY_BLOSSOM_TREE_SCALE: f32 = 2.0; // Beautiful tree landmark (increased for visibility)
-    pub const PINE_CONE_SCALE: f32 = 5.0; // Large pine cone size for resource visibility (5x bigger)
+    pub const PINE_CONE_SCALE: f32 = 12.5; // 2.5x larger scale for resource visibility (5.0 * 2.5)
     pub const PLANTS_ASSET_SET_SCALE: f32 = 1.5; // Moderate plant collection scale (increased for visibility)
     pub const BEECH_FERN_SCALE: f32 = 1.5; // Medium fern undergrowth (increased for visibility)
     pub const TREES_PACK_SCALE: f32 = 2.5; // Tree landmarks (increased for visibility)
-    pub const RIVER_ROCK_SCALE: f32 = 10.5; // Rock formations (increased for visibility)
+    pub const RIVER_ROCK_SCALE: f32 = 26.25; // 2.5x larger scale for resource visibility (10.5 * 2.5)
     pub const SMALL_ROCKS_SCALE: f32 = 1.0; // Small scattered stones (increased for visibility)
 }
 
@@ -293,6 +295,9 @@ pub mod combat {
     // Unit spawn positions
     pub const UNIT_SPAWN_RANGE: f32 = 10.0;
     pub const UNIT_SPAWN_OFFSET: f32 = 5.0;
+    
+    // Initial unit layout spacing at game start
+    pub const INITIAL_UNIT_SPACING: f32 = 40.0; // Distance between units when first spawned
 }
 
 // === POPULATION MANAGEMENT ===
@@ -306,11 +311,16 @@ pub mod population {
 pub mod resource_interaction {
     // Resource selection and gathering distances (increased for better usability)
     pub const RESOURCE_CLICK_RADIUS: f32 = 150.0; // Distance for right-clicking to target resources (reduced by half)
-    pub const GATHERING_DISTANCE: f32 = 20.0; // Distance within which gathering occurs
+    pub const GATHERING_DISTANCE: f32 = 40.0; // Distance within which gathering occurs (doubled for easier collection)
     pub const DROPOFF_TRAVEL_DISTANCE: f32 = 30.0; // Distance threshold for delivering resources
 
-    // Resource source collision
-    pub const RESOURCE_COLLISION_RADIUS: f32 = 3.0; // Collision radius of resource sources
+    // Resource source collision - scales with model size
+    pub const RESOURCE_COLLISION_BASE_RADIUS: f32 = 3.0; // Base collision radius that gets multiplied by model scale
+    pub const RESOURCE_SELECTION_MULTIPLIER: f32 = 2.0; // Selection radius = model_scale * this multiplier
+    pub const MIN_SELECTION_RADIUS: f32 = 15.0; // Minimum selection radius for easy clicking
+    
+    // Legacy constant for compatibility - use RESOURCE_COLLISION_BASE_RADIUS instead
+    pub const RESOURCE_COLLISION_RADIUS: f32 = RESOURCE_COLLISION_BASE_RADIUS;
 }
 
 // === TERRAIN SYSTEM ===

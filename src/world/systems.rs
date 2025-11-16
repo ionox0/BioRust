@@ -111,13 +111,44 @@ fn spawn_minimal_environment_objects(
                 (2400.0, 0.0),   // Far east edge
             ];
 
+            // Create a shuffled list of resource types for true randomization each game
+            let mut resource_types = Vec::new();
+            let total_positions = object_positions.len();
+            
+            // Add equal numbers of each resource type
+            for resource_index in 0..4 {
+                for _ in 0..(total_positions / 4) {
+                    resource_types.push(resource_index);
+                }
+            }
+            
+            // Fill remaining slots if total_positions is not divisible by 4
+            for i in 0..(total_positions % 4) {
+                resource_types.push(i);
+            }
+            
+            // Shuffle the resource types using time as entropy
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos().hash(&mut hasher);
+            let time_seed = hasher.finish() as usize;
+            
+            // Simple shuffle using time-based seed
+            for i in (1..resource_types.len()).rev() {
+                let j = (time_seed.wrapping_mul(i).wrapping_mul(2654435761)) % (i + 1);
+                resource_types.swap(i, j);
+            }
+
             for (i, &(x, z)) in object_positions.iter().enumerate() {
                 let position = get_terrain_position(x, z, 1.0);
                 let rotation = Quat::from_rotation_y(i as f32 * 1.2); // Slight rotation variation
 
-                // More balanced resource distribution for testing
-                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 4 {
-                    // 25% Nectar sources (mushrooms)
+                // Use shuffled resource type
+                let resource_type = resource_types[i];
+                
+                let (insect_model_type, env_obj_type, model_handle, object_name) = match resource_type {
+                    // 25% each: Nectar, Minerals, Chitin, Pheromones
                     0 => (
                         InsectModelType::Mushrooms,
                         EnvironmentObjectType::Mushrooms,
@@ -171,7 +202,7 @@ fn spawn_minimal_environment_objects(
                         object_type: env_obj_type.clone(),
                     },
                     CollisionRadius {
-                        radius: crate::constants::resource_interaction::RESOURCE_COLLISION_RADIUS,
+                        radius: crate::constants::resource_interaction::RESOURCE_COLLISION_BASE_RADIUS * base_scale,
                     },
                     Position {
                         translation: position,
@@ -192,7 +223,7 @@ fn spawn_minimal_environment_objects(
                         });
                         entity_commands.insert(Selectable {
                             is_selected: false,
-                            selection_radius: (base_scale * 2.0).max(15.0), // Minimum 15.0 for easy clicking
+                            selection_radius: (base_scale * crate::constants::resource_interaction::RESOURCE_SELECTION_MULTIPLIER).max(crate::constants::resource_interaction::MIN_SELECTION_RADIUS),
                         });
                     }
                     EnvironmentObjectType::Rocks => {
@@ -204,7 +235,7 @@ fn spawn_minimal_environment_objects(
                         });
                         entity_commands.insert(Selectable {
                             is_selected: false,
-                            selection_radius: (base_scale * 2.0).max(15.0), // Minimum 15.0 for easy clicking
+                            selection_radius: (base_scale * crate::constants::resource_interaction::RESOURCE_SELECTION_MULTIPLIER).max(crate::constants::resource_interaction::MIN_SELECTION_RADIUS),
                         });
                     }
                     EnvironmentObjectType::WoodStick => {
@@ -216,7 +247,7 @@ fn spawn_minimal_environment_objects(
                         });
                         entity_commands.insert(Selectable {
                             is_selected: false,
-                            selection_radius: (base_scale * 2.0).max(15.0), // Minimum 15.0 for easy clicking
+                            selection_radius: (base_scale * crate::constants::resource_interaction::RESOURCE_SELECTION_MULTIPLIER).max(crate::constants::resource_interaction::MIN_SELECTION_RADIUS),
                         });
                     }
                     EnvironmentObjectType::PineCone => {
@@ -228,7 +259,7 @@ fn spawn_minimal_environment_objects(
                         });
                         entity_commands.insert(Selectable {
                             is_selected: false,
-                            selection_radius: (base_scale * 2.0).max(15.0), // Minimum 15.0 for easy clicking
+                            selection_radius: (base_scale * crate::constants::resource_interaction::RESOURCE_SELECTION_MULTIPLIER).max(crate::constants::resource_interaction::MIN_SELECTION_RADIUS),
                         });
                     }
                     EnvironmentObjectType::Hive => {
@@ -241,7 +272,7 @@ fn spawn_minimal_environment_objects(
                         });
                         entity_commands.insert(Selectable {
                             is_selected: false,
-                            selection_radius: (base_scale * 2.0).max(15.0), // Minimum 15.0 for easy clicking
+                            selection_radius: (base_scale * crate::constants::resource_interaction::RESOURCE_SELECTION_MULTIPLIER).max(crate::constants::resource_interaction::MIN_SELECTION_RADIUS),
                         });
                     }
                 }
@@ -354,7 +385,7 @@ pub fn spawn_rts_elements_with_teams(
 
     // Spawn player team units with debug mode for model visibility  
     let player_roster = setup.player_team.get_unit_roster();
-    let unit_spacing = 15.0;
+    let unit_spacing = crate::constants::combat::INITIAL_UNIT_SPACING;
     let mut spawn_index = 0;
     
     // If this is 8-player mode (7 AI + 1 human), spawn more units for model debugging

@@ -111,9 +111,9 @@ fn create_resource_counters(parent: &mut ChildBuilder, ui_icons: &UIIcons) {
                         ..default()
                     },
                 ));
-                // Resource text
+                // Resource text - will be updated by system
                 parent.spawn((
-                    Text::new("1000"),
+                    Text::new("0"),
                     TextFont {
                         font_size: RESOURCE_TEXT_SIZE,
                         ..default()
@@ -184,9 +184,8 @@ pub fn update_resource_display(
     population_query: Query<&Children, With<PopulationCounter>>,
     mut text_query: Query<&mut Text>,
 ) {
-    if !player_resources.is_changed() {
-        return;
-    }
+    // Always update on first frame or when resources change
+    // Remove the early return to ensure UI updates initially
 
     // Update resource texts
     for (counter, children) in resource_query.iter() {

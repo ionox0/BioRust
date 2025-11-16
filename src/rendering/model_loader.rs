@@ -542,7 +542,7 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ),
     ModelConfig::new(
         "mantis_tenodera_aridifolia",
-        "models/insects/mantis_tenodera_aridifolia.glb#Scene0",
+        "models/insects/mantis_tenodera_aridifolia_2.glb#Scene0",
         "Mantis tenodera aridifolia",
     ),
     ModelConfig::new(
@@ -1272,7 +1272,7 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::ScorpionVariant => InsectModelType::Scorpion, // Scorpion variant
         crate::core::components::UnitType::StickBugs => InsectModelType::MantisTenoderaAridifolia, // Stick bugs
         crate::core::components::UnitType::LeafBugs => InsectModelType::QueenFacedBug, // Leaf bugs
-        crate::core::components::UnitType::Cicadas => InsectModelType::Dragonfly2, // ?
+        crate::core::components::UnitType::Cicadas => InsectModelType::DragonFly, // Dragonfly model
         crate::core::components::UnitType::Grasshoppers => InsectModelType::CairnsBirdwing, // Grasshoppers
         crate::core::components::UnitType::Cockroaches => InsectModelType::Beetle, // Cockroaches
 
@@ -1386,10 +1386,10 @@ pub fn get_model_scale(model_type: &InsectModelType) -> f32 {
         InsectModelType::GoliathBirdeater => 1.0, // 2x larger than before (0.5 × 2) - now 2.5x smaller than uniform scale
         InsectModelType::HawkmothLarvae => crate::constants::models::HAWKMOTH_LARVAE_SCALE, // 50.0 (20x larger)
         InsectModelType::JapaneseRhinocerosBeetle => crate::constants::models::JAPANESE_RHINOCEROS_BEETLE_SCALE, // 20.0 (8x larger)
-        InsectModelType::MantisTenoderaAridifolia => UNIFORM_UNIT_SCALE, // 1.5
+        InsectModelType::MantisTenoderaAridifolia => crate::constants::models::MANTIS_TENODERA_ARIDIFOLIA_SCALE, // 50.0 (20x larger)
         InsectModelType::Mite => 5.0,                   // Very large scale for microscopic mite
         InsectModelType::Moth => crate::constants::models::MOTH_SCALE,    // 17.5 (7x larger)
-        InsectModelType::Tick => 4.0,                   // Large scale for tiny tick visibility
+        InsectModelType::Tick => crate::constants::models::TICK_SCALE, // Scaled down 10,000x
         InsectModelType::Dragonfly2 => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::UnknownSpecies2 => UNIFORM_UNIT_SCALE, // 1.5
         InsectModelType::Woodlouse => crate::core::constants::models::WOODLOUSE_SCALE, // 20x smaller
@@ -1667,10 +1667,7 @@ pub fn apply_team_colors_to_glb_models(
             // Mark as processed (check entity exists first)
             if let Some(mut entity_commands) = commands.get_entity(entity) {
                 entity_commands.insert(TeamColorApplied);
-                info!(
-                    "Successfully applied team color tint to GLB model for player {} entity {:?}",
-                    team_color.player_id, entity
-                );
+                // Team color successfully applied
             }
         } else {
             // Don't mark as processed - let it retry next frame
@@ -1721,10 +1718,7 @@ fn collect_material_updates_recursive(
 
             // Add to updates list
             material_updates.push((entity, mesh_material.0.clone(), new_material));
-            info!(
-                "Prepared unique team-colored material for entity {:?}: {:?} -> {:?}",
-                entity, original_color, new_color
-            );
+            // Material prepared with team color
         }
     }
 

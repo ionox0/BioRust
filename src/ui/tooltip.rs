@@ -348,7 +348,7 @@ pub fn update_tooltip_system(
                     Some(UnitType::ScorpionVariant) => "Scorpion",
                     Some(UnitType::StickBugs) => "Stick Bug",
                     Some(UnitType::LeafBugs) => "Leaf Bug",
-                    Some(UnitType::Cicadas) => "Cicada",
+                    Some(UnitType::Cicadas) => "Dragonfly",
                     Some(UnitType::Grasshoppers) => "Cairns Birdwing",
                     Some(UnitType::Cockroaches) => "Cockroach",
                     Some(UnitType::Scorpion) => "Scorpion",
