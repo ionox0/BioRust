@@ -78,10 +78,12 @@ fn generate_static_terrain(
     terrain_assets: Res<TerrainAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    info!("🌍 Generating minimal static terrain...");
-
-    // Use Bevy's built-in plane mesh - cover full terrain boundary (3000x3000)
-    let mesh_handle = meshes.add(Mesh::from(Plane3d::default().mesh().size(3000.0, 3000.0)));
+    // Use Bevy's built-in plane mesh - cover full map area using unified size constant
+    use crate::constants::movement::TERRAIN_SIZE;
+    let terrain_diameter = TERRAIN_SIZE * 2.0; // Convert from radius to diameter
+    
+    info!("🌍 Generating terrain covering full map area ({} x {} units)...", terrain_diameter, terrain_diameter);
+    let mesh_handle = meshes.add(Mesh::from(Plane3d::default().mesh().size(terrain_diameter, terrain_diameter)));
     
     // Use proper dirt texture or fallback to brown
     let material_handle = if let Some(texture_material) = &terrain_assets.material {

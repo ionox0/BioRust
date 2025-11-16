@@ -43,9 +43,11 @@ fn process_production_queue(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
-    delta_time: f32,
+    _delta_time: f32,
 ) {
-    queue.current_progress += delta_time;
+    // Since this system runs every 1.0 seconds, we add 1.0 second of progress instead of delta_time
+    // This ensures production time remains as designed (25 seconds = 25 updates)
+    queue.current_progress += 1.0;
 
     if queue.current_progress < queue.production_time {
         return;

@@ -9,14 +9,17 @@ pub const WINDOW_HEIGHT: f32 = 720.0;
 
 // === MOVEMENT SYSTEM ===
 pub mod movement {
-    // Map boundaries - playable area limits
-    pub const MAP_BOUNDARY: f32 = 1000.0; // Map extends from -1000 to +1000 (total 2000 units)
+    // Unified map size - single source of truth for all boundaries
+    pub const MAP_SIZE: f32 = 2500.0; // Map extends from -2500 to +2500 (total 5000 units)
+    
+    // Derived boundaries based on MAP_SIZE
+    pub const MAP_BOUNDARY: f32 = MAP_SIZE; // Playable area boundary
+    pub const CAMERA_BOUNDARY: f32 = MAP_SIZE + 200.0; // Camera can go 200 units beyond map
+    pub const TERRAIN_SIZE: f32 = MAP_SIZE; // Terrain matches map size exactly
+    
+    // Movement behavior constants
     pub const BOUNDARY_PUSH_FORCE: f32 = 200.0; // Force applied when near boundary
     pub const BOUNDARY_BUFFER: f32 = 50.0; // Distance from boundary where push force starts
-
-    // Camera and terrain boundaries (slightly larger than map boundary)
-    pub const CAMERA_BOUNDARY: f32 = 1200.0; // Camera can go 200 units beyond map boundary
-    pub const TERRAIN_BOUNDARY: f32 = 1500.0; // Terrain generates 500 units beyond map boundary
 
     // Safety limits to prevent units from going to astronomical positions
     pub const MAX_POSITION: f32 = 100000.0; // Extreme position safety net (beyond map boundary)
@@ -196,8 +199,8 @@ pub mod models {
     pub const FOURMI_SCALE: f32 = 2.5;
     pub const CAIRNS_BIRDWING_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const LADYBUG_LOWPOLY_SCALE: f32 = 0.2;
-    pub const ROLY_POLY_SCALE: f32 = 0.0005; // Made smaller to fix oversized model
-    pub const DRAGONFLY_SCALE: f32 = 200.0; // Further increased for better visibility
+    pub const ROLY_POLY_SCALE: f32 = 2.5; // Standard unit scale for defensive pill bug
+    pub const DRAGONFLY_SCALE: f32 = 40.0; // Reduced 5x for proper size
     pub const WOLF_SPIDER_SCALE: f32 = 2.5;
     pub const QUEEN_FACED_BUG_SCALE: f32 = 8.0; // Increased much more for better visibility
     pub const HOUSEFLY_SCALE: f32 = 4.0; // Increased from UNIFORM_UNIT_SCALE (2.5) for better visibility
@@ -215,7 +218,7 @@ pub mod models {
     pub const GRASS_SCALE: f32 = 50.0; // Natural grass scale
     pub const GRASS_2_SCALE: f32 = 10.2; // Slightly larger grass variant
     pub const HIVE_SCALE: f32 = 0.02; // Moderate hive structure (adjusted for visibility)
-    pub const WOOD_STICK_SCALE: f32 = 1.5; // Small debris scale
+    pub const WOOD_STICK_SCALE: f32 = 10.0; // Scaled up 10x for visibility
     pub const SIMPLE_GRASS_CHUNKS_SCALE: f32 = 1.2; // Compact grass chunks (increased for visibility)
 
     // Building object scales

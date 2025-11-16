@@ -1023,7 +1023,7 @@ fn format_unit_name(unit_type: &UnitType) -> &'static str {
         UnitType::BeetleKnight => "Beetle Knight",
         UnitType::SpearMantis => "Spear Mantis",
         UnitType::ScoutAnt => "Scout Ant",
-        UnitType::DragonFly => "Dragon Fly",
+        UnitType::DragonFly => "Dragonfly 2",
         UnitType::BatteringBeetle => "Battering Beetle",
         _ => "Unit",
     }

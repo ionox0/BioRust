@@ -166,6 +166,7 @@ fn get_unit_task(
     // Check gathering state
     if let Ok(gathering_state) = gathering_state_query.get(entity) {
         match gathering_state.state {
+            GatheringStateType::Idle => return "Idle".to_string(),
             GatheringStateType::MovingToResource => return "Moving to Resource".to_string(),
             GatheringStateType::Gathering => return "Gathering Resources".to_string(),
             GatheringStateType::ReturningToBase => return "Returning to Base".to_string(),
@@ -271,7 +272,7 @@ pub fn update_tooltip_system(
                     Some(UnitType::BeetleKnight) => "Black Ox Beetle Knight",
                     Some(UnitType::SpearMantis) => "Spear Mantis",
                     Some(UnitType::ScoutAnt) => "Cairns Birdwing",
-                    Some(UnitType::DragonFly) => "Meganeura DragonFly",
+                    Some(UnitType::DragonFly) => "Dragonfly 2",
                     Some(UnitType::BatteringBeetle) => "Battering Black Ox Beetle",
                     Some(UnitType::AcidSpitter) => "Acid Spitter",
                     Some(UnitType::DefenderBug) => "Defender Bug",

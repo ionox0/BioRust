@@ -148,8 +148,8 @@ fn determine_gathering_state(
         return GatheringStateType::Gathering;
     }
     
-    // Default to moving to resource (looking for work)
-    GatheringStateType::MovingToResource
+    // No target resource - unit should be idle
+    GatheringStateType::Idle
 }
 
 /// Update building states (placeholder for now)
@@ -325,7 +325,9 @@ fn determine_animation_from_states(
             GatheringStateType::MovingToResource | GatheringStateType::ReturningToBase => {
                 return crate::rendering::animation_systems::AnimationState::Walking;
             }
-            GatheringStateType::DeliveringResources => return crate::rendering::animation_systems::AnimationState::Idle,
+            GatheringStateType::DeliveringResources | GatheringStateType::Idle => {
+                return crate::rendering::animation_systems::AnimationState::Idle;
+            }
         }
     }
     

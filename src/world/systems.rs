@@ -79,60 +79,58 @@ fn spawn_minimal_environment_objects(
         if models.models_loaded {
             info!("Spawning distributed environment objects across the map");
 
-            // Add many more resource nodes with better distribution for AI access
+            // All resources placed far from player bases - forces territorial expansion
             let object_positions = [
-                // Original positions
-                (800.0, 1200.0),   // Far northeast
-                (-1200.0, 800.0),  // Far northwest
-                (0.0, -1000.0),    // Far south
-                (1500.0, -500.0),  // Far southeast
-                (-1500.0, -300.0), // Far southwest
-                (600.0, -600.0),   // Southeast quadrant
-                (-800.0, 600.0),   // Northwest quadrant
-                (200.0, 800.0),    // North-center
-                // NEW: More resources closer to player bases for better economy
-                // Near Player 1 base (-200, 0)
-                (-150.0, 80.0),   // Northeast of Player 1 base
-                (-250.0, 100.0),  // Northwest of Player 1 base
-                (-100.0, -120.0), // Southeast of Player 1 base
-                (-300.0, -80.0),  // Southwest of Player 1 base
-                // Near Player 2 base (200, 0) - Critical for AI economy
-                (150.0, 90.0),   // Northeast of Player 2 base
-                (250.0, 110.0),  // Northwest of Player 2 base
-                (120.0, -100.0), // Southeast of Player 2 base
-                (280.0, -90.0),  // Southwest of Player 2 base
-                // Central contested area for strategic resources
-                (-50.0, 50.0),  // Northwest center
-                (50.0, 60.0),   // Northeast center
-                (-30.0, -70.0), // Southwest center
-                (40.0, -60.0),  // Southeast center
-                // Additional mid-range resources
-                (0.0, 200.0),  // North center
-                (0.0, -200.0), // South center
-                (-400.0, 0.0), // West center
-                (400.0, 0.0),  // East center
+                // Mid-range contested resources (moved out from player base areas)
+                (1500.0, 1500.0),  // Northeast quadrant
+                (-1500.0, 1500.0), // Northwest quadrant  
+                (1500.0, -1500.0), // Southeast quadrant
+                (-1500.0, -1500.0), // Southwest quadrant
+                (0.0, 1800.0),     // North contested
+                (1800.0, 0.0),     // East contested  
+                (0.0, -1800.0),    // South contested
+                (-1800.0, 0.0),    // West contested
+                // Intermediate distance resources
+                (2000.0, 1000.0),  // Northeast intermediate
+                (-2000.0, 1000.0), // Northwest intermediate
+                (2000.0, -1000.0), // Southeast intermediate  
+                (-2000.0, -1000.0), // Southwest intermediate
+                (1000.0, 2000.0),  // North intermediate
+                (-1000.0, 2000.0), // North intermediate
+                (1000.0, -2000.0), // South intermediate
+                (-1000.0, -2000.0), // South intermediate
+                // Edge resources - far from player bases at map edges
+                (-2300.0, 2300.0), // Far northwest edge
+                (2300.0, 2300.0),  // Far northeast edge
+                (-2300.0, -2300.0), // Far southwest edge
+                (2300.0, -2300.0), // Far southeast edge
+                // Additional edge resources at cardinal directions
+                (0.0, 2400.0),   // Far north edge
+                (0.0, -2400.0),  // Far south edge
+                (-2400.0, 0.0),  // Far west edge
+                (2400.0, 0.0),   // Far east edge
             ];
 
             for (i, &(x, z)) in object_positions.iter().enumerate() {
                 let position = get_terrain_position(x, z, 1.0);
                 let rotation = Quat::from_rotation_y(i as f32 * 1.2); // Slight rotation variation
 
-                // Prioritize Nectar (food) resources for better unit production, especially near AI base
-                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 6 {
-                    // 50% Nectar sources (mushrooms) for better economy
-                    0 | 1 | 2 => (
+                // More balanced resource distribution for testing
+                let (insect_model_type, env_obj_type, model_handle, object_name) = match i % 4 {
+                    // 25% Nectar sources (mushrooms)
+                    0 => (
                         InsectModelType::Mushrooms,
                         EnvironmentObjectType::Mushrooms,
                         &models.mushrooms,
                         "Mushroom Cluster",
                     ),
-                    3 => (
+                    1 => (
                         InsectModelType::RiverRock,
                         EnvironmentObjectType::Rocks,
                         &models.river_rock,
                         "Rock Formation",
                     ),
-                    4 => (
+                    2 => (
                         InsectModelType::WoodStick,
                         EnvironmentObjectType::WoodStick,
                         &models.wood_stick,

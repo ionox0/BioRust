@@ -443,7 +443,7 @@ const MODEL_DEFINITIONS: &[ModelConfig] = &[
     ModelConfig::new("hive", "models/objects/hive.glb#Scene0", "Hive structure"),
     ModelConfig::new(
         "wood_stick",
-        "models/objects/wood_stick_03.glb#Scene0",
+        "models/objects/wood_stick.glb#Scene0",
         "Wood stick debris",
     ),
     ModelConfig::new(
@@ -1190,7 +1190,7 @@ pub fn get_unit_insect_model(unit_type: &crate::core::components::UnitType) -> I
         crate::core::components::UnitType::SpearMantis => InsectModelType::QueenFacedBug, // Mantis
 
         // Special unit types with unique models
-        crate::core::components::UnitType::DragonFly => InsectModelType::Meganeura, // Ancient dragonfly
+        crate::core::components::UnitType::DragonFly => InsectModelType::DragonFly, // Dragonfly 2 model
         crate::core::components::UnitType::DefenderBug => InsectModelType::RolyPoly, // Defensive pill bug
         crate::core::components::UnitType::EliteSpider => InsectModelType::AnimatedSpider, // Predator
 

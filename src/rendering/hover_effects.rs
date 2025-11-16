@@ -78,15 +78,22 @@ pub fn hover_detection_system(
         }
     }
 
-    // Remove hover from all currently hovered entities
+    // Remove hover from all currently hovered entities (check if they still exist)
     for entity in currently_hovered.iter() {
-        commands.entity(entity).remove::<HoveredEntity>();
+        let Some(mut entity_commands) = commands.get_entity(entity) else {
+            continue;
+        };
+        entity_commands.remove::<HoveredEntity>();
     }
 
-    // Add hover to the closest entity if found
-    if let Some(entity) = closest_entity {
-        commands.entity(entity).insert(HoveredEntity);
-    }
+    // Add hover to the closest entity if found (check if it still exists)
+    let Some(entity) = closest_entity else {
+        return;
+    };
+    let Some(mut entity_commands) = commands.get_entity(entity) else {
+        return;
+    };
+    entity_commands.insert(HoveredEntity);
 }
 
 /// System to apply green hover effects to newly hovered entities
@@ -113,52 +120,62 @@ pub fn apply_hover_effects(
         );
 
         let material_count = material_updates.len();
-        if !material_updates.is_empty() {
-            // Store original materials and create hover versions
-            for (entity_to_update, original_handle) in material_updates {
-                // Store original material
-                commands.entity(entity_to_update).insert(OriginalMaterial {
-                    handle: original_handle.clone(),
-                });
-
-                // Create hover material (green tint)
-                if let Some(original_material) = materials.get(&original_handle) {
-                    let mut hover_material = original_material.clone();
-
-                    // Apply green tint (mix with existing color)
-                    let original_color = hover_material.base_color;
-
-                    // Convert to linear RGB for blending
-                    let original_linear = LinearRgba::from(original_color);
-                    let green_tint = LinearRgba::rgb(0.0, 1.0, 0.0);
-
-                    // Blend with green (70% original, 30% green)
-                    let blended = LinearRgba::rgb(
-                        original_linear.red * 0.7 + green_tint.red * 0.3,
-                        original_linear.green * 0.7 + green_tint.green * 0.3,
-                        original_linear.blue * 0.7 + green_tint.blue * 0.3,
-                    );
-
-                    hover_material.base_color = Color::from(blended);
-
-                    // Increase emissive for glow effect
-                    hover_material.emissive = LinearRgba::rgb(0.0, 0.2, 0.0);
-
-                    let hover_handle = materials.add(hover_material);
-                    commands
-                        .entity(entity_to_update)
-                        .insert(MeshMaterial3d(hover_handle));
-                }
-            }
-
-            // Mark hover effect as applied
-            commands.entity(entity).insert(HoverEffectApplied);
-
-            debug!(
-                "Applied hover effect to entity {:?} with {} materials",
-                entity, material_count
-            );
+        if material_updates.is_empty() {
+            continue;
         }
+
+        // Store original materials and create hover versions
+        for (entity_to_update, original_handle) in material_updates {
+            // Check if entity still exists before updating it
+            let Some(mut entity_commands) = commands.get_entity(entity_to_update) else {
+                continue;
+            };
+
+            // Store original material
+            entity_commands.insert(OriginalMaterial {
+                handle: original_handle.clone(),
+            });
+
+            // Create hover material (green tint)
+            let Some(original_material) = materials.get(&original_handle) else {
+                continue;
+            };
+
+            let mut hover_material = original_material.clone();
+
+            // Apply green tint (mix with existing color)
+            let original_color = hover_material.base_color;
+
+            // Convert to linear RGB for blending
+            let original_linear = LinearRgba::from(original_color);
+            let green_tint = LinearRgba::rgb(0.0, 1.0, 0.0);
+
+            // Blend with green (70% original, 30% green)
+            let blended = LinearRgba::rgb(
+                original_linear.red * 0.7 + green_tint.red * 0.3,
+                original_linear.green * 0.7 + green_tint.green * 0.3,
+                original_linear.blue * 0.7 + green_tint.blue * 0.3,
+            );
+
+            hover_material.base_color = Color::from(blended);
+
+            // Increase emissive for glow effect
+            hover_material.emissive = LinearRgba::rgb(0.0, 0.2, 0.0);
+
+            let hover_handle = materials.add(hover_material);
+            entity_commands.insert(MeshMaterial3d(hover_handle));
+        }
+
+        // Mark hover effect as applied (check if entity still exists)
+        let Some(mut entity_commands) = commands.get_entity(entity) else {
+            continue;
+        };
+        entity_commands.insert(HoverEffectApplied);
+
+        debug!(
+            "Applied hover effect to entity {:?} with {} materials",
+            entity, material_count
+        );
     }
 }
 
@@ -183,8 +200,11 @@ pub fn remove_hover_effects(
             0,
         );
 
-        // Remove hover components
-        commands.entity(entity).remove::<HoverEffectApplied>();
+        // Remove hover components (check if entity still exists)
+        let Some(mut entity_commands) = commands.get_entity(entity) else {
+            continue;
+        };
+        entity_commands.remove::<HoverEffectApplied>();
 
         debug!("Removed hover effect from entity {:?}", entity);
     }
@@ -235,8 +255,10 @@ fn restore_original_materials_recursive(
 
     // Restore material for this entity if it has one
     if let Ok(original) = original_materials.get(entity) {
-        commands
-            .entity(entity)
+        let Some(mut entity_commands) = commands.get_entity(entity) else {
+            return;
+        };
+        entity_commands
             .insert(MeshMaterial3d(original.handle.clone()))
             .remove::<OriginalMaterial>();
     }

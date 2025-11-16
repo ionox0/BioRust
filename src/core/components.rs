@@ -647,6 +647,8 @@ pub struct GatheringState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GatheringStateType {
+    /// Unit is idle, waiting for work assignment
+    Idle,
     /// Moving to a resource to start gathering
     MovingToResource,
     /// Actively gathering from a resource
@@ -660,7 +662,7 @@ pub enum GatheringStateType {
 impl Default for GatheringState {
     fn default() -> Self {
         Self {
-            state: GatheringStateType::MovingToResource,
+            state: GatheringStateType::Idle,  // Start idle, waiting for AI assignment
             target_resource: None,
             return_building: None,
             gather_start_time: 0.0,

@@ -604,7 +604,7 @@ impl EntityFactory {
                 collision_radius: crate::constants::collision::QUEEN_COLLISION_RADIUS,
                 rally_point: Some(Vec3::new(30.0, 0.0, 0.0)),
                 special_components: BuildingSpecialComponents::ProductionWithGarrison {
-                    production_time: 25.0,
+                    production_time: 8.0, // Faster worker production for RTS pacing
                     garrison_capacity: 15,
                     protection_bonus: 2.0,
                 },
@@ -617,7 +617,7 @@ impl EntityFactory {
                 collision_radius: crate::constants::collision::NURSERY_COLLISION_RADIUS,
                 rally_point: Some(Vec3::new(15.0, 0.0, 15.0)),
                 special_components: BuildingSpecialComponents::ProductionQueue {
-                    production_time: 18.0, // Faster than Queen for flying units
+                    production_time: 6.0, // Fast flying unit production
                 },
             },
             BuildingType::WarriorChamber => BuildingStats {
@@ -628,7 +628,7 @@ impl EntityFactory {
                 collision_radius: crate::constants::collision::WARRIOR_CHAMBER_COLLISION_RADIUS,
                 rally_point: Some(Vec3::new(20.0, 0.0, 0.0)),
                 special_components: BuildingSpecialComponents::ProductionQueue {
-                    production_time: 21.0,
+                    production_time: 10.0, // Faster military unit production
                 },
             },
             // Default case
